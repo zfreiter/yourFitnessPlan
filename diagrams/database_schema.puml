@@ -1,0 +1,90 @@
+@startuml Database Schema
+
+!define table(x) class x << (T,#FFAAAA) >>
+!define primary_key(x) <u>x</u>
+!define foreign_key(x) #x#
+
+' Main tables
+table(exercises) {
+    primary_key(id): INTEGER
+    name: TEXT
+    description: TEXT
+    difficulty: TEXT
+    no_weight: INTEGER
+}
+
+table(workouts) {
+    primary_key(id): INTEGER
+    name: TEXT
+    description: TEXT
+    type: TEXT
+    date: TEXT
+    time: TEXT
+    duration: INTEGER
+    is_completed: INTEGER
+}
+
+' Exercise related tables
+table(exercise_types) {
+    primary_key(id): INTEGER
+    foreign_key(exercise_id): INTEGER
+    type: TEXT
+}
+
+table(exercise_muscles) {
+    primary_key(id): INTEGER
+    foreign_key(exercise_id): INTEGER
+    muscle: TEXT
+}
+
+table(exercise_equipment) {
+    primary_key(id): INTEGER
+    foreign_key(exercise_id): INTEGER
+    equipment: TEXT
+}
+
+table(exercise_valid_units) {
+    primary_key(id): INTEGER
+    unit: TEXT
+}
+
+table(exercise_unit_combinations) {
+    primary_key(id): INTEGER
+    foreign_key(exercise_id): INTEGER
+    unit_combination: TEXT
+}
+
+' Workout related tables
+table(workout_exercises) {
+    primary_key(id): INTEGER
+    foreign_key(workout_id): INTEGER
+    foreign_key(exercise_id): INTEGER
+    exercise_name: TEXT
+    chosen_unit_combination: TEXT
+    track_reps: INTEGER
+    track_weight: INTEGER
+    track_time: INTEGER
+    track_distance: INTEGER
+}
+
+table(exercise_sets) {
+    primary_key(id): INTEGER
+    foreign_key(workout_exercise_id): INTEGER
+    reps: INTEGER
+    weight: REAL
+    time: INTEGER
+    distance: REAL
+}
+
+' Relationships
+exercises "1" -- "0..*" exercise_types
+exercises "1" -- "0..*" exercise_muscles
+exercises "1" -- "0..*" exercise_equipment
+exercises "1" -- "0..*" exercise_unit_combinations
+
+workouts "1" -- "0..*" workout_exercises
+exercises "1" -- "0..*" workout_exercises
+
+workout_exercises "1" -- "0..*" exercise_sets
+
+@enduml 

@@ -1,0 +1,372 @@
+import { Workout } from "@/types/interfaces/types";
+
+export const workouts: Workout[] = [
+  {
+    id: "workout-1",
+    name: "Push Day",
+    description: "A workout focused on chest, shoulders, and triceps.",
+    type: "strength",
+    date: "2025-05-01",
+    time: "08:00 AM", // Added time
+    duration: 3600, // 1 hour
+    exercises: [
+      {
+        exercise: {
+          id: "1",
+          name: "Bench Press",
+          description:
+            "A compound exercise targeting the chest, shoulders, and triceps.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["chest", "triceps", "shoulders"],
+          equipment: ["barbell", "bench"],
+          difficulty: "intermediate",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 8, weight: 80 },
+          { reps: 8, weight: 90 },
+          { reps: 6, weight: 100 },
+        ],
+      },
+      {
+        exercise: {
+          id: "5",
+          name: "Overhead Press",
+          description:
+            "A compound exercise targeting the shoulders and triceps.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["shoulders", "triceps"],
+          equipment: ["barbell", "dumbbell"],
+          difficulty: "intermediate",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 8, weight: 40 },
+          { reps: 8, weight: 50 },
+          { reps: 6, weight: 60 },
+        ],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-2",
+    name: "Pull Day",
+    description: "A workout focused on back and biceps.",
+    type: "strength",
+    date: "2025-05-02",
+    time: "09:00 AM", // Added time
+    duration: 3600,
+    exercises: [
+      {
+        exercise: {
+          id: "4",
+          name: "Pull-Ups",
+          description: "An exercise targeting the back and biceps.",
+          types: ["strength"],
+          validUnits: [["reps"]],
+          musclesTargeted: ["back", "biceps"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["reps"],
+        sets: [{ reps: 10 }, { reps: 8 }, { reps: 6 }],
+      },
+      {
+        exercise: {
+          id: "12",
+          name: "Dumbbell Rows",
+          description: "An exercise targeting the back and biceps.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["back", "biceps"],
+          equipment: ["dumbbell"],
+          difficulty: "intermediate",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 10, weight: 20 },
+          { reps: 8, weight: 25 },
+          { reps: 6, weight: 30 },
+        ],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-3",
+    name: "Leg Day",
+    description: "A workout focused on lower body strength.",
+    type: "strength",
+    date: "2025-05-03",
+    time: "07:30 AM", // Added time
+    duration: 3600,
+    exercises: [
+      {
+        exercise: {
+          id: "3",
+          name: "Squat",
+          description: "A compound exercise targeting the lower body.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["quads", "glutes", "hamstrings"],
+          equipment: ["barbell"],
+          difficulty: "intermediate",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 10, weight: 60 },
+          { reps: 8, weight: 80 },
+          { reps: 6, weight: 100 },
+        ],
+      },
+      {
+        exercise: {
+          id: "6",
+          name: "Lunges",
+          description: "An exercise targeting the lower body.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["quads", "glutes"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 12, weight: 20 },
+          { reps: 12, weight: 25 },
+          { reps: 10, weight: 30 },
+        ],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-4",
+    name: "Cardio Blast",
+    description: "A high-intensity cardio workout.",
+    type: "cardio",
+    date: "2025-05-04",
+    time: "06:00 PM", // Added time
+    duration: 1800, // 30 minutes
+    exercises: [
+      {
+        exercise: {
+          id: "9",
+          name: "Burpees",
+          description:
+            "A high-intensity exercise targeting the cardiovascular system.",
+          types: ["cardio"],
+          validUnits: [["reps"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["reps"],
+        sets: [{ reps: 15 }, { reps: 12 }, { reps: 10 }],
+      },
+      {
+        exercise: {
+          id: "14",
+          name: "Mountain Climbers",
+          description: "An exercise targeting the cardiovascular system.",
+          types: ["cardio"],
+          validUnits: [["reps"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["reps"],
+        sets: [{ reps: 20 }, { reps: 18 }, { reps: 15 }],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-5",
+    name: "Core Strength",
+    description: "A workout focused on core stability and strength.",
+    type: "mobility",
+    date: "2025-05-05",
+    time: "10:00 AM", // Added time
+    duration: 1800,
+    exercises: [
+      {
+        exercise: {
+          id: "8",
+          name: "Plank",
+          description: "An exercise targeting the core muscles.",
+          types: ["mobility"],
+          validUnits: [["time"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["time"],
+        sets: [{ time: 60 }, { time: 90 }, { time: 120 }],
+      },
+      {
+        exercise: {
+          id: "14",
+          name: "Mountain Climbers",
+          description: "An exercise targeting the cardiovascular system.",
+          types: ["cardio"],
+          validUnits: [["reps"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["reps"],
+        sets: [{ reps: 20 }, { reps: 18 }, { reps: 15 }],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-6",
+    name: "Upper Body Strength",
+    description: "A workout focused on building upper body strength.",
+    type: "strength",
+    date: "2025-05-23",
+    time: "08:00 AM",
+    duration: 3600, // 1 hour
+    exercises: [
+      {
+        exercise: {
+          id: "2",
+          name: "Deadlift",
+          description: "A compound exercise targeting the lower body and back.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["lower body", "back"],
+          equipment: ["barbell"],
+          difficulty: "intermediate",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 8, weight: 100 },
+          { reps: 6, weight: 120 },
+          { reps: 4, weight: 140 },
+        ],
+      },
+      {
+        exercise: {
+          id: "7",
+          name: "Bicep Curls",
+          description: "An exercise targeting the biceps.",
+          types: ["strength"],
+          validUnits: [["reps", "weight"]],
+          musclesTargeted: ["biceps"],
+          equipment: ["dumbbell"],
+          difficulty: "beginner",
+          noWeight: false,
+        },
+        chosenUnitCombination: ["reps", "weight"],
+        sets: [
+          { reps: 12, weight: 15 },
+          { reps: 10, weight: 20 },
+          { reps: 8, weight: 25 },
+        ],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-7",
+    name: "Endurance Cardio",
+    description: "A workout focused on improving cardiovascular endurance.",
+    type: "cardio",
+    date: "2025-05-23",
+    time: "10:00 AM",
+    duration: 1800, // 30 minutes
+    exercises: [
+      {
+        exercise: {
+          id: "32",
+          name: "Jump Rope",
+          description: "An exercise targeting the cardiovascular system.",
+          types: ["cardio"],
+          validUnits: [["time"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["time"],
+        sets: [{ time: 120 }, { time: 150 }, { time: 180 }],
+      },
+      {
+        exercise: {
+          id: "28",
+          name: "Box Jumps",
+          description: "An exercise targeting the cardiovascular system.",
+          types: ["cardio"],
+          validUnits: [["reps"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["reps"],
+        sets: [{ reps: 15 }, { reps: 12 }, { reps: 10 }],
+      },
+    ],
+    isCompleted: false,
+  },
+  {
+    id: "workout-8",
+    name: "Flexibility and Core",
+    description:
+      "A workout focused on improving flexibility and core strength.",
+    type: "mobility",
+    date: "2025-05-23",
+    time: "06:00 PM",
+    duration: 1800, // 30 minutes
+    exercises: [
+      {
+        exercise: {
+          id: "23",
+          name: "Side Plank",
+          description: "An exercise targeting the core muscles.",
+          types: ["mobility"],
+          validUnits: [["time"]],
+          musclesTargeted: ["whole body"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["time"],
+        sets: [{ time: 30 }, { time: 45 }, { time: 60 }],
+      },
+      {
+        exercise: {
+          id: "27",
+          name: "Glute Bridge",
+          description: "An exercise targeting the glutes.",
+          types: ["mobility"],
+          validUnits: [["reps"]],
+          musclesTargeted: ["glutes"],
+          equipment: ["bodyweight"],
+          difficulty: "beginner",
+          noWeight: true,
+        },
+        chosenUnitCombination: ["reps"],
+        sets: [{ reps: 15 }, { reps: 15 }, { reps: 12 }],
+      },
+    ],
+    isCompleted: false,
+  },
+];

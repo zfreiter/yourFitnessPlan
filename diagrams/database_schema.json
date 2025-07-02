@@ -1,0 +1,126 @@
+{
+  "tables": [
+    {
+      "name": "exercises",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        { "name": "name", "type": "TEXT" },
+        { "name": "description", "type": "TEXT" },
+        { "name": "difficulty", "type": "TEXT" },
+        { "name": "no_weight", "type": "INTEGER" }
+      ]
+    },
+    {
+      "name": "workouts",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        { "name": "name", "type": "TEXT" },
+        { "name": "description", "type": "TEXT" },
+        { "name": "type", "type": "TEXT" },
+        { "name": "date", "type": "TEXT" },
+        { "name": "time", "type": "TEXT" },
+        { "name": "duration", "type": "INTEGER" },
+        { "name": "is_completed", "type": "INTEGER" }
+      ]
+    },
+    {
+      "name": "exercise_types",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        {
+          "name": "exercise_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "exercises.id"
+        },
+        { "name": "type", "type": "TEXT" }
+      ]
+    },
+    {
+      "name": "exercise_muscles",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        {
+          "name": "exercise_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "exercises.id"
+        },
+        { "name": "muscle", "type": "TEXT" }
+      ]
+    },
+    {
+      "name": "exercise_equipment",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        {
+          "name": "exercise_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "exercises.id"
+        },
+        { "name": "equipment", "type": "TEXT" }
+      ]
+    },
+    {
+      "name": "exercise_valid_units",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        { "name": "unit", "type": "TEXT" }
+      ]
+    },
+    {
+      "name": "exercise_unit_combinations",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        {
+          "name": "exercise_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "exercises.id"
+        },
+        { "name": "unit_combination", "type": "TEXT" }
+      ]
+    },
+    {
+      "name": "workout_exercises",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        {
+          "name": "workout_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "workouts.id"
+        },
+        {
+          "name": "exercise_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "exercises.id"
+        },
+        { "name": "exercise_name", "type": "TEXT" },
+        { "name": "chosen_unit_combination", "type": "TEXT" },
+        { "name": "track_reps", "type": "INTEGER" },
+        { "name": "track_weight", "type": "INTEGER" },
+        { "name": "track_time", "type": "INTEGER" },
+        { "name": "track_distance", "type": "INTEGER" }
+      ]
+    },
+    {
+      "name": "exercise_sets",
+      "fields": [
+        { "name": "id", "type": "INTEGER", "key": "PK" },
+        {
+          "name": "workout_exercise_id",
+          "type": "INTEGER",
+          "key": "FK",
+          "references": "workout_exercises.id"
+        },
+        { "name": "reps", "type": "INTEGER" },
+        { "name": "weight", "type": "REAL" },
+        { "name": "time", "type": "INTEGER" },
+        { "name": "distance", "type": "REAL" }
+      ]
+    }
+  ]
+}
