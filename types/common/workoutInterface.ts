@@ -12,6 +12,7 @@ export interface BaseExerciseSet {
   weight?: number;
   duration?: number;
   distance?: number;
+  set_order: number;
 }
 
 export interface BaseWorkoutExercise {
@@ -27,6 +28,7 @@ export interface BaseWorkoutExercise {
   musclesTargeted?: string[];
   equipment?: string[];
   sets: BaseExerciseSet[];
+  exercise_order: number;
 }
 
 export interface BaseWorkout {
@@ -45,7 +47,9 @@ export interface ExerciseSet extends BaseExerciseSet {
 }
 
 export interface Exercise extends BaseWorkoutExercise {
+  id: number;
   exercise_id: number;
+  workout_id: number; // Add this field to link exercise to workout
   sets: ExerciseSet[];
 }
 

@@ -7,6 +7,7 @@ export interface ExerciseSet {
   weight?: number;
   time?: number;
   distance?: number;
+  set_order?: number;
 }
 
 export const setService = {
@@ -66,8 +67,8 @@ export const setService = {
   ): Promise<number> => {
     const result = await db.runAsync(
       `
-      INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
+      VALUES (?, ?, ?, ?, ?, ?)
     `,
       [
         set.workout_exercise_id,
@@ -75,6 +76,7 @@ export const setService = {
         set.weight ?? null,
         set.time ?? null,
         set.distance ?? null,
+        set.set_order ?? null,
       ]
     );
     return result.lastInsertRowId;

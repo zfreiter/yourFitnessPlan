@@ -1,33 +1,51 @@
 import { Exercise, ExerciseSet } from "@/types/type";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, TextInput } from "react-native";
 import { useEffect, useState } from "react";
 
-export default function ExerciseCard({ exercise }: { exercise: Exercise }) {
+// The exercise card is used to display the exercise and the sets
+// It is used to modify the exercise and the sets
+// ONLY delete or add a set to the end of the list
+// TODO: add a button to delete the exercise
+// TODO: add a button to add a set
+// ?? Should I allow a user to change the order of the sets?
+// ?? Should I allow a user to change the chosen unit combination?
+export default function ExerciseCard({
+  exercise,
+  isActive,
+}: {
+  exercise: Exercise;
+  isActive: boolean;
+}) {
   //console.log("exercise in ExerciseCard", exercise);
   const [sets, setSets] = useState<ExerciseSet[]>([]);
   useEffect(() => {
     setSets(exercise.sets);
   }, [exercise]);
-  //console.log("sets in ExerciseCard", sets);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.ExerciseCardContainer, isActive && styles.activeItem]}>
       <Text>{exercise.exercise_name}</Text>
-      {sets.map((set) => (
-        <SetCard
-          key={set.id}
-          set={set}
-          options={{
-            track_reps: exercise.track_reps,
-            track_weight: exercise.track_weight,
-            track_time: exercise.track_time,
-            track_distance: exercise.track_distance,
-          }}
-        />
-      ))}
+      <View style={styles.SetCardContainer}>
+        {sets.map((set) => (
+          <SetCard
+            key={set.id}
+            set={set}
+            options={{
+              track_reps: exercise.track_reps,
+              track_weight: exercise.track_weight,
+              track_time: exercise.track_time,
+              track_distance: exercise.track_distance,
+            }}
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
+// SetCard is used to display the set and the options
+// It is used to modify the set and the options
+// TODO: update the set values when the user changes the values in real time
 function SetCard({
   set,
   options,
@@ -40,26 +58,122 @@ function SetCard({
     track_distance: number;
   };
 }) {
-  console.log("set in SetCard", set, options);
+  const [values, setValues] = useState({
+    reps: set.reps,
+    weight: set.weight,
+    duration: set.duration,
+    distance: set.distance,
+  });
+
   return (
-    <View style={styles.setContainer}>
-      <Text>Set {set.id}</Text>
-      {options.track_reps && <Text>Reps: {set.reps || 0}</Text>}
-      {options.track_weight && <Text>Weight: {set.weight || 0}</Text>}
-      {options.track_time && <Text>Time: {set.duration || 0}</Text>}
-      {options.track_distance && <Text>Distance: {set.distance || 0}</Text>}
+    <View style={styles.SetCardInputContainer}>
+      <Text>Set {set.set_order}</Text>
+      <View style={styles.SetCardInputOptionsContainer}>
+        {options.track_reps === 1 && (
+          <View style={styles.inputContainer}>
+            <Text style={styles.SetCardInputLabel}>Reps</Text>
+            <TextInput
+              style={styles.SetCardInput}
+              value={values.reps?.toString() || ""}
+              onChangeText={(text) =>
+                setValues({ ...values, reps: parseInt(text) })
+              }
+            />
+          </View>
+        )}
+        {options.track_reps === 1 && options.track_weight === 1 && (
+          <Text style={{ bottom: -10, fontSize: 20 }}>x</Text>
+        )}
+        {options.track_weight === 1 && (
+          <View style={styles.inputContainer}>
+            <Text style={styles.SetCardInputLabel}>wt.</Text>
+            <TextInput
+              style={styles.SetCardInput}
+              value={values.weight?.toString() || ""}
+              onChangeText={(text) =>
+                setValues({ ...values, weight: parseInt(text) })
+              }
+            />
+          </View>
+        )}
+        {options.track_time === 1 && (
+          <View style={styles.inputContainer}>
+            <Text style={styles.SetCardInputLabel}>Time</Text>
+            <TextInput
+              style={styles.SetCardInput}
+              value={values.duration?.toString() || ""}
+              onChangeText={(text) =>
+                setValues({ ...values, duration: parseInt(text) })
+              }
+            />
+          </View>
+        )}
+        {options.track_distance === 1 && (
+          <View style={styles.inputContainer}>
+            <Text style={styles.SetCardInputLabel}>Dist.</Text>
+            <TextInput
+              style={styles.SetCardInput}
+              value={values.distance?.toString() || ""}
+              onChangeText={(text) =>
+                setValues({ ...values, distance: parseInt(text) })
+              }
+            />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 const styles = StyleSheet.create({
-  container: {
+  ExerciseCardContainer: {
     padding: 10,
     borderWidth: 1,
     borderColor: "black",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    minHeight: 60, // Ensure minimum height to prevent layout issues
+    flex: 1,
   },
-  setContainer: {
-    padding: 10,
+  SetCardContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 5,
+    paddingTop: 10,
+    alignItems: "flex-start", // Ensure proper alignment
+  },
+  SetCardInputOptionsContainer: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 3,
+    paddingTop: 0,
+    alignItems: "center", // Ensure proper alignment
+  },
+  SetCardInputContainer: {
+    padding: 5,
     borderWidth: 1,
     borderColor: "black",
+    backgroundColor: "white",
+    borderRadius: 5,
+    minWidth: 50, // Ensure minimum width for proper layout
+  },
+  SetCardInput: {
+    width: 45,
+    textAlign: "right",
+    borderWidth: 1,
+    borderColor: "black",
+    borderRadius: 5,
+    padding: 5,
+    backgroundColor: "white",
+  },
+  SetCardInputLabel: {
+    width: 45,
+    textAlign: "left",
+  },
+  activeItem: {
+    borderColor: "blue",
+  },
+  inputContainer: {
+    flexDirection: "column",
+    paddingTop: 0,
   },
 });

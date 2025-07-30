@@ -11,6 +11,7 @@ import {
   Exercise,
   CreateWorkoutForm,
   BaseWorkout,
+  ExerciseFormData,
 } from "@/types/type";
 
 // Interface for raw database row (used in old approach)
@@ -23,6 +24,7 @@ interface WorkoutRow {
   time: string;
   duration: number;
   is_completed: number;
+  workout_exercise_id: number; // Add this field
   exercise_id: number;
   exercise_name: string;
   track_reps: number;
@@ -37,6 +39,8 @@ interface WorkoutRow {
   set_duration?: number;
   distance?: number;
   valid_units?: string;
+  exercise_order?: number; // <-- add this line
+  set_order?: number; // <-- add this line for set ordering
 }
 
 // Interface for workout rows from workouts table
@@ -62,6 +66,7 @@ interface ExerciseRow {
   track_weight: number;
   track_time: number;
   track_distance: number;
+  exercise_order: number;
   exercise_description?: string;
   exercise_difficulty?: string;
 }
@@ -74,6 +79,7 @@ interface SetRow {
   weight: number;
   time: number;
   distance: number;
+  set_order: number;
 }
 
 // Helper function to transform database results
@@ -86,9 +92,11 @@ const transformWorkout = (rows: WorkoutRow[]): Workout | null => {
   rows.forEach((row) => {
     if (!row.exercise_id) return; // Skip if no exercise
 
-    if (!exercisesMap.has(row.exercise_id)) {
-      exercisesMap.set(row.exercise_id, {
+    if (!exercisesMap.has(row.workout_exercise_id)) {
+      exercisesMap.set(row.workout_exercise_id, {
+        id: row.workout_exercise_id, // Use workout_exercise_id instead of row.id
         exercise_id: row.exercise_id,
+        workout_id: row.id, // Add workout_id from the workout row
         exercise_name: row.exercise_name,
         exercise_description: row.exercise_description,
         exercise_difficulty: row.exercise_difficulty as Difficulty,
@@ -104,17 +112,19 @@ const transformWorkout = (rows: WorkoutRow[]): Workout | null => {
               )
           : [],
         sets: [],
+        exercise_order: row.exercise_order ?? 0, // <-- add this line
       });
     }
 
     if (row.set_id) {
-      const exercise = exercisesMap.get(row.exercise_id)!;
+      const exercise = exercisesMap.get(row.workout_exercise_id)!;
       exercise.sets.push({
         id: row.set_id,
         reps: row.reps,
         weight: row.weight,
         duration: row.set_duration,
         distance: row.distance,
+        set_order: row.set_order!,
       });
     }
   });
@@ -141,12 +151,14 @@ export const workoutService = {
       const workouts = await db.getAllAsync<WorkoutRow>(`
         SELECT 
           w.*,
+          we.id as workout_exercise_id,
           we.exercise_id,
           we.exercise_name,
           we.track_reps,
           we.track_weight,
           we.track_time,
           we.track_distance,
+          we.exercise_order as exercise_order,
           e.description as exercise_description,
           e.difficulty as exercise_difficulty,
           es.id as set_id,
@@ -154,6 +166,7 @@ export const workoutService = {
           es.weight,
           es.time as set_duration,
           es.distance,
+          es.set_order,
           GROUP_CONCAT(euc.unit_combination) as valid_units
         FROM workouts w
         LEFT JOIN workout_exercises we ON w.id = we.workout_id
@@ -226,7 +239,9 @@ export const workoutService = {
           );
 
           return {
+            id: exerciseRow.id,
             exercise_id: exerciseRow.exercise_id,
+            workout_id: id, // Add workout_id from the function parameter
             exercise_name: exerciseRow.exercise_name,
             exercise_description: exerciseRow.exercise_description,
             exercise_difficulty: exerciseRow.exercise_difficulty as Difficulty,
@@ -247,7 +262,9 @@ export const workoutService = {
               weight: set.weight,
               duration: set.time,
               distance: set.distance,
+              set_order: set.set_order,
             })),
+            exercise_order: exerciseRow.exercise_order, // <-- add this line
           };
         })
       );
@@ -306,7 +323,9 @@ export const workoutService = {
               );
 
               return {
+                id: exerciseRow.id,
                 exercise_id: exerciseRow.exercise_id,
+                workout_id: workout.id, // Add workout_id from the workout object
                 exercise_name: exerciseRow.exercise_name,
                 exercise_description: exerciseRow.exercise_description,
                 exercise_difficulty:
@@ -328,7 +347,9 @@ export const workoutService = {
                   weight: set.weight,
                   duration: set.time,
                   distance: set.distance,
+                  set_order: set.set_order,
                 })),
+                exercise_order: exerciseRow.exercise_order, // <-- add this line
               };
             })
           );
@@ -395,11 +416,6 @@ export const workoutService = {
     db: SQLite.SQLiteDatabase,
     createWorkout: CreateWorkoutForm
   ): Promise<{ success: boolean; data?: Workout | null; error?: string }> => {
-    // console.log(
-    //   "createWorkout in insertWorkout",
-    //   createWorkout,
-    //   JSON.stringify(createWorkout.exercises[0], null, 2)
-    // );
     try {
       const {
         exercises,
@@ -411,7 +427,7 @@ export const workoutService = {
         duration,
         isCompleted,
       } = createWorkout;
-      //console.log("data in insertWorkout", date, time);
+
       let insertedWorkoutId: number = 0;
 
       await db.withTransactionAsync(async () => {
@@ -451,8 +467,8 @@ export const workoutService = {
           // insert workout_exercises part
           const workoutExerciseId = await db.runAsync(
             `
-          INSERT INTO workout_exercises (workout_id, exercise_id, exercise_name, chosen_unit_combination, track_reps, track_weight, track_time, track_distance)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO workout_exercises (workout_id, exercise_id, exercise_name, chosen_unit_combination, track_reps, track_weight, track_time, track_distance, exercise_order)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
             [
               insertedWorkoutId,
@@ -463,6 +479,7 @@ export const workoutService = {
               track_weight ? 1 : 0,
               track_time ? 1 : 0,
               track_distance ? 1 : 0,
+              exercises.indexOf(workoutExercise) + 1,
             ]
           );
 
@@ -470,17 +487,17 @@ export const workoutService = {
           for (const set of sets) {
             const { reps = 0, weight = 0, duration = 0, distance = 0 } = set;
             const setId = await db.runAsync(
-              `INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance)
-               VALUES (?, ?, ?, ?, ?)`,
+              `INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
+               VALUES (?, ?, ?, ?, ?, ?)`,
               [
                 workoutExerciseId.lastInsertRowId,
                 reps,
                 weight,
                 duration,
                 distance,
+                sets.indexOf(set) + 1,
               ]
             );
-            // console.log("setId in insertWorkout", setId);
           }
         }
       });
@@ -506,6 +523,142 @@ export const workoutService = {
         error:
           error instanceof Error ? error.message : "Failed to insert workout",
       };
+    }
+  },
+  updateWorkoutNewExercise: async (
+    db: SQLite.SQLiteDatabase,
+    workoutId: number,
+    exercise: ExerciseFormData
+  ): Promise<{ success: boolean; data?: Exercise | null; error?: string }> => {
+    try {
+      // Check if the workout exists
+      const foundWorkoutId = await db.getFirstAsync<WorkoutDataRow>(
+        `SELECT id FROM workouts WHERE id = ?`,
+        [workoutId]
+      );
+      if (!foundWorkoutId) {
+        return { success: false, error: "Workout not found" };
+      }
+
+      // Check if the exercise exists
+      const foundExerciseId = await db.getFirstAsync<ExerciseRow>(
+        `SELECT id FROM workout_exercises WHERE exercise_id = ?`,
+        [exercise.exercise_id]
+      );
+      if (!foundExerciseId) {
+        return { success: false, error: "Exercise not found" };
+      }
+
+      // create the new workout_exercises row
+      let newWorkoutExerciseIdResult: number = -1;
+      let newExerciseSetsIds: number[] = [];
+      let newWorkoutExercise: ExerciseRow | null = null;
+      let newExerciseSets: SetRow[] = [];
+      // create the new workout_exercises row
+      await db.withExclusiveTransactionAsync(async () => {
+        const newWorkoutExerciseId = await db.runAsync(
+          `INSERT INTO workout_exercises (workout_id, exercise_id, exercise_name, chosen_unit_combination, track_reps, track_weight, track_time, track_distance, exercise_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            workoutId,
+            exercise.exercise_id,
+            exercise.exercise_name,
+            exercise.validUnits?.join(",") || "",
+            exercise.track_reps ? 1 : 0,
+            exercise.track_weight ? 1 : 0,
+            exercise.track_time ? 1 : 0,
+            exercise.track_distance ? 1 : 0,
+            exercise.exercise_order ?? 1,
+          ]
+        );
+        newWorkoutExerciseIdResult = newWorkoutExerciseId.lastInsertRowId;
+        // create the new exercise_sets rows
+        for (const set of exercise.sets) {
+          const { reps, weight, duration, distance } = set;
+          const newExerciseSetId = await db.runAsync(
+            `INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              newWorkoutExerciseId.lastInsertRowId,
+              reps ?? null,
+              weight ?? null,
+              duration ?? null,
+              distance ?? null,
+              exercise.sets.indexOf(set) + 1,
+            ]
+          );
+          newExerciseSetsIds.push(newExerciseSetId.lastInsertRowId);
+        }
+      });
+
+      // get the new workout_exercise and exercise_sets rows to return
+      if (!newWorkoutExerciseIdResult) {
+        return { success: false, error: "Failed to insert workout exercise" };
+      }
+      newWorkoutExercise = await db.getFirstAsync<ExerciseRow>(
+        `SELECT * FROM workout_exercises WHERE id = ?`,
+        [newWorkoutExerciseIdResult as number]
+      );
+
+      newExerciseSets = await db.getAllAsync<SetRow>(
+        `SELECT * FROM exercise_sets WHERE workout_exercise_id = ?`,
+        [newWorkoutExerciseIdResult as number]
+      );
+
+      const newExercise = {
+        id: newWorkoutExercise?.id!,
+        exercise_id: newWorkoutExercise?.exercise_id!,
+        workout_id: workoutId, // Add workout_id from the function parameter
+        exercise_name: newWorkoutExercise?.exercise_name || "",
+        exercise_description: newWorkoutExercise?.exercise_description || "",
+        exercise_difficulty:
+          newWorkoutExercise?.exercise_difficulty as Difficulty,
+        track_reps: newWorkoutExercise?.track_reps || 0,
+        track_weight: newWorkoutExercise?.track_weight || 0,
+        track_time: newWorkoutExercise?.track_time || 0,
+        track_distance: newWorkoutExercise?.track_distance || 0,
+        validUnits: newWorkoutExercise?.chosen_unit_combination
+          ? newWorkoutExercise.chosen_unit_combination
+              .split(",")
+              .map((units) =>
+                units.split("+").map((unit) => unit.trim() as ValidUnit)
+              )
+          : [],
+        sets: newExerciseSets.map((set) => ({
+          id: set.id,
+          reps: set.reps,
+          weight: set.weight,
+          time: set.time,
+          distance: set.distance,
+          set_order: set.set_order, // <-- add this line
+        })),
+        exercise_order: newWorkoutExercise?.exercise_order ?? 0, // <-- add this line
+      };
+
+      return { success: true, data: newExercise };
+    } catch (error) {
+      console.error("Error updating workout with new exercise:", error);
+      return { success: false, error: "Failed to update workout" };
+    }
+  },
+  updateExerciseOrder: async (
+    db: SQLite.SQLiteDatabase,
+    exerciseIds: { id: number; newOrder: number }[]
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // update the exercise order in the database
+      await db.withExclusiveTransactionAsync(async () => {
+        for (const exercise of exerciseIds) {
+          await db.runAsync(
+            `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
+            [exercise.newOrder, exercise.id]
+          );
+        }
+      });
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating exercise order:", error);
+      return { success: false, error: "Failed to update exercise order" };
     }
   },
 };

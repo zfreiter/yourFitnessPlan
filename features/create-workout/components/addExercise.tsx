@@ -93,6 +93,7 @@ export function AddExercise({
         track_time: data.track_time,
         track_distance: data.track_distance,
         sets: data.sets,
+        exercise_order: 0,
       };
       //console.log("newExercise", data.exercise_description);
       methods.setValue("exercises", [...currentExerciseList, newExercise]);
@@ -206,6 +207,7 @@ export function AddExercise({
       weight: undefined,
       duration: undefined,
       distance: undefined,
+      set_order: 0,
     });
   }, [append]);
 

@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS workout_exercises (
     track_weight INTEGER DEFAULT 0,
     track_time INTEGER DEFAULT 0,
     track_distance INTEGER DEFAULT 0,
+    exercise_order INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (workout_id) REFERENCES workouts(id),
     FOREIGN KEY (exercise_id) REFERENCES exercises(id)
 );
@@ -87,6 +88,7 @@ CREATE TABLE IF NOT EXISTS exercise_sets (
     weight REAL,
     time INTEGER,
     distance REAL,
+    set_order INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (workout_exercise_id) REFERENCES workout_exercises(id)
 );
 `;

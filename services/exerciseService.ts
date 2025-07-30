@@ -39,7 +39,9 @@ export const exerciseService: ExerciseService = {
   // parse exercises from db to Exercise[]
   getParsedExercises: (exercises: ExerciseRow[]): Exercise[] => {
     return exercises.map((exercise) => ({
+      id: exercise.id,
       exercise_id: exercise.id,
+      workout_id: 0, // Template exercises don't belong to a specific workout
       exercise_name: exercise.name,
       exercise_description: exercise.description,
       exercise_difficulty: exercise.difficulty as Difficulty,
@@ -53,12 +55,15 @@ export const exerciseService: ExerciseService = {
             .map((combo) => combo.split("||") as ValidUnit[])
         : [],
       sets: [],
+      exercise_order: 0,
     }));
   },
 
   getParsedExerciseById: (exercise: ExerciseRow): Exercise => {
     return {
+      id: exercise.id,
       exercise_id: exercise.id,
+      workout_id: 0, // Template exercises don't belong to a specific workout
       exercise_name: exercise.name,
       exercise_description: exercise.description,
       exercise_difficulty: exercise.difficulty as Difficulty,
@@ -72,6 +77,7 @@ export const exerciseService: ExerciseService = {
             .map((combo) => combo.split("||") as ValidUnit[])
         : [],
       sets: [],
+      exercise_order: 0,
     };
   },
 

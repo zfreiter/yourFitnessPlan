@@ -17,11 +17,12 @@ import {
 } from "react-hook-form";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { Picker } from "@react-native-picker/picker";
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction, useState, memo, useCallback } from "react";
 import { WorkoutUpdateFormValues } from "@/features/create-workout/types/type";
 import AddExercise from "./addExercise";
 import { AppButton } from "@/components/button";
 import ExerciseCard from "./exerciseCard";
+import ReorderableExerciseList from "./reorderableExerciseList";
 
 export default function ActiveWorkoutSession({
   workout,
@@ -31,8 +32,14 @@ export default function ActiveWorkoutSession({
   //console.log("workout in ActiveWorkoutSession", workout);
   const methods = useForm<WorkoutUpdateFormValues>({
     defaultValues: {
-      ...workout,
+      id: workout.id,
+      name: workout.name,
+      description: workout.description,
+      type: workout.workoutType,
       date: new Date(workout.date + " " + workout.time),
+      duration: workout.duration,
+      exercises: workout.exercises,
+      isCompleted: workout.isCompleted,
     },
   });
 
@@ -55,117 +62,163 @@ export default function ActiveWorkoutSession({
     name: "exercises",
   });
 
-  return (
-    <FormProvider {...methods}>
-      <WorkoutTypePicker
-        setWorkoutType={setWorkoutType}
-        items={["Select workout", "strength", "cardio", "mobility", "circuit"]}
-        name="type"
-        workoutType={workoutType}
-      />
-
-      <AppButton
-        title="Add exercise"
-        onPress={() => setShowExerciseModal(true)}
-      />
-
-      {getValues().exercises.map((exercise: Exercise) => (
-        <ExerciseCard key={exercise.exercise_id} exercise={exercise} />
-      ))}
-
-      <Modal
-        animationType="slide"
-        transparent={false}
-        visible={showExerciseModal}
-        onRequestClose={() => {
-          setShowExerciseModal(!showExerciseModal);
-        }}
-      >
-        <AddExercise setShowExerciseModal={setShowExerciseModal} />
-      </Modal>
-      <Pressable
-        style={({ pressed }) => [
-          {
-            backgroundColor: pressed ? "gray" : "white",
-          },
-          styles.button,
-        ]}
-        onPress={openDatePicker}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 5,
-            justifyContent: "space-between",
-            alignItems: "center",
+  // Memoized header component
+  const MyListHeaderComponent = memo(function MyListHeaderComponent({
+    setWorkoutType,
+    workoutType,
+    setShowExerciseModal,
+    showExerciseModal,
+  }: {
+    setWorkoutType: Dispatch<SetStateAction<ExerciseType>>;
+    workoutType: ExerciseType;
+    setShowExerciseModal: Dispatch<SetStateAction<boolean>>;
+    showExerciseModal: boolean;
+  }) {
+    return (
+      <View style={{ flexDirection: "column", gap: 10, marginBottom: 10 }}>
+        <WorkoutTypePicker
+          setWorkoutType={setWorkoutType}
+          items={[
+            "Select workout",
+            "strength",
+            "cardio",
+            "mobility",
+            "circuit",
+          ]}
+          name="type"
+          workoutType={workoutType}
+        />
+        <AppButton
+          title="Add exercise"
+          onPress={() => setShowExerciseModal(true)}
+        />
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={showExerciseModal}
+          onRequestClose={() => {
+            setShowExerciseModal(!showExerciseModal);
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <AntDesign name="calendar" size={24} color="black" />
-            <Text style={{ textAlign: "center" }}>{mode}</Text>
+          <AddExercise setShowExerciseModal={setShowExerciseModal} />
+        </Modal>
+      </View>
+    );
+  });
+
+  const renderHeader = useCallback(
+    () => (
+      <MyListHeaderComponent
+        setWorkoutType={setWorkoutType}
+        workoutType={workoutType}
+        setShowExerciseModal={setShowExerciseModal}
+        showExerciseModal={showExerciseModal}
+      />
+    ),
+    [setWorkoutType, workoutType, setShowExerciseModal, showExerciseModal]
+  );
+
+  const renderFooter = useCallback(
+    () => (
+      <View style={{ flexDirection: "column", gap: 10, marginBottom: 10 }}>
+        <Pressable
+          style={({ pressed }) => [
+            {
+              backgroundColor: pressed ? "gray" : "white",
+            },
+            styles.button,
+          ]}
+          onPress={openDatePicker}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 5,
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+            >
+              <AntDesign name="calendar" size={24} color="black" />
+              <Text style={{ textAlign: "center" }}>{mode}</Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 5 }}>
+              <Text style={{ margin: 5 }}>
+                {getValues().date.toLocaleDateString()}
+              </Text>
+              <Text style={{ margin: 5 }}>
+                {getValues().date.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            </View>
           </View>
-          <View style={{ flexDirection: "row", gap: 5 }}>
-            <Text style={{ margin: 5 }}>
-              {getValues().date.toLocaleDateString()}
-            </Text>
-            <Text style={{ margin: 5 }}>
-              {getValues().date.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
-      {show && (
+        </Pressable>
+
+        {show && (
+          <Controller
+            name="date"
+            control={control}
+            render={({ field: { onChange, onBlur, value } }) => (
+              <DateTimePicker
+                value={value}
+                mode={mode}
+                is24Hour={false}
+                display="default"
+                onChange={(___, selectedDate) => {
+                  onChange(selectedDate);
+                  if (mode === "date") {
+                    setMode("time");
+                  } else {
+                    setMode("date");
+                    setShow(false);
+                  }
+                }}
+              />
+            )}
+          />
+        )}
+
+        <GenericTextInput
+          name="duration"
+          placeholder="Workout Duration(minutes)"
+          keyboardType="number-pad"
+        />
+        <GenericTextInput
+          name="name"
+          placeholder="Workout Name"
+          keyboardType="default"
+        />
+
         <Controller
-          name="date"
+          name="description"
           control={control}
           render={({ field: { onChange, onBlur, value } }) => (
-            <DateTimePicker
+            <TextInput
+              placeholder="Workout Description"
               value={value}
-              mode={mode}
-              is24Hour={false}
-              display="default"
-              onChange={(___, selectedDate) => {
-                onChange(selectedDate);
-                if (mode === "date") {
-                  setMode("time");
-                } else {
-                  setMode("date");
-                  setShow(false);
-                }
-              }}
+              onChangeText={onChange}
+              editable
+              multiline
+              numberOfLines={4}
+              style={styles.areaTextInput}
             />
           )}
         />
-      )}
+      </View>
+    ),
+    [openDatePicker, mode, show, getValues, control]
+  );
 
-      <GenericTextInput
-        name="duration"
-        placeholder="Workout Duration(minutes)"
-        keyboardType="number-pad"
-      />
-      <GenericTextInput
-        name="name"
-        placeholder="Workout Name"
-        keyboardType="default"
-      />
-
-      <Controller
-        name="description"
-        control={control}
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            placeholder="Workout Description"
-            value={value}
-            onChangeText={onChange}
-            editable
-            multiline
-            numberOfLines={4}
-            style={styles.areaTextInput}
-          />
-        )}
+  return (
+    <FormProvider {...methods}>
+      <ReorderableExerciseList
+        workout={workout}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
       />
     </FormProvider>
   );
@@ -299,7 +352,7 @@ export function GenericTextInput({
         <TextInput
           placeholder={placeholder}
           keyboardType={keyboardType}
-          value={value}
+          value={String(value || "")}
           onChangeText={(text) => {
             // Only apply numeric filtering for number-pad keyboard type
             if (

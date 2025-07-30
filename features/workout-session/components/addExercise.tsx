@@ -1,29 +1,33 @@
 import AntDesign from "@expo/vector-icons/AntDesign";
+import { useDatabase } from "@/context/databaseContext";
+import {
+  Controller,
+  useForm,
+  useFieldArray,
+  useFormContext,
+  Control,
+} from "react-hook-form";
 import {
   View,
   Text,
   Pressable,
+  TextInput,
   StyleSheet,
   ScrollView,
-  TextInput,
 } from "react-native";
-import {
-  Controller,
-  useFieldArray,
-  useForm,
-  useFormContext,
-  Control,
-} from "react-hook-form";
-import { useWorkout } from "@/context/workoutContent";
 import { Picker } from "@react-native-picker/picker";
+import { useState, useCallback } from "react";
+import { useWorkout } from "@/context/workoutContent";
+import { AppButton } from "@/components/button";
+import { ExerciseFormData } from "@/types/common/workoutInterface";
 import {
   Exercise,
   SetDetails,
   ValidUnit,
   WorkoutExercise,
 } from "@/types/interfaces/types";
-import { useCallback, useState } from "react";
-import { AppButton } from "@/components/button";
+import { workoutService } from "@/services/workoutService";
+
 export default function AddExercise({
   setShowExerciseModal,
 }: {
@@ -31,12 +35,8 @@ export default function AddExercise({
 }) {
   const [chosenExercise, setChosenExercise] = useState<Exercise | null>(null);
   const [optionsChoice, setOptionsChoice] = useState<string | null>(null);
-  const {
-    control: formControl,
-    setValue: setValueFormContext,
-    getValues: getValuesFormContext,
-  } = useFormContext();
-
+  const methods = useFormContext();
+  const { db } = useDatabase();
   const {
     control,
     handleSubmit,
@@ -58,29 +58,83 @@ export default function AddExercise({
         },
       ],
     },
+    mode: "onChange",
   });
   const { fields, append, remove } = useFieldArray({
     control,
     name: "sets",
   });
+  const { exercises: rawExercises } = useWorkout();
+  // Map exercises to the expected format for WorkoutExercise
+  const exercises: Exercise[] = rawExercises.map((ex: any) => ({
+    id: ex.exercise_id?.toString?.() ?? ex.id?.toString?.() ?? "",
+    name: ex.exercise_name ?? ex.name ?? "",
+    description: ex.exercise_description ?? ex.description ?? "",
+    types: ex.types ?? [],
+    validUnits: ex.validUnits ?? [],
+    musclesTargeted: ex.musclesTargeted ?? [],
+    equipment: ex.equipment ?? [],
+    difficulty: ex.exercise_difficulty ?? ex.difficulty ?? "beginner",
+    noWeight: ex.noWeight ?? false,
+  }));
+  const watchSets = watch("sets");
 
-  const { exercises } = useWorkout();
+  // onSubmit logic from workout-session (we need to update the exercise list in the context)
 
   const onSubmit = useCallback(
-    (data: WorkoutExercise) => {
-      const currentExerciseList = getValuesFormContext("exercises");
-      if (currentExerciseList.length === 0) {
-        setShowExerciseModal(false);
+    async (data: WorkoutExercise) => {
+      const newExercise: ExerciseFormData = {
+        exercise_id: parseInt(chosenExercise!.id),
+        exercise_name: chosenExercise!.name,
+        exercise_description: chosenExercise!.description,
+        exercise_difficulty: chosenExercise!.difficulty,
+        track_reps: 0,
+        track_weight: 0,
+        track_time: 0,
+        track_distance: 0,
+        validUnits: chosenExercise!.validUnits,
+        musclesTargeted: chosenExercise!.musclesTargeted,
+        equipment: chosenExercise!.equipment,
+        sets: data.sets.map((set, idx) => ({
+          ...set,
+          set_order: idx,
+        })),
+        exercise_order: 0,
+        // sets: data.sets.map((set) => ({
+        //   reps: set.reps ?? 0,
+        //   weight: set.weight ?? 0,
+        //   time: set.time ?? 0,
+        //   distance: set.distance ?? 0,
+        // })),
+      };
+      const workoutId = methods.getValues("id");
+
+      if (!db) {
+        console.log("Database not found");
+        throw new Error("Database not found");
       }
 
-      const newExercise = {
-        exercise: chosenExercise!,
-        chosenUnitCombination: data.chosenUnitCombination,
-        sets: getValues("sets"),
-      };
+      const {
+        success,
+        data: newExerciseData,
+        error,
+      } = await workoutService.updateWorkoutNewExercise(
+        db,
+        workoutId,
+        newExercise
+      );
+      if (error) {
+        console.log("error", error);
+        return;
+      }
 
-      setValueFormContext("exercises", [...currentExerciseList, newExercise]);
-
+      // steps to add the new exercise to the context
+      // 1.get the new exercise from the context
+      // 2. add the new exercise to the database
+      // 3. get the returned exercise + sets from the database
+      // 4. update the context with the new exercise + sets
+      const currentExerciseList = methods.getValues("exercises");
+      methods.setValue("exercises", [...currentExerciseList, newExerciseData]);
       reset({
         exercise: undefined,
         chosenUnitCombination: [],
@@ -97,20 +151,12 @@ export default function AddExercise({
       setOptionsChoice(null);
       setShowExerciseModal(false);
     },
-    [
-      getValuesFormContext,
-      getValues,
-      setValueFormContext,
-      reset,
-      chosenExercise,
-      setShowExerciseModal,
-    ]
+    [methods, getValues, reset, chosenExercise, setShowExerciseModal]
   );
 
   const handleExerciseChange = useCallback(
     (itemValue: string, onChange: (value: string) => void) => {
       onChange(itemValue);
-
       setOptionsChoice(null);
       reset({
         exercise: undefined,
@@ -124,29 +170,26 @@ export default function AddExercise({
           },
         ],
       });
-
       if (itemValue === "NA") {
         setChosenExercise(null);
         return;
       }
-
       const foundExercise =
-        exercises.find((exercise) => exercise.id === itemValue) || null;
-
+        exercises.find((exercise) => exercise.id.toString() === itemValue) ||
+        null;
       if (foundExercise === null) {
         throw new Error("Exercise not found");
       }
-
-      setChosenExercise(foundExercise);
       setValue("exercise", foundExercise);
-
-      const validUnits = foundExercise?.validUnits;
-      if (validUnits.length === 1) {
-        setValue("chosenUnitCombination", validUnits[0]);
+      if (foundExercise.validUnits?.length === 1) {
+        setValue("chosenUnitCombination", foundExercise.validUnits[0]);
+        setOptionsChoice(foundExercise.validUnits[0].join("-"));
       }
+      setChosenExercise(foundExercise);
     },
     [exercises, reset, setValue]
   );
+
   const onOptionChange = useCallback(
     (option: string) => {
       const optionValue: ValidUnit[] = option.split("-") as ValidUnit[];
@@ -171,7 +214,7 @@ export default function AddExercise({
     },
     [remove]
   );
-  const watchSets = watch("sets");
+
   const handleCloseModal = useCallback(() => {
     setShowExerciseModal(false);
   }, [setShowExerciseModal]);
@@ -195,7 +238,6 @@ export default function AddExercise({
           )}
         </Pressable>
       </View>
-
       <ScrollView
         contentContainerStyle={styles.scrollViewContainer}
         keyboardShouldPersistTaps="handled"
@@ -213,22 +255,22 @@ export default function AddExercise({
                 validate: (value) =>
                   value !== undefined || "Please select an exercise",
               }}
-              render={({ field: { onChange, onBlur, value } }) => (
+              render={({ field: { onChange, value } }) => (
                 <Picker
                   mode="dialog"
-                  selectedValue={value?.id}
+                  selectedValue={value?.id?.toString() || "NA"}
                   onValueChange={(itemValue) => {
-                    handleExerciseChange(itemValue, onChange);
+                    handleExerciseChange(itemValue.toString(), onChange);
                   }}
                   accessibilityLabel="Exercise selection"
                   accessibilityHint="Select an exercise from the list"
                 >
-                  <Picker.Item label="Select exercise" value="select" />
+                  <Picker.Item label="Select exercise" value="NA" />
                   {exercises.map((exercise) => (
                     <Picker.Item
                       key={exercise.id}
                       label={exercise.name}
-                      value={exercise.id}
+                      value={exercise.id.toString()}
                     />
                   ))}
                 </Picker>
@@ -238,8 +280,6 @@ export default function AddExercise({
           {errors.exercise && (
             <Text style={styles.textError}>{errors.exercise.message}</Text>
           )}
-          <View style={styles.hr} />
-
           {/* Exercise Information */}
           {chosenExercise && (
             <View>
@@ -247,39 +287,41 @@ export default function AddExercise({
                 <Text style={styles.exerciseName}>{chosenExercise.name}</Text>
                 <Text style={styles.setDetailsHeader}>Set Details</Text>
               </View>
-
               {/* If the exercise has more than one option we need to give the user the options */}
-              {chosenExercise.validUnits.length > 1 && (
-                <>
-                  <Text style={styles.optionsLabel}>Options</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      mode="dialog"
-                      onValueChange={onOptionChange}
-                      accessibilityLabel="Exercise options"
-                      accessibilityHint="Select the type of measurement for this exercise"
-                    >
-                      {chosenExercise.validUnits.map((unit, index) => (
-                        <Picker.Item
-                          key={index}
-                          label={
-                            Array.isArray(unit)
-                              ? unit.join(" and ")
-                              : String(unit)
-                          }
-                          value={
-                            Array.isArray(unit) ? unit.join("-") : String(unit)
-                          }
-                        />
-                      ))}
-                    </Picker>
-                  </View>
-                </>
-              )}
-
+              {chosenExercise.validUnits &&
+                chosenExercise.validUnits.length > 1 && (
+                  <>
+                    <Text style={styles.optionsLabel}>Options</Text>
+                    <View style={styles.pickerContainer}>
+                      <Picker
+                        mode="dialog"
+                        onValueChange={onOptionChange}
+                        accessibilityLabel="Exercise options"
+                        accessibilityHint="Select the type of measurement for this exercise"
+                      >
+                        {chosenExercise.validUnits.map((unit, index) => (
+                          <Picker.Item
+                            key={index}
+                            label={
+                              Array.isArray(unit)
+                                ? unit.join(" and ")
+                                : String(unit)
+                            }
+                            value={
+                              Array.isArray(unit)
+                                ? unit.join("-")
+                                : String(unit)
+                            }
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  </>
+                )}
               {fields.map((field, index) => (
                 <View key={field.id} style={styles.setContainer}>
-                  {chosenExercise.validUnits.length > 1 ? (
+                  {chosenExercise.validUnits &&
+                  chosenExercise.validUnits.length > 1 ? (
                     <>
                       {optionsChoice && (
                         <Options
@@ -291,12 +333,11 @@ export default function AddExercise({
                     </>
                   ) : (
                     <Options
-                      options={chosenExercise.validUnits[0].join("-")}
+                      options={chosenExercise.validUnits?.[0].join("-") || ""}
                       index={index}
                       control={control}
                     />
                   )}
-
                   {watchSets.length > 0 && (
                     <AppButton
                       title="Remove set"
@@ -313,7 +354,6 @@ export default function AddExercise({
               />
             </View>
           )}
-
           <View style={styles.hr} />
           <AppButton
             title="Add exercise"
@@ -329,7 +369,7 @@ export default function AddExercise({
 interface OptionsProps {
   options: string;
   index: number;
-  control: Control<WorkoutExercise, any, WorkoutExercise>;
+  control: Control<WorkoutExercise>;
 }
 
 export function Options({ options, index, control }: OptionsProps) {
@@ -341,63 +381,37 @@ export function Options({ options, index, control }: OptionsProps) {
     <Controller
       name={`sets.${index}.${name}` as const}
       control={control}
-      rules={{
-        validate: (value: number | undefined | null) => {
-          if (value === undefined || value === null) {
-            return true; // Allow empty values
-          }
-          if (isNaN(value)) {
-            return "Please enter a valid number";
-          }
-          if (value < 0) {
-            return "Value must be greater than or equal to 0";
-          }
-          return true;
-        },
-      }}
-      render={({ field: { onChange, value }, fieldState: { error } }) => (
-        <View>
-          <TextInput
-            placeholder={placeholder}
-            keyboardType="number-pad"
-            value={value?.toString() || ""}
-            onChangeText={(text) => {
-              // Allow empty string or valid numbers
-              if (text === "" || /^\d*\.?\d*$/.test(text)) {
-                onChange(text === "" ? undefined : Number(text));
-              }
-            }}
-            style={[styles.input, error && styles.inputError]}
-            accessibilityLabel={accessibilityLabel}
-            accessibilityHint={`Enter the ${placeholder.toLowerCase()} (optional)`}
-          />
-          {error && <Text style={styles.textError}>{error.message}</Text>}
-        </View>
+      render={({ field: { onChange, value } }) => (
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          keyboardType="numeric"
+          onChangeText={(text) => onChange(text ? parseFloat(text) : undefined)}
+          value={value?.toString() ?? ""}
+          accessibilityLabel={accessibilityLabel}
+        />
       )}
     />
   );
-
   switch (options) {
     case "reps":
-      return renderInput("reps", "Reps", `Set ${index + 1} repetitions`);
-    case "reps-weight":
-      return (
-        <>
-          {renderInput("reps", "Reps", `Set ${index + 1} repetitions`)}
-          {renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`)}
-        </>
-      );
+      return renderInput("reps", "Reps", `Set ${index + 1} reps`);
+    case "weight":
+      return renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`);
     case "time":
       return renderInput("time", "Time (seconds)", `Set ${index + 1} time`);
     case "time-distance":
       return (
         <>
           {renderInput("time", "Time (seconds)", `Set ${index + 1} time`)}
-          {renderInput(
-            "distance",
-            "Distance (meters)",
-            `Set ${index + 1} distance`
-          )}
+          {renderInput("distance", "Distance (m)", `Set ${index + 1} distance`)}
+        </>
+      );
+    case "reps-weight":
+      return (
+        <>
+          {renderInput("reps", "Reps", `Set ${index + 1} reps`)}
+          {renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`)}
         </>
       );
     default:

@@ -359,9 +359,181 @@ const exercises = [
   },
 ];
 
+// Utility to get date strings for today and offsets
+type DateOffset = number; // days offset from today
+function getDateString(offset: DateOffset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+// Generate dynamic workouts around the current date
+const generateDynamicWorkouts = () => {
+  return [
+    {
+      name: "Today's Full Body",
+      description: "A full body workout for today.",
+      type: "strength",
+      date: getDateString(0),
+      time: "07:00:00",
+      duration: 3600,
+      is_completed: 0,
+      exercises: [
+        {
+          exercise_id: 1,
+          exercise_name: "Bench Press",
+          track_reps: 1,
+          track_weight: 1,
+          track_time: 0,
+          track_distance: 0,
+          sets: [
+            { reps: 8, weight: 70 },
+            { reps: 8, weight: 75 },
+            { reps: 6, weight: 80 },
+          ],
+        },
+        {
+          exercise_id: 3,
+          exercise_name: "Squat",
+          track_reps: 1,
+          track_weight: 1,
+          track_time: 0,
+          track_distance: 0,
+          sets: [
+            { reps: 10, weight: 60 },
+            { reps: 8, weight: 80 },
+          ],
+        },
+      ],
+    },
+    {
+      name: "Yesterday's Cardio",
+      description: "A cardio session from yesterday.",
+      type: "cardio",
+      date: getDateString(-1),
+      time: "18:30:00",
+      duration: 1800,
+      is_completed: 0,
+      exercises: [
+        {
+          exercise_id: 9,
+          exercise_name: "Burpees",
+          track_reps: 1,
+          track_weight: 0,
+          track_time: 0,
+          track_distance: 0,
+          sets: [{ reps: 12 }, { reps: 10 }],
+        },
+        {
+          exercise_id: 32,
+          exercise_name: "Jump Rope",
+          track_reps: 0,
+          track_weight: 0,
+          track_time: 1,
+          track_distance: 0,
+          sets: [{ time: 120 }, { time: 90 }],
+        },
+      ],
+    },
+    {
+      name: "Tomorrow's Mobility",
+      description: "A mobility workout for tomorrow.",
+      type: "mobility",
+      date: getDateString(1),
+      time: "06:45:00",
+      duration: 1500,
+      is_completed: 0,
+      exercises: [
+        {
+          exercise_id: 8,
+          exercise_name: "Plank",
+          track_reps: 0,
+          track_weight: 0,
+          track_time: 1,
+          track_distance: 0,
+          sets: [{ time: 60 }, { time: 90 }],
+        },
+        {
+          exercise_id: 23,
+          exercise_name: "Side Plank",
+          track_reps: 0,
+          track_weight: 0,
+          track_time: 1,
+          track_distance: 0,
+          sets: [{ time: 30 }, { time: 45 }],
+        },
+      ],
+    },
+    {
+      name: "2 Days Ago - Upper Body",
+      description: "Upper body strength session from two days ago.",
+      type: "strength",
+      date: getDateString(-2),
+      time: "08:15:00",
+      duration: 3600,
+      is_completed: 0,
+      exercises: [
+        {
+          exercise_id: 5,
+          exercise_name: "Overhead Press",
+          track_reps: 1,
+          track_weight: 1,
+          track_time: 0,
+          track_distance: 0,
+          sets: [
+            { reps: 8, weight: 35 },
+            { reps: 6, weight: 40 },
+          ],
+        },
+        {
+          exercise_id: 7,
+          exercise_name: "Bicep Curls",
+          track_reps: 1,
+          track_weight: 1,
+          track_time: 0,
+          track_distance: 0,
+          sets: [
+            { reps: 10, weight: 12 },
+            { reps: 8, weight: 15 },
+          ],
+        },
+      ],
+    },
+    {
+      name: "In 3 Days - HIIT",
+      description: "A planned HIIT session for three days from now.",
+      type: "cardio",
+      date: getDateString(3),
+      time: "17:00:00",
+      duration: 1800,
+      is_completed: 0,
+      exercises: [
+        {
+          exercise_id: 14,
+          exercise_name: "Mountain Climbers",
+          track_reps: 1,
+          track_weight: 0,
+          track_time: 0,
+          track_distance: 0,
+          sets: [{ reps: 20 }, { reps: 18 }],
+        },
+        {
+          exercise_id: 28,
+          exercise_name: "Box Jumps",
+          track_reps: 1,
+          track_weight: 0,
+          track_time: 0,
+          track_distance: 0,
+          sets: [{ reps: 12 }, { reps: 10 }],
+        },
+      ],
+    },
+  ];
+};
+
 // Generate May workouts
 const generateMayWorkouts = () => {
-  return [
+  const mayWorkouts = [
     {
       name: "Push Day",
       description: "A workout focused on chest, shoulders, and triceps.",
@@ -624,6 +796,8 @@ const generateMayWorkouts = () => {
       ],
     },
   ];
+  // Add dynamic workouts around the current date
+  return [...mayWorkouts, ...generateDynamicWorkouts()];
 };
 
 export const seedData = {
@@ -708,24 +882,25 @@ ${workout.exercises
     const workoutExerciseId = workoutIndex * 100 + exerciseIndex + 1;
 
     return `
-INSERT INTO workout_exercises (id, workout_id, exercise_id, exercise_name, track_reps, track_weight, track_time, track_distance)
+INSERT INTO workout_exercises (id, workout_id, exercise_id, exercise_name, track_reps, track_weight, track_time, track_distance, exercise_order)
 VALUES (${workoutExerciseId}, ${workoutIndex + 1}, ${
       exercise.exercise_id
     }, '${exercise.exercise_name.replace(/'/g, "''")}', ${
       exercise.track_reps
     }, ${exercise.track_weight}, ${exercise.track_time}, ${
       exercise.track_distance
-    });
+    }, ${exerciseIndex + 1});
 
 ${exercise.sets
   .map(
     (set, setIndex) => `
-INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance)
+INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
 VALUES (${workoutExerciseId}, 
   ${"reps" in set ? set.reps : "NULL"}, 
   ${"weight" in set ? set.weight : "NULL"}, 
   ${"time" in set ? set.time : "NULL"}, 
-  ${"distance" in set ? set.distance : "NULL"});
+  ${"distance" in set ? set.distance : "NULL"},
+  ${setIndex + 1});
 `
   )
   .join("\n")}
