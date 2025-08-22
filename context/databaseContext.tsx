@@ -29,24 +29,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       const database = await SQLite.openDatabaseAsync("workout.db");
 
-      // Drop all tables
-      await database.execAsync(`
-        DROP TABLE IF EXISTS exercise_sets;
-        DROP TABLE IF EXISTS workout_exercises;
-        DROP TABLE IF EXISTS workouts;
-        DROP TABLE IF EXISTS exercise_unit_combinations;
-        DROP TABLE IF EXISTS exercise_valid_units;
-        DROP TABLE IF EXISTS exercise_equipment;
-        DROP TABLE IF EXISTS exercise_muscles;
-        DROP TABLE IF EXISTS exercise_types;
-        DROP TABLE IF EXISTS exercises;
-      `);
+      //Drop all tables
+      // await database.execAsync(`
+      //   DROP TABLE IF EXISTS exercise_sets;
+      //   DROP TABLE IF EXISTS workout_exercises;
+      //   DROP TABLE IF EXISTS workouts;
+      //   DROP TABLE IF EXISTS exercise_unit_combinations;
+      //   DROP TABLE IF EXISTS exercise_valid_units;
+      //   DROP TABLE IF EXISTS exercise_equipment;
+      //   DROP TABLE IF EXISTS exercise_muscles;
+      //   DROP TABLE IF EXISTS exercise_types;
+      //   DROP TABLE IF EXISTS exercises;
+      // `);
 
-      // Create tables
-      await database.execAsync(SCHEMA);
+      // //Create tables
+      // await database.execAsync(SCHEMA);
 
-      // Insert seed data
-      await database.execAsync(seedDataSQL);
+      // //Insert seed data
+      // await database.execAsync(seedDataSQL);
 
       setDB(database);
     } catch (error) {

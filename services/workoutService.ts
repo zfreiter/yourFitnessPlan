@@ -120,6 +120,7 @@ const transformWorkout = (rows: WorkoutRow[]): Workout | null => {
       const exercise = exercisesMap.get(row.workout_exercise_id)!;
       exercise.sets.push({
         id: row.set_id,
+        workout_exercise_id: row.workout_exercise_id,
         reps: row.reps,
         weight: row.weight,
         duration: row.set_duration,
@@ -174,7 +175,7 @@ export const workoutService = {
         LEFT JOIN exercise_sets es ON we.id = es.workout_exercise_id
         LEFT JOIN exercise_unit_combinations euc ON we.exercise_id = euc.exercise_id
         GROUP BY w.id, we.id, es.id
-        ORDER BY w.date, w.time, we.id, es.id
+        ORDER BY w.date, w.time, we.exercise_order, es.set_order
       `);
 
       // Group rows by workout
@@ -258,6 +259,7 @@ export const workoutService = {
               : [],
             sets: sets.map((set) => ({
               id: set.id,
+              workout_exercise_id: set.workout_exercise_id,
               reps: set.reps,
               weight: set.weight,
               duration: set.time,
@@ -343,6 +345,7 @@ export const workoutService = {
                   : [],
                 sets: sets.map((set) => ({
                   id: set.id,
+                  workout_exercise_id: set.workout_exercise_id,
                   reps: set.reps,
                   weight: set.weight,
                   duration: set.time,
@@ -502,18 +505,12 @@ export const workoutService = {
         }
       });
 
-      //console.log("Workout inserted successfully ", insertedWorkoutId);
-
       //get the workout with the id
       const workout = await workoutService.getWorkoutById(
         db,
         insertedWorkoutId
       );
 
-      // console.log(
-      //   "workout in insertWorkout after getWorkoutById",
-      //   JSON.stringify(workout, null, 2)
-      // );
       return { success: true, data: workout };
     } catch (error) {
       console.error("Error inserting workout:", error);
@@ -542,7 +539,7 @@ export const workoutService = {
 
       // Check if the exercise exists
       const foundExerciseId = await db.getFirstAsync<ExerciseRow>(
-        `SELECT id FROM workout_exercises WHERE exercise_id = ?`,
+        `SELECT id FROM exercises WHERE id = ?`,
         [exercise.exercise_id]
       );
       if (!foundExerciseId) {
@@ -626,6 +623,7 @@ export const workoutService = {
           : [],
         sets: newExerciseSets.map((set) => ({
           id: set.id,
+          workout_exercise_id: newWorkoutExercise?.id!,
           reps: set.reps,
           weight: set.weight,
           time: set.time,

@@ -18,7 +18,7 @@ export default function ExerciseListItem({
     <View style={styles.container}>
       <View style={{ flexDirection: "row", gap: 10 }}>
         <Text style={styles.text}>{exercise.exercise_name}</Text>
-        <Text style={styles.text}>Sets: {exercise.sets.length}</Text>
+        <Text style={styles.text}>Sets: {exercise.sets?.length || 0}</Text>
       </View>
       <Pressable
         style={({ pressed }) => [

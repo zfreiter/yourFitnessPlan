@@ -105,11 +105,8 @@ export function CreateWorkoutContainer({
   });
 
   const onSubmit = async (data: CreateWorkoutForm) => {
-    //console.log("data in onSubmit", data.date, data.time);
-
     if (db) {
       const result = await workoutService.insertWorkout(db, data);
-      //console.log("result in onSubmit", result);
       if (result.success) {
         console.log(
           "Workout inserted successfully ",
@@ -117,32 +114,15 @@ export function CreateWorkoutContainer({
         );
         if (result.data) {
           setWorkouts([...workouts, result.data]);
-          // console.log(
-          //   "result.data in onSubmit",
-          //   result.data.date,
-          //   result.data.time
-          // );
         }
         reset();
         router.replace("/calendar");
       } else {
         console.error("Failed to insert workout:", result.error);
-        // console.log("Failed to insert workout:");
       }
     }
   };
-  // console.log(
-  //   "test ",
-  //   new Date().toISOString().split("T")[0],
-  //   new Date().toLocaleTimeString([], {
-  //     hour: "2-digit",
-  //     minute: "2-digit",
-  //   })
-  // );
-  // console.log(
-  //   "time ",
-  //   parseDateInLocalTimezone(getValues().date).toLocaleDateString()
-  // );
+
   return (
     <TouchableWithoutFeedback //onPress={Keyboard.dismiss} web issues going to need to create a wrapper
       accessible={false}

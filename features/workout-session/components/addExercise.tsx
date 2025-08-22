@@ -16,7 +16,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useWorkout } from "@/context/workoutContent";
 import { AppButton } from "@/components/button";
 import { ExerciseFormData } from "@/types/common/workoutInterface";
@@ -26,7 +26,57 @@ import {
   ValidUnit,
   WorkoutExercise,
 } from "@/types/interfaces/types";
+import { Workout } from "@/types/type";
 import { workoutService } from "@/services/workoutService";
+
+// Utility functions for set initialization
+const createEmptySet = (): SetDetails => ({
+  reps: undefined,
+  weight: undefined,
+  time: undefined,
+  distance: undefined,
+});
+
+const createSetFromUnits = (units: ValidUnit[]): SetDetails => ({
+  reps: units.includes("reps") ? 0 : undefined,
+  weight: units.includes("weight") ? 0 : undefined,
+  time: units.includes("time") ? 0 : undefined,
+  distance: units.includes("distance") ? 0 : undefined,
+});
+
+// Type guard to safely validate ValidUnit arrays
+const isValidUnitArray = (units: string[]): units is ValidUnit[] => {
+  const validUnits: readonly string[] = ["reps", "weight", "time", "distance"];
+  return units.every((unit) => validUnits.includes(unit));
+};
+
+// Constants for picker default values
+const DEFAULT_PICKER_VALUE = "NA" as const;
+const SELECT_EXERCISE_LABEL = "Select exercise" as const;
+const SELECT_OPTION_LABEL = "Please select an option" as const;
+
+// Validation rules and messages
+const VALIDATION_MESSAGES = {
+  EXERCISE_REQUIRED: "Exercise selection is required",
+  EXERCISE_UNDEFINED: "Please select an exercise",
+  OPTION_REQUIRED: "Please select an option",
+} as const;
+
+const validationRules = {
+  exercise: {
+    required: VALIDATION_MESSAGES.EXERCISE_REQUIRED,
+    validate: (value: Exercise | undefined) =>
+      value !== undefined || VALIDATION_MESSAGES.EXERCISE_UNDEFINED,
+  },
+  chosenUnitCombination: {
+    validate: (value: ValidUnit[] | undefined) => {
+      if (!value || value.length === 0) {
+        return VALIDATION_MESSAGES.OPTION_REQUIRED;
+      }
+      return true;
+    },
+  },
+} as const;
 
 export default function AddExercise({
   setShowExerciseModal,
@@ -35,6 +85,7 @@ export default function AddExercise({
 }) {
   const [chosenExercise, setChosenExercise] = useState<Exercise | null>(null);
   const [optionsChoice, setOptionsChoice] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const methods = useFormContext();
   const { db } = useDatabase();
   const {
@@ -49,14 +100,7 @@ export default function AddExercise({
     defaultValues: {
       exercise: undefined,
       chosenUnitCombination: [],
-      sets: [
-        {
-          reps: undefined,
-          weight: undefined,
-          time: undefined,
-          distance: undefined,
-        },
-      ],
+      sets: [createEmptySet()],
     },
     mode: "onChange",
   });
@@ -64,149 +108,231 @@ export default function AddExercise({
     control,
     name: "sets",
   });
-  const { exercises: rawExercises } = useWorkout();
+  const { exercises: rawExercises, workouts, setWorkouts } = useWorkout();
+
   // Map exercises to the expected format for WorkoutExercise
-  const exercises: Exercise[] = rawExercises.map((ex: any) => ({
-    id: ex.exercise_id?.toString?.() ?? ex.id?.toString?.() ?? "",
-    name: ex.exercise_name ?? ex.name ?? "",
-    description: ex.exercise_description ?? ex.description ?? "",
-    types: ex.types ?? [],
-    validUnits: ex.validUnits ?? [],
-    musclesTargeted: ex.musclesTargeted ?? [],
-    equipment: ex.equipment ?? [],
-    difficulty: ex.exercise_difficulty ?? ex.difficulty ?? "beginner",
-    noWeight: ex.noWeight ?? false,
-  }));
+  const exercises = useMemo(() => {
+    return rawExercises.map((ex: any) => ({
+      id: ex.exercise_id?.toString?.() ?? ex.id?.toString?.() ?? "",
+      name: ex.exercise_name ?? ex.name ?? "",
+      description: ex.exercise_description ?? ex.description ?? "",
+      types: ex.types ?? [],
+      validUnits: ex.validUnits ?? [],
+      musclesTargeted: ex.musclesTargeted ?? [],
+      equipment: ex.equipment ?? [],
+      difficulty: ex.exercise_difficulty ?? ex.difficulty ?? "beginner",
+      noWeight: ex.noWeight ?? false,
+    }));
+  }, [rawExercises]);
   const watchSets = watch("sets");
+
+  // Standardized reset functions for consistent form reset behavior
+  const resetToInitialState = useCallback(() => {
+    reset({
+      exercise: undefined,
+      chosenUnitCombination: [],
+      sets: [createEmptySet()],
+    });
+    setChosenExercise(null);
+    setOptionsChoice(null);
+    setShowExerciseModal(false);
+  }, [reset, setShowExerciseModal]);
+
+  const resetFormForNewExercise = useCallback(() => {
+    reset({
+      exercise: undefined,
+      chosenUnitCombination: [],
+      sets: [createEmptySet()],
+    });
+    setOptionsChoice(null);
+    // Note: chosenExercise and modal state remain unchanged
+  }, [reset]);
+
+  const resetOptionsOnly = useCallback(
+    (onChange?: (value: ValidUnit[]) => void) => {
+      setValue("chosenUnitCombination", []);
+      setOptionsChoice(null);
+      setValue("sets", [createEmptySet()]);
+      onChange?.([]);
+    },
+    [setValue]
+  );
 
   // onSubmit logic from workout-session (we need to update the exercise list in the context)
 
   const onSubmit = useCallback(
     async (data: WorkoutExercise) => {
-      const newExercise: ExerciseFormData = {
-        exercise_id: parseInt(chosenExercise!.id),
-        exercise_name: chosenExercise!.name,
-        exercise_description: chosenExercise!.description,
-        exercise_difficulty: chosenExercise!.difficulty,
-        track_reps: 0,
-        track_weight: 0,
-        track_time: 0,
-        track_distance: 0,
-        validUnits: chosenExercise!.validUnits,
-        musclesTargeted: chosenExercise!.musclesTargeted,
-        equipment: chosenExercise!.equipment,
-        sets: data.sets.map((set, idx) => ({
-          ...set,
-          set_order: idx,
-        })),
-        exercise_order: 0,
-        // sets: data.sets.map((set) => ({
-        //   reps: set.reps ?? 0,
-        //   weight: set.weight ?? 0,
-        //   time: set.time ?? 0,
-        //   distance: set.distance ?? 0,
-        // })),
-      };
-      const workoutId = methods.getValues("id");
-
-      if (!db) {
-        console.log("Database not found");
-        throw new Error("Database not found");
-      }
-
-      const {
-        success,
-        data: newExerciseData,
-        error,
-      } = await workoutService.updateWorkoutNewExercise(
-        db,
-        workoutId,
-        newExercise
-      );
-      if (error) {
-        console.log("error", error);
+      // Validate that an exercise is selected
+      if (!chosenExercise) {
+        console.error("No exercise selected");
         return;
       }
 
-      // steps to add the new exercise to the context
-      // 1.get the new exercise from the context
-      // 2. add the new exercise to the database
-      // 3. get the returned exercise + sets from the database
-      // 4. update the context with the new exercise + sets
-      const currentExerciseList = methods.getValues("exercises");
-      methods.setValue("exercises", [...currentExerciseList, newExerciseData]);
-      reset({
-        exercise: undefined,
-        chosenUnitCombination: [],
-        sets: [
-          {
-            reps: undefined,
-            weight: undefined,
-            time: undefined,
-            distance: undefined,
-          },
-        ],
-      });
-      setChosenExercise(null);
-      setOptionsChoice(null);
-      setShowExerciseModal(false);
+      setIsSubmitting(true);
+      try {
+        const newExercise: ExerciseFormData = {
+          exercise_id: parseInt(chosenExercise.id),
+          exercise_name: chosenExercise.name,
+          exercise_description: chosenExercise.description,
+          exercise_difficulty: chosenExercise.difficulty,
+          track_reps: data.chosenUnitCombination.includes("reps") ? 1 : 0,
+          track_weight: data.chosenUnitCombination.includes("weight") ? 1 : 0,
+          track_time: data.chosenUnitCombination.includes("time") ? 1 : 0,
+          track_distance: data.chosenUnitCombination.includes("distance")
+            ? 1
+            : 0,
+          validUnits: chosenExercise.validUnits,
+          musclesTargeted: chosenExercise.musclesTargeted,
+          equipment: chosenExercise.equipment,
+          sets: data.sets.map((set, index) => ({
+            reps: set.reps ?? undefined,
+            weight: set.weight ?? undefined,
+            time: set.time ?? undefined,
+            distance: set.distance ?? undefined,
+            set_order: index,
+          })),
+          exercise_order: methods.getValues("exercises").length + 1,
+        };
+        const workoutId = methods.getValues("id");
+
+        if (!db) {
+          console.error("Database not found");
+          throw new Error("Database not found");
+        }
+
+        const {
+          success,
+          data: newExerciseData,
+          error,
+        } = await workoutService.updateWorkoutNewExercise(
+          db,
+          workoutId,
+          newExercise
+        );
+        if (error) {
+          console.error("Failed to add exercise:", error);
+          throw new Error(error);
+        }
+
+        const currentExerciseList = methods.getValues("exercises");
+
+        methods.setValue("exercises", [
+          ...currentExerciseList,
+          newExerciseData,
+        ]);
+        const currentWorkoutList = methods.getValues("id");
+        // TODO: Uncomment this when we have a way to update the workout list
+        setWorkouts((prev: Workout[]) => {
+          if (newExerciseData) {
+            const updatedWorkout = prev.map((workout: Workout) =>
+              workout.id === currentWorkoutList
+                ? {
+                    ...workout,
+                    exercises: [...workout.exercises, newExerciseData],
+                  }
+                : workout
+            );
+            return updatedWorkout;
+          }
+          return prev;
+        });
+
+        console.log("success", success);
+        resetToInitialState();
+      } catch (error) {
+        console.error("Unexpected error adding exercise:", error);
+      } finally {
+        setIsSubmitting(false);
+      }
     },
-    [methods, getValues, reset, chosenExercise, setShowExerciseModal]
+    [methods, chosenExercise, resetToInitialState, db]
   );
 
   const handleExerciseChange = useCallback(
     (itemValue: string, onChange: (value: string) => void) => {
+      // Setting to selected exercise id
       onChange(itemValue);
-      setOptionsChoice(null);
-      reset({
-        exercise: undefined,
-        chosenUnitCombination: [],
-        sets: [
-          {
-            reps: undefined,
-            weight: undefined,
-            time: undefined,
-            distance: undefined,
-          },
-        ],
-      });
-      if (itemValue === "NA") {
+      // console.log("AddExercise - itemValue:", itemValue);
+      // Resetting the form to default values (exercise, chosenUnitCombination, sets)
+      resetFormForNewExercise();
+      // If the user selects "Select exercise" we set the chosen exercise to null
+      if (itemValue === DEFAULT_PICKER_VALUE) {
         setChosenExercise(null);
         return;
       }
+      // Finding the exercise in the exercises list
       const foundExercise =
         exercises.find((exercise) => exercise.id.toString() === itemValue) ||
         null;
+      // If the exercise is not found we throw an error
       if (foundExercise === null) {
         throw new Error("Exercise not found");
       }
+      // Setting the exercise to the found exercise
       setValue("exercise", foundExercise);
-      if (foundExercise.validUnits?.length === 1) {
-        setValue("chosenUnitCombination", foundExercise.validUnits[0]);
-        setOptionsChoice(foundExercise.validUnits[0].join("-"));
+
+      // If the exercise has only one valid unit we set the chosen unit combination to the valid unit
+      if (
+        foundExercise.validUnits?.length === 1 &&
+        foundExercise.validUnits[0]
+      ) {
+        const defaultUnit = foundExercise.validUnits[0];
+        setValue("chosenUnitCombination", defaultUnit);
+        setOptionsChoice(defaultUnit.join("-"));
+        setValue("sets", [createSetFromUnits(defaultUnit)]);
       }
+      // Setting the chosen exercise to the found exercise
       setChosenExercise(foundExercise);
     },
-    [exercises, reset, setValue]
+    [exercises, resetFormForNewExercise, setValue, setChosenExercise, getValues]
   );
 
-  const onOptionChange = useCallback(
-    (option: string) => {
-      const optionValue: ValidUnit[] = option.split("-") as ValidUnit[];
-      setValue("chosenUnitCombination", optionValue);
-      setOptionsChoice(option);
+  // handleOptionChange is used to handle the change of the option in the picker
+  // it is used to set the chosen unit combination and the sets based on the selected option
+  // it is also used to reset the form to default values when the user selects "Select exercise"
+  const handleOptionChange = useCallback(
+    (itemValue: string, onChange: (value: ValidUnit[]) => void) => {
+      if (itemValue === DEFAULT_PICKER_VALUE) {
+        // Reset to empty state
+        resetOptionsOnly(onChange);
+      } else {
+        // Parse and validate the new option
+        const splitUnits = itemValue.split("-");
+        if (!isValidUnitArray(splitUnits)) {
+          console.error("Invalid unit combination:", itemValue);
+          return;
+        }
+
+        const optionValue: ValidUnit[] = splitUnits;
+        setValue("chosenUnitCombination", optionValue);
+        setOptionsChoice(itemValue);
+        onChange(optionValue);
+
+        // Initialize sets based on selected units
+        setValue("sets", [createSetFromUnits(optionValue)]);
+      }
     },
-    [setValue]
+    [resetOptionsOnly, setValue, setOptionsChoice]
   );
 
-  const handleAddSet = useCallback(() => {
-    append({
-      reps: undefined,
-      weight: undefined,
-      time: undefined,
-      distance: undefined,
-    });
-  }, [append]);
+  const handleAddSet = useCallback(
+    (foundExercise: Exercise) => {
+      // Use the currently selected unit combination, fallback to first valid unit if none selected
+      const currentUnits = getValues("chosenUnitCombination");
+      const unitsToUse =
+        currentUnits && currentUnits.length > 0
+          ? currentUnits
+          : foundExercise.validUnits?.[0];
+
+      if (!unitsToUse) {
+        console.error("No valid units found for exercise");
+        return;
+      }
+
+      append(createSetFromUnits(unitsToUse));
+    },
+    [append, getValues]
+  );
 
   const handleRemoveSet = useCallback(
     (index: number) => {
@@ -219,12 +345,24 @@ export default function AddExercise({
     setShowExerciseModal(false);
   }, [setShowExerciseModal]);
 
+  const showAddSetButton = watch("chosenUnitCombination")?.length > 0;
+
+  const handleSubmitPress = useCallback(() => {
+    if (!isSubmitting) {
+      handleSubmit(onSubmit)();
+    }
+  }, [isSubmitting, handleSubmit, onSubmit]);
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.modalContainer}>
       <View style={styles.headerContainer}>
         <Pressable
-          style={{ alignSelf: "flex-end", margin: 5 }}
-          onPress={handleCloseModal}
+          style={{
+            alignSelf: "flex-end",
+            margin: 5,
+            opacity: isSubmitting ? 0.5 : 1,
+          }}
+          onPress={() => !isSubmitting && handleCloseModal()}
           accessibilityLabel="Close exercise modal"
           accessibilityHint="Double tap to close the exercise selection modal"
           accessibilityRole="button"
@@ -239,86 +377,110 @@ export default function AddExercise({
         </Pressable>
       </View>
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContainer}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={true}
       >
-        <View>
-          <Text style={styles.text}>Select exercise</Text>
-          <View style={styles.pickerContainer}>
-            <Controller
-              name="exercise"
-              control={control}
-              rules={{
-                required: "Exercise selection is required",
-                validate: (value) =>
-                  value !== undefined || "Please select an exercise",
-              }}
-              render={({ field: { onChange, value } }) => (
-                <Picker
-                  mode="dialog"
-                  selectedValue={value?.id?.toString() || "NA"}
-                  onValueChange={(itemValue) => {
-                    handleExerciseChange(itemValue.toString(), onChange);
-                  }}
-                  accessibilityLabel="Exercise selection"
-                  accessibilityHint="Select an exercise from the list"
-                >
-                  <Picker.Item label="Select exercise" value="NA" />
-                  {exercises.map((exercise) => (
-                    <Picker.Item
-                      key={exercise.id}
-                      label={exercise.name}
-                      value={exercise.id.toString()}
-                    />
-                  ))}
-                </Picker>
-              )}
-            />
-          </View>
-          {errors.exercise && (
-            <Text style={styles.textError}>{errors.exercise.message}</Text>
-          )}
-          {/* Exercise Information */}
-          {chosenExercise && (
+        <Text style={styles.text}>Select exercise</Text>
+        <View style={styles.pickerContainer}>
+          <Controller
+            name="exercise"
+            control={control}
+            rules={validationRules.exercise}
+            render={({ field: { onChange, value } }) => (
+              <Picker
+                mode="dialog"
+                selectedValue={value?.id?.toString() || DEFAULT_PICKER_VALUE}
+                onValueChange={(itemValue) => {
+                  handleExerciseChange(itemValue.toString(), onChange);
+                }}
+                accessibilityLabel="Exercise selection"
+                accessibilityHint="Select an exercise from the list"
+                enabled={!isSubmitting}
+              >
+                <Picker.Item
+                  label={SELECT_EXERCISE_LABEL}
+                  value={DEFAULT_PICKER_VALUE}
+                />
+                {exercises.map((exercise) => (
+                  <Picker.Item
+                    key={exercise.id}
+                    label={exercise.name}
+                    value={exercise.id.toString()}
+                  />
+                ))}
+              </Picker>
+            )}
+          />
+        </View>
+        {errors.exercise && (
+          <Text style={styles.textError}>{errors.exercise.message}</Text>
+        )}
+        {/* Exercise Information */}
+        {chosenExercise && (
+          <View>
             <View>
-              <View>
-                <Text style={styles.exerciseName}>{chosenExercise.name}</Text>
-                <Text style={styles.setDetailsHeader}>Set Details</Text>
-              </View>
-              {/* If the exercise has more than one option we need to give the user the options */}
-              {chosenExercise.validUnits &&
-                chosenExercise.validUnits.length > 1 && (
-                  <>
-                    <Text style={styles.optionsLabel}>Options</Text>
-                    <View style={styles.pickerContainer}>
-                      <Picker
-                        mode="dialog"
-                        onValueChange={onOptionChange}
-                        accessibilityLabel="Exercise options"
-                        accessibilityHint="Select the type of measurement for this exercise"
-                      >
-                        {chosenExercise.validUnits.map((unit, index) => (
+              <Text style={styles.exerciseName}>{chosenExercise.name}</Text>
+              <Text style={styles.setDetailsHeader}>Set Details</Text>
+            </View>
+            {/* If the exercise has more than one option we need to give the user the options */}
+            {chosenExercise.validUnits &&
+              chosenExercise.validUnits.length > 1 && (
+                <>
+                  <Text style={styles.optionsLabel}>Options</Text>
+                  <View style={styles.pickerContainer}>
+                    <Controller
+                      name="chosenUnitCombination"
+                      control={control}
+                      rules={validationRules.chosenUnitCombination}
+                      render={({ field: { onChange, value } }) => (
+                        <Picker
+                          mode="dialog"
+                          selectedValue={
+                            value?.join("-") || DEFAULT_PICKER_VALUE
+                          }
+                          onValueChange={(itemValue) => {
+                            handleOptionChange(itemValue, onChange);
+                          }}
+                          accessibilityLabel="Exercise options"
+                          accessibilityHint="Select the type of measurement for this exercise"
+                          enabled={!isSubmitting}
+                        >
                           <Picker.Item
-                            key={index}
-                            label={
-                              Array.isArray(unit)
-                                ? unit.join(" and ")
-                                : String(unit)
-                            }
-                            value={
-                              Array.isArray(unit)
-                                ? unit.join("-")
-                                : String(unit)
-                            }
+                            label={SELECT_OPTION_LABEL}
+                            value={DEFAULT_PICKER_VALUE}
                           />
-                        ))}
-                      </Picker>
-                    </View>
-                  </>
-                )}
-              {fields.map((field, index) => (
+                          {chosenExercise.validUnits.map((unit, index) => (
+                            <Picker.Item
+                              key={index}
+                              label={
+                                Array.isArray(unit)
+                                  ? unit.join(" and ")
+                                  : String(unit)
+                              }
+                              value={
+                                Array.isArray(unit)
+                                  ? unit.join("-")
+                                  : String(unit)
+                              }
+                            />
+                          ))}
+                        </Picker>
+                      )}
+                    />
+                  </View>
+                  {errors.chosenUnitCombination && (
+                    <Text style={styles.textError}>
+                      {errors.chosenUnitCombination.message}
+                    </Text>
+                  )}
+                </>
+              )}
+
+            {showAddSetButton &&
+              fields.map((field, index) => (
                 <View key={field.id} style={styles.setContainer}>
                   {chosenExercise.validUnits &&
                   chosenExercise.validUnits.length > 1 ? (
@@ -341,26 +503,41 @@ export default function AddExercise({
                   {watchSets.length > 0 && (
                     <AppButton
                       title="Remove set"
-                      onPress={() => handleRemoveSet(index)}
-                      style={styles.removeSetButton}
+                      onPress={() => !isSubmitting && handleRemoveSet(index)}
+                      style={[
+                        styles.removeSetButton,
+                        ...(isSubmitting ? [styles.buttonDisabled] : []),
+                      ]}
                     />
                   )}
                 </View>
               ))}
+            {showAddSetButton && (
               <AppButton
                 title="Add set"
-                onPress={handleAddSet}
-                style={styles.addSetButton}
+                onPress={() => !isSubmitting && handleAddSet(chosenExercise)}
+                style={[
+                  styles.addSetButton,
+                  ...(isSubmitting ? [styles.buttonDisabled] : []),
+                ]}
               />
-            </View>
-          )}
-          <View style={styles.hr} />
-          <AppButton
-            title="Add exercise"
-            onPress={handleSubmit(onSubmit)}
-            style={styles.addExerciseButton}
-          />
-        </View>
+            )}
+          </View>
+        )}
+
+        {showAddSetButton && (
+          <>
+            <View style={styles.hr} />
+            <AppButton
+              title={isSubmitting ? "Adding exercise..." : "Add exercise"}
+              onPress={handleSubmitPress}
+              style={[
+                styles.addExerciseButton,
+                ...(isSubmitting ? [styles.buttonDisabled] : []),
+              ]}
+            />
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -387,7 +564,7 @@ export function Options({ options, index, control }: OptionsProps) {
           placeholder={placeholder}
           keyboardType="numeric"
           onChangeText={(text) => onChange(text ? parseFloat(text) : undefined)}
-          value={value?.toString() ?? ""}
+          value={value?.toString() ?? "0"}
           accessibilityLabel={accessibilityLabel}
         />
       )}
@@ -420,6 +597,13 @@ export function Options({ options, index, control }: OptionsProps) {
 }
 
 const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
+  scrollView: {
+    flex: 1,
+  },
   text: {
     fontSize: 16,
     fontWeight: "medium",
@@ -442,6 +626,10 @@ const styles = StyleSheet.create({
   addExerciseButton: {
     backgroundColor: "#059669",
     marginTop: 8,
+  },
+  buttonDisabled: {
+    backgroundColor: "#9CA3AF",
+    opacity: 0.6,
   },
   addSetButton: {
     backgroundColor: "#2563EB",
@@ -479,8 +667,8 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   scrollViewContainer: {
+    flexGrow: 1,
     padding: 10,
-    backgroundColor: "#F9FAFB",
   },
   headerContainer: {
     flexDirection: "row",

@@ -60,8 +60,6 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     }
   }, [db]);
 
-  //console.log("workouts in workoutContent", workouts);
-
   return (
     <WorkoutContext.Provider
       value={{ workouts, setWorkouts, exercises, setExercises }}

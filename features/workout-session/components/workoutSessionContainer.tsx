@@ -1,4 +1,10 @@
-import { SafeAreaView, StyleSheet, ScrollView } from "react-native";
+import {
+  SafeAreaView,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 
 export default function WorkoutSessionContainer({
   children,
@@ -7,9 +13,15 @@ export default function WorkoutSessionContainer({
 }) {
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        {children}
-      </ScrollView>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 100}
+      >
+        <ScrollView contentContainerStyle={styles.scrollView}>
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

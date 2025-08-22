@@ -1,9 +1,15 @@
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Workout } from "@/types/type";
 import { useWorkout } from "@/context/workoutContent";
 import { useEffect, useState } from "react";
-import WorkoutSessionContainer from "@/features/workout-session/components/workoutSessionContainer";
 import ActiveWorkoutSession from "@/features/workout-session/components/activeWorkoutSession";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -48,15 +54,21 @@ export default function WorkoutDetails() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        onPress={handleBack}
-        style={styles.backButton}
-        activeOpacity={0.7}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={300}
       >
-        <Ionicons name="arrow-back" size={24} color="black" />
-        <Text style={styles.backButtonText}>Back</Text>
-      </TouchableOpacity>
-      <ActiveWorkoutSession workout={workout} />
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color="black" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <ActiveWorkoutSession workout={workout} />
+      </KeyboardAvoidingView>
     </View>
   );
 }

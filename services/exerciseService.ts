@@ -33,6 +33,14 @@ export interface ExerciseService {
   ) => Promise<Exercise[]>;
   getParsedExercises: (exercises: ExerciseRow[]) => Exercise[];
   getParsedExerciseById: (exercise: ExerciseRow) => Exercise | null;
+  updateExerciseOrder: (
+    db: SQLite.SQLiteDatabase,
+    exerciseListToUpdate: { id: number; exercise_order: number }[]
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteExercise: (
+    db: SQLite.SQLiteDatabase,
+    exerciseId: number
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const exerciseService: ExerciseService = {
@@ -262,6 +270,52 @@ export const exerciseService: ExerciseService = {
     } catch (error) {
       console.error("Error fetching exercises by equipment:", error);
       throw new Error("Failed to fetch exercises by equipment");
+    }
+  },
+  updateExerciseOrder: async (
+    db: SQLite.SQLiteDatabase,
+    exercisesToUpdate: { id: number; exercise_order: number }[]
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await db.withTransactionAsync(async () => {
+        // Use Promise.all to wait for all updates to complete
+        await Promise.all(
+          exercisesToUpdate.map(async (exercise) => {
+            await db.runAsync(
+              `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
+              [exercise.exercise_order, exercise.id]
+            );
+          })
+        );
+      });
+
+      console.log("Successfully updated exercise order");
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating exercise order:", error);
+
+      return { success: false, error: "Failed to update exercise order" };
+    }
+  },
+  deleteExercise: async (
+    db: SQLite.SQLiteDatabase,
+    exerciseId: number
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `DELETE FROM exercise_sets WHERE workout_exercise_id = ?`,
+          [exerciseId]
+        );
+
+        await db.runAsync(`DELETE FROM workout_exercises WHERE id = ?`, [
+          exerciseId,
+        ]);
+      });
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting exercise:", error);
+      return { success: false, error: "Failed to delete exercise" };
     }
   },
 };

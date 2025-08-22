@@ -44,6 +44,7 @@ export interface BaseWorkout {
 
 export interface ExerciseSet extends BaseExerciseSet {
   id: number;
+  workout_exercise_id: number;
 }
 
 export interface Exercise extends BaseWorkoutExercise {

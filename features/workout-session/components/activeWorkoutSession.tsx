@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TextInput,
   Modal,
+  ScrollView,
+  FlatList,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Workout, Exercise, ExerciseType } from "@/types/type";
@@ -17,19 +19,24 @@ import {
 } from "react-hook-form";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { Picker } from "@react-native-picker/picker";
-import { Dispatch, SetStateAction, useState, memo, useCallback } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { WorkoutUpdateFormValues } from "@/features/create-workout/types/type";
 import AddExercise from "./addExercise";
 import { AppButton } from "@/components/button";
-import ExerciseCard from "./exerciseCard";
-import ReorderableExerciseList from "./reorderableExerciseList";
+import ExerciseManager from "./exerciseManager";
 
 export default function ActiveWorkoutSession({
   workout,
 }: {
   workout: Workout;
 }) {
-  //console.log("workout in ActiveWorkoutSession", workout);
   const methods = useForm<WorkoutUpdateFormValues>({
     defaultValues: {
       id: workout.id,
@@ -46,36 +53,64 @@ export default function ActiveWorkoutSession({
   const {
     control,
     getValues,
+    setValue,
     formState: { errors },
   } = methods;
   const [mode, setMode] = useState<"date" | "time">("time");
   const [show, setShow] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [workoutType, setWorkoutType] = useState(workout.workoutType);
-  const openDatePicker = () => {
+
+  // Register all nested form fields to ensure they are properly initialized
+  useEffect(() => {
+    if (workout.exercises) {
+      workout.exercises.forEach((exercise, exerciseIndex) => {
+        if (exercise.sets) {
+          exercise.sets.forEach((set, setIndex) => {
+            // Register each set field to ensure React Hook Form tracks them
+            setValue(
+              `exercises.${exerciseIndex}.sets.${setIndex}.reps`,
+              set.reps || 0
+            );
+            setValue(
+              `exercises.${exerciseIndex}.sets.${setIndex}.weight`,
+              set.weight || 0
+            );
+            setValue(
+              `exercises.${exerciseIndex}.sets.${setIndex}.duration`,
+              set.duration || 0
+            );
+            setValue(
+              `exercises.${exerciseIndex}.sets.${setIndex}.distance`,
+              set.distance || 0
+            );
+          });
+        }
+      });
+    }
+  }, [workout.exercises, setValue]);
+
+  const openDatePicker = useCallback(() => {
     setMode("date");
     setShow(true);
-  };
+  }, []);
+
+  const handleAddExercise = useCallback(() => {
+    setShowExerciseModal(true);
+  }, []);
+
+  const handleCloseExerciseModal = useCallback(() => {
+    setShowExerciseModal(false);
+  }, []);
 
   const exercises = useWatch({
     control,
     name: "exercises",
   });
 
-  // Memoized header component
-  const MyListHeaderComponent = memo(function MyListHeaderComponent({
-    setWorkoutType,
-    workoutType,
-    setShowExerciseModal,
-    showExerciseModal,
-  }: {
-    setWorkoutType: Dispatch<SetStateAction<ExerciseType>>;
-    workoutType: ExerciseType;
-    setShowExerciseModal: Dispatch<SetStateAction<boolean>>;
-    showExerciseModal: boolean;
-  }) {
+  const header = useMemo(() => {
     return (
-      <View style={{ flexDirection: "column", gap: 10, marginBottom: 10 }}>
+      <>
         <WorkoutTypePicker
           setWorkoutType={setWorkoutType}
           items={[
@@ -88,38 +123,27 @@ export default function ActiveWorkoutSession({
           name="type"
           workoutType={workoutType}
         />
-        <AppButton
-          title="Add exercise"
-          onPress={() => setShowExerciseModal(true)}
-        />
+        <AppButton title="Add exercise" onPress={handleAddExercise} />
         <Modal
           animationType="slide"
           transparent={false}
           visible={showExerciseModal}
-          onRequestClose={() => {
-            setShowExerciseModal(!showExerciseModal);
-          }}
+          onRequestClose={handleCloseExerciseModal}
         >
           <AddExercise setShowExerciseModal={setShowExerciseModal} />
         </Modal>
-      </View>
+      </>
     );
-  });
+  }, [
+    workoutType,
+    showExerciseModal,
+    handleAddExercise,
+    handleCloseExerciseModal,
+    setWorkoutType,
+  ]);
 
-  const renderHeader = useCallback(
-    () => (
-      <MyListHeaderComponent
-        setWorkoutType={setWorkoutType}
-        workoutType={workoutType}
-        setShowExerciseModal={setShowExerciseModal}
-        showExerciseModal={showExerciseModal}
-      />
-    ),
-    [setWorkoutType, workoutType, setShowExerciseModal, showExerciseModal]
-  );
-
-  const renderFooter = useCallback(
-    () => (
+  const footer = useMemo(() => {
+    return (
       <View style={{ flexDirection: "column", gap: 10, marginBottom: 10 }}>
         <Pressable
           style={({ pressed }) => [
@@ -157,7 +181,6 @@ export default function ActiveWorkoutSession({
             </View>
           </View>
         </Pressable>
-
         {show && (
           <Controller
             name="date"
@@ -181,7 +204,6 @@ export default function ActiveWorkoutSession({
             )}
           />
         )}
-
         <GenericTextInput
           name="duration"
           placeholder="Workout Duration(minutes)"
@@ -192,7 +214,6 @@ export default function ActiveWorkoutSession({
           placeholder="Workout Name"
           keyboardType="default"
         />
-
         <Controller
           name="description"
           control={control}
@@ -209,16 +230,19 @@ export default function ActiveWorkoutSession({
           )}
         />
       </View>
-    ),
-    [openDatePicker, mode, show, getValues, control]
-  );
+    );
+  }, [show, mode, openDatePicker]);
 
   return (
     <FormProvider {...methods}>
-      <ReorderableExerciseList
-        workout={workout}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
+      <FlatList
+        data={exercises || []}
+        renderItem={({ item, index }) => (
+          <ExerciseManager exercise={item} exerciseIndex={index} />
+        )}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={header}
+        ListFooterComponent={footer}
       />
     </FormProvider>
   );
