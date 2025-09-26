@@ -1,29 +1,30 @@
+import { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  Pressable,
-  TextInput,
   KeyboardAvoidingView,
-  ScrollView,
-  TouchableWithoutFeedback,
+  Modal,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
+import * as Localization from "expo-localization";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useCallback, useState } from "react";
-import { AddExercise } from "./addExercise";
-import { router, useFocusEffect } from "expo-router";
-import { useForm, Controller, useWatch, FormProvider } from "react-hook-form";
-import { ExerciseType, ValidUnit, Difficulty } from "@/types/interfaces/types";
-import { Exercise, CreateWorkoutForm } from "@/types/type";
-import { workoutService } from "@/services/workoutService";
-import { AppButton } from "@/components/button";
-import { useWorkout } from "@/context/workoutContent";
-import { useDatabase } from "@/context/databaseContext";
-import ExerciseListItem from "./exerciseListItem";
 import AntDesign from "@expo/vector-icons/AntDesign";
+import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
+import { AppButton } from "@/components/button";
+import { useDatabase } from "@/context/databaseContext";
+import { useWorkout } from "@/context/workoutContent";
+import { workoutService } from "@/services/workoutService";
+import { ExerciseType } from "@/types/interfaces/types";
+import { CreateWorkoutForm, Exercise } from "@/types/type";
+import { AddExercise } from "./addExercise";
+import ExerciseListItem from "./exerciseListItem";
 
 // Helper function to get current date in user's timezone
 const getCurrentDateInLocalTimezone = () => {
@@ -34,18 +35,26 @@ const getCurrentDateInLocalTimezone = () => {
   return `${year}-${month}-${day}`;
 };
 
-// Helper function to get current time in user's timezone
-const getCurrentTimeInLocalTimezone = () => {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+// Date/time helpers to ensure consistent combined value: YYYY-MM-DDTHH:MM
+const DEFAULT_TIME = "12:00";
+const getDatePart = (dateTime: string) =>
+  dateTime && dateTime.includes("T") ? dateTime.split("T")[0] : dateTime;
+const getTimePart = (dateTime: string) => {
+  if (!dateTime) return DEFAULT_TIME;
+  if (dateTime.includes("T")) return dateTime.split("T")[1].slice(0, 5);
+  // If only time is present (e.g., "08:30"), normalize to HH:MM
+  const candidate = dateTime.slice(0, 5);
+  return /\d{2}:\d{2}/.test(candidate) ? candidate : DEFAULT_TIME;
 };
+const combineDateTime = (datePart: string, timePart: string) =>
+  `${datePart}T${timePart}`;
 
-// Helper function to parse date string in local timezone
+// Helper function to parse date/time string safely in local timezone
 const parseDateInLocalTimezone = (dateString: string) => {
-  const [year, month, day] = dateString.split("-").map(Number);
-  return new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+  const datePart = getDatePart(dateString) || getCurrentDateInLocalTimezone();
+  const timePart = getTimePart(dateString) || DEFAULT_TIME;
+  // Add seconds to avoid platform quirks, construct ISO-like local string
+  return new Date(`${datePart}T${timePart}:00`);
 };
 
 type CreateWorkoutContainerProps = {
@@ -55,19 +64,28 @@ type CreateWorkoutContainerProps = {
 export function CreateWorkoutContainer({
   exerciseList,
 }: CreateWorkoutContainerProps) {
+  const { date } = useLocalSearchParams();
   const [workoutType, setWorkoutType] =
     useState<ExerciseType>("Select workout");
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const { workouts, setWorkouts } = useWorkout();
   const { db } = useDatabase();
+  const currentDate = new Date();
+  currentDate.setHours(12, 0, 0, 0);
+
   // Form state
   const methods = useForm<CreateWorkoutForm>({
     defaultValues: {
       name: "",
       description: "",
       duration: undefined,
-      date: getCurrentDateInLocalTimezone(),
-      time: getCurrentTimeInLocalTimezone(),
+      scheduled_datetime: (() => {
+        const initialDatePart = (date as string)
+          ? (date as string)
+          : getCurrentDateInLocalTimezone();
+        const initialTimePart = DEFAULT_TIME;
+        return combineDateTime(initialDatePart, initialTimePart);
+      })(),
       workoutType: "Select workout",
       exercises: [],
       isCompleted: false,
@@ -85,10 +103,17 @@ export function CreateWorkoutContainer({
   const [workout, setWorkout] = useState(getValues().workoutType);
   const [mode, setMode] = useState<"date" | "time">("date");
   const [show, setShow] = useState(false);
+  const userLocale = Localization.getLocales()[0]?.languageTag || "en-US";
+  const userTimeZone = Localization.getCalendars()[0]?.timeZone;
   const openDatePicker = () => {
     setMode("date");
     setShow(true);
   };
+
+  // Ensure field is registered so programmatic updates are tracked by RHF
+  useEffect(() => {
+    methods.register("scheduled_datetime");
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,9 +124,23 @@ export function CreateWorkoutContainer({
     }, [])
   );
 
+  useEffect(() => {
+    if (date) {
+      setValue(
+        "scheduled_datetime",
+        combineDateTime(date as string, DEFAULT_TIME),
+        { shouldDirty: true, shouldValidate: false, shouldTouch: false }
+      );
+    }
+  }, [date]);
+
   const workoutExerciseListUpdate = useWatch({
     control,
     name: "exercises",
+  });
+  const scheduledDateTime = useWatch({
+    control,
+    name: "scheduled_datetime",
   });
 
   const onSubmit = async (data: CreateWorkoutForm) => {
@@ -241,22 +280,23 @@ export function CreateWorkoutContainer({
                 <View style={{ flexDirection: "row", gap: 5 }}>
                   <Text style={{ margin: 5 }}>
                     {parseDateInLocalTimezone(
-                      getValues().date
-                    ).toLocaleDateString("en-US", {
+                      scheduledDateTime
+                    ).toLocaleDateString(userLocale, {
                       year: "numeric",
                       month: "long",
                       day: "numeric",
+                      timeZone: userTimeZone || undefined,
                     })}
                   </Text>
                   <Text style={{ margin: 5 }}>
-                    {getValues().time &&
-                      new Date(
-                        `1970-01-01T${getValues().time}`
-                      ).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                      })}
+                    {parseDateInLocalTimezone(
+                      scheduledDateTime
+                    ).toLocaleTimeString(userLocale, {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                      timeZone: userTimeZone || undefined,
+                    })}
                   </Text>
                 </View>
               </View>
@@ -264,7 +304,7 @@ export function CreateWorkoutContainer({
 
             {show && (
               <Controller
-                name="date"
+                name="scheduled_datetime"
                 control={control}
                 render={({ field: { onChange, onBlur, value } }) => (
                   <DateTimePicker
@@ -275,22 +315,34 @@ export function CreateWorkoutContainer({
                     onChange={(___, selectedDate) => {
                       if (selectedDate) {
                         if (mode === "date") {
-                          // Update date field
-                          const dateString =
-                            selectedDate.toLocaleDateString("en-CA");
-                          onChange(dateString);
+                          // Update date part and preserve time
+                          const yyyy = selectedDate.getFullYear();
+                          const mm = String(
+                            selectedDate.getMonth() + 1
+                          ).padStart(2, "0");
+                          const dd = String(selectedDate.getDate()).padStart(
+                            2,
+                            "0"
+                          );
+                          const dateString = `${yyyy}-${mm}-${dd}`;
+                          const timePart = getTimePart(value) || DEFAULT_TIME;
+                          onChange(combineDateTime(dateString, timePart));
                           setMode("time");
                         } else {
-                          // Update time field
-                          const timeString = selectedDate.toLocaleTimeString(
-                            "en-US",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: false,
-                            }
+                          console.log("time ", selectedDate.toISOString());
+                          // Update time part and preserve date
+                          const hh = String(selectedDate.getHours()).padStart(
+                            2,
+                            "0"
                           );
-                          setValue("time", timeString);
+                          const min = String(
+                            selectedDate.getMinutes()
+                          ).padStart(2, "0");
+                          const timeString = `${hh}:${min}`;
+                          const datePart =
+                            getDatePart(value) ||
+                            getCurrentDateInLocalTimezone();
+                          onChange(combineDateTime(datePart, timeString));
                           setMode("date");
                           setShow(false);
                         }

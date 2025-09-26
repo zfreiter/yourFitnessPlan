@@ -1,4 +1,4 @@
-import AntDesign from "@expo/vector-icons/AntDesign";
+import { Ionicons } from "@expo/vector-icons";
 import { useDatabase } from "@/context/databaseContext";
 import {
   Controller,
@@ -14,6 +14,7 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
+  Alert,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useState, useCallback, useMemo } from "react";
@@ -108,7 +109,12 @@ export default function AddExercise({
     control,
     name: "sets",
   });
-  const { exercises: rawExercises, workouts, setWorkouts } = useWorkout();
+  const {
+    exercises: rawExercises,
+    workouts,
+    setWorkouts,
+    addWorkoutExercise,
+  } = useWorkout();
 
   // Map exercises to the expected format for WorkoutExercise
   const exercises = useMemo(() => {
@@ -221,23 +227,11 @@ export default function AddExercise({
           newExerciseData,
         ]);
         const currentWorkoutList = methods.getValues("id");
-        // TODO: Uncomment this when we have a way to update the workout list
-        setWorkouts((prev: Workout[]) => {
-          if (newExerciseData) {
-            const updatedWorkout = prev.map((workout: Workout) =>
-              workout.id === currentWorkoutList
-                ? {
-                    ...workout,
-                    exercises: [...workout.exercises, newExerciseData],
-                  }
-                : workout
-            );
-            return updatedWorkout;
-          }
-          return prev;
-        });
 
-        console.log("success", success);
+        if (newExerciseData) {
+          addWorkoutExercise(newExerciseData, currentWorkoutList);
+        }
+
         resetToInitialState();
       } catch (error) {
         console.error("Unexpected error adding exercise:", error);
@@ -357,27 +351,27 @@ export default function AddExercise({
     <View style={styles.modalContainer}>
       <View style={styles.headerContainer}>
         <Pressable
-          style={{
-            alignSelf: "flex-end",
-            margin: 5,
-            opacity: isSubmitting ? 0.5 : 1,
-          }}
-          onPress={() => !isSubmitting && handleCloseModal()}
+          style={{ alignSelf: "flex-end", margin: 5 }}
+          onPress={handleCloseModal}
           accessibilityLabel="Close exercise modal"
           accessibilityHint="Double tap to close the exercise selection modal"
           accessibilityRole="button"
         >
           {({ pressed }) => (
-            <AntDesign
-              name="closecircleo"
-              size={24}
-              color={pressed ? "#DC2626" : "#1F2937"}
+            <AppButton
+              title="Cancel"
+              style={{
+                backgroundColor: "#FF9500",
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+              }}
+              onPress={handleCloseModal}
+              textStyle={{ color: "white" }}
             />
           )}
         </Pressable>
       </View>
       <ScrollView
-        style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContainer}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -420,10 +414,15 @@ export default function AddExercise({
         )}
         {/* Exercise Information */}
         {chosenExercise && (
-          <View>
+          <View style={{}}>
+            <View style={styles.hr} />
             <View>
-              <Text style={styles.exerciseName}>{chosenExercise.name}</Text>
-              <Text style={styles.setDetailsHeader}>Set Details</Text>
+              <Text style={styles.exerciseName}>
+                {`${chosenExercise.name}`}
+              </Text>
+              <Text style={styles.setDetailsHeader}>
+                {chosenExercise.description}
+              </Text>
             </View>
             {/* If the exercise has more than one option we need to give the user the options */}
             {chosenExercise.validUnits &&
@@ -479,64 +478,121 @@ export default function AddExercise({
                 </>
               )}
 
-            {showAddSetButton &&
-              fields.map((field, index) => (
-                <View key={field.id} style={styles.setContainer}>
-                  {chosenExercise.validUnits &&
-                  chosenExercise.validUnits.length > 1 ? (
-                    <>
-                      {optionsChoice && (
-                        <Options
-                          options={optionsChoice}
-                          index={index}
-                          control={control}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <Options
-                      options={chosenExercise.validUnits?.[0].join("-") || ""}
-                      index={index}
-                      control={control}
-                    />
-                  )}
-                  {watchSets.length > 0 && (
-                    <AppButton
-                      title="Remove set"
-                      onPress={() => !isSubmitting && handleRemoveSet(index)}
-                      style={[
-                        styles.removeSetButton,
-                        ...(isSubmitting ? [styles.buttonDisabled] : []),
-                      ]}
-                    />
-                  )}
+            {optionsChoice && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 20,
+                }}
+              >
+                {fields.map((field, index) => (
+                  <Pressable
+                    key={index}
+                    accessibilityLabel={`Set ${index + 1}`}
+                    accessibilityHint="Long-press to remove this set"
+                    accessibilityRole="button"
+                    style={{
+                      padding: 10,
+                      borderWidth: 1,
+                      borderColor: "#A0A0A0",
+                      backgroundColor: "#E0E0E0",
+                      borderRadius: 10,
+                      alignSelf: "flex-start",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                    onLongPress={() => {
+                      Alert.alert("Remove set", `Set ${index + 1} `);
+                      handleRemoveSet(index);
+                    }}
+                  >
+                    {chosenExercise.validUnits &&
+                    chosenExercise.validUnits.length > 1 ? (
+                      <View
+                        style={{
+                          flexDirection: "column",
+                        }}
+                      >
+                        <Text style={{}}>Set {index + 1}</Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          {optionsChoice && (
+                            <Options
+                              options={optionsChoice}
+                              index={index}
+                              control={control}
+                            />
+                          )}
+                        </View>
+                      </View>
+                    ) : (
+                      <View
+                        style={{
+                          flexDirection: "column",
+                        }}
+                      >
+                        <Text style={{}}>Set {index + 1}</Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <Options
+                            options={
+                              chosenExercise.validUnits?.[0].join("-") || ""
+                            }
+                            index={index}
+                            control={control}
+                          />
+                        </View>
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
+
+                <View style={styles.SetCardInputContainer}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      {
+                        backgroundColor: pressed ? "#E5E7EB" : "transparent",
+                        transform: [{ scale: pressed ? 0.98 : 1 }],
+                      },
+                    ]}
+                    onPress={() =>
+                      !isSubmitting && handleAddSet(chosenExercise)
+                    }
+                  >
+                    <Text>Add Set</Text>
+                    <View style={styles.addIconContainer}>
+                      <Ionicons name="add" size={20} color="green" />
+                    </View>
+                  </Pressable>
                 </View>
-              ))}
-            {showAddSetButton && (
-              <AppButton
-                title="Add set"
-                onPress={() => !isSubmitting && handleAddSet(chosenExercise)}
-                style={[
-                  styles.addSetButton,
-                  ...(isSubmitting ? [styles.buttonDisabled] : []),
-                ]}
-              />
+              </View>
             )}
           </View>
         )}
 
-        {showAddSetButton && (
-          <>
-            <View style={styles.hr} />
-            <AppButton
-              title={isSubmitting ? "Adding exercise..." : "Add exercise"}
-              onPress={handleSubmitPress}
-              style={[
-                styles.addExerciseButton,
-                ...(isSubmitting ? [styles.buttonDisabled] : []),
-              ]}
-            />
-          </>
+        <View style={styles.hr} />
+        {chosenExercise && (
+          <AppButton
+            title={isSubmitting ? "Adding exercise..." : "Add exercise"}
+            onPress={handleSubmitPress}
+            style={[
+              styles.addExerciseButton,
+              ...(isSubmitting ? [styles.buttonDisabled] : []),
+            ]}
+          />
         )}
       </ScrollView>
     </View>
@@ -554,43 +610,52 @@ export function Options({ options, index, control }: OptionsProps) {
     name: keyof SetDetails,
     placeholder: string,
     accessibilityLabel: string
-  ) => (
-    <Controller
-      name={`sets.${index}.${name}` as const}
-      control={control}
-      render={({ field: { onChange, value } }) => (
-        <TextInput
-          style={styles.input}
-          placeholder={placeholder}
-          keyboardType="numeric"
-          onChangeText={(text) => onChange(text ? parseFloat(text) : undefined)}
-          value={value?.toString() ?? "0"}
-          accessibilityLabel={accessibilityLabel}
-        />
-      )}
-    />
-  );
+  ) => {
+    return (
+      <Controller
+        key={`${index}-${name}`}
+        name={`sets.${index}.${name}` as const}
+        control={control}
+        render={({ field: { onChange, value } }) => (
+          <View style={{ gap: 2 }}>
+            <Text style={styles.setInputLabel}>{placeholder}</Text>
+            <TextInput
+              style={styles.setInput}
+              keyboardType="numeric"
+              onChangeText={(text) =>
+                onChange(text ? parseFloat(text) : undefined)
+              }
+              value={value?.toString()}
+              accessibilityLabel={accessibilityLabel}
+            />
+          </View>
+        )}
+      />
+    );
+  };
+  let content: JSX.Element | JSX.Element[] | null = null;
   switch (options) {
     case "reps":
       return renderInput("reps", "Reps", `Set ${index + 1} reps`);
+      break;
     case "weight":
       return renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`);
+      break;
     case "time":
       return renderInput("time", "Time (seconds)", `Set ${index + 1} time`);
+      break;
     case "time-distance":
-      return (
-        <>
-          {renderInput("time", "Time (seconds)", `Set ${index + 1} time`)}
-          {renderInput("distance", "Distance (m)", `Set ${index + 1} distance`)}
-        </>
-      );
+      return [
+        renderInput("time", "Time (seconds)", `Set ${index + 1} time`),
+        renderInput("distance", "Distance (m)", `Set ${index + 1} distance`),
+      ];
+      break;
     case "reps-weight":
-      return (
-        <>
-          {renderInput("reps", "Reps", `Set ${index + 1} reps`)}
-          {renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`)}
-        </>
-      );
+      return [
+        renderInput("reps", "Reps", `Set ${index + 1} reps`),
+        renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`),
+      ];
+      break;
     default:
       return null;
   }
@@ -599,7 +664,6 @@ export function Options({ options, index, control }: OptionsProps) {
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
   },
   scrollView: {
     flex: 1,
@@ -615,13 +679,13 @@ const styles = StyleSheet.create({
     color: "#DC2626",
   },
   input: {
+    width: 45,
+    textAlign: "right",
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    padding: 12,
-    borderRadius: 8,
+    borderColor: "black",
+    borderRadius: 5,
+    padding: 5,
     backgroundColor: "white",
-    marginVertical: 4,
-    color: "#1F2937",
   },
   addExerciseButton: {
     backgroundColor: "#059669",
@@ -667,8 +731,8 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   scrollViewContainer: {
-    flexGrow: 1,
     padding: 10,
+    backgroundColor: "#F9FAFB",
   },
   headerContainer: {
     flexDirection: "row",
@@ -677,24 +741,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   exerciseName: {
-    marginLeft: 10,
-    marginTop: 20,
-    textAlign: "center",
+    marginTop: 4,
+    textAlign: "left",
     fontSize: 18,
     fontWeight: "600",
     color: "#1F2937",
   },
   setDetailsHeader: {
-    marginLeft: 10,
-    marginTop: 20,
-    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 20,
+    textAlign: "left",
     fontSize: 16,
     fontWeight: "500",
     color: "#4B5563",
   },
   optionsLabel: {
-    marginLeft: 10,
-    marginTop: 20,
+    marginTop: 4,
     color: "#4B5563",
     fontSize: 16,
   },
@@ -714,5 +776,34 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: "#DC2626",
+  },
+  setInput: {
+    width: 45,
+    textAlign: "right",
+    borderWidth: 1,
+    borderColor: "black",
+    borderRadius: 5,
+    padding: 5,
+    backgroundColor: "white",
+  },
+  setInputLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#4B5563",
+  },
+  SetCardInputContainer: {
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "black",
+    backgroundColor: "white",
+    borderRadius: 10,
+    alignSelf: "flex-start",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addIconContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 5,
   },
 });

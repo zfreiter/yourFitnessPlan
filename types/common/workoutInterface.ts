@@ -35,8 +35,7 @@ export interface BaseWorkout {
   name: string;
   description: string;
   workoutType: ExerciseType;
-  date: string;
-  time: string;
+  scheduled_datetime: string;
   duration: number;
   exercises: BaseWorkoutExercise[];
   isCompleted: boolean;
@@ -63,4 +62,9 @@ export interface ExerciseFormData extends BaseWorkoutExercise {}
 
 export interface CreateWorkoutForm extends BaseWorkout {
   exercises: ExerciseFormData[];
+}
+
+export enum ExerciseDirection {
+  UP = "up",
+  DOWN = "down",
 }

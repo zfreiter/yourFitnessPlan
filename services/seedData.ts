@@ -359,23 +359,22 @@ const exercises = [
   },
 ];
 
-// Utility to get date strings for today and offsets
-type DateOffset = number; // days offset from today
-function getDateString(offset: DateOffset = 0) {
-  const d = new Date();
+// Utility to get datetime strings for September 2025 with offsets
+type DateOffset = number; // days offset from September 1, 2025
+function getDateTimeString(offset: DateOffset = 0, time: string = "08:00:00") {
+  const d = new Date(2025, 8, 1); // September 1, 2025 (month is 0-indexed)
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  return `${d.toISOString().slice(0, 10)} ${time}`; // YYYY-MM-DD HH:MM:SS
 }
 
-// Generate dynamic workouts around the current date
+// Generate dynamic workouts around September 2025
 const generateDynamicWorkouts = () => {
   return [
     {
-      name: "Today's Full Body",
-      description: "A full body workout for today.",
+      name: "September 1st Full Body",
+      description: "A full body workout for September 1st.",
       type: "strength",
-      date: getDateString(0),
-      time: "07:00:00",
+      scheduled_datetime: getDateTimeString(0, "07:00:00"),
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -407,11 +406,10 @@ const generateDynamicWorkouts = () => {
       ],
     },
     {
-      name: "Yesterday's Cardio",
-      description: "A cardio session from yesterday.",
+      name: "August 31st Cardio",
+      description: "A cardio session from August 31st.",
       type: "cardio",
-      date: getDateString(-1),
-      time: "18:30:00",
+      scheduled_datetime: getDateTimeString(-1, "18:30:00"),
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -436,11 +434,10 @@ const generateDynamicWorkouts = () => {
       ],
     },
     {
-      name: "Tomorrow's Mobility",
-      description: "A mobility workout for tomorrow.",
+      name: "September 2nd Mobility",
+      description: "A mobility workout for September 2nd.",
       type: "mobility",
-      date: getDateString(1),
-      time: "06:45:00",
+      scheduled_datetime: getDateTimeString(1, "06:45:00"),
       duration: 1500,
       is_completed: 0,
       exercises: [
@@ -465,11 +462,10 @@ const generateDynamicWorkouts = () => {
       ],
     },
     {
-      name: "2 Days Ago - Upper Body",
-      description: "Upper body strength session from two days ago.",
+      name: "August 30th - Upper Body",
+      description: "Upper body strength session from August 30th.",
       type: "strength",
-      date: getDateString(-2),
-      time: "08:15:00",
+      scheduled_datetime: getDateTimeString(-2, "08:15:00"),
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -500,11 +496,10 @@ const generateDynamicWorkouts = () => {
       ],
     },
     {
-      name: "In 3 Days - HIIT",
-      description: "A planned HIIT session for three days from now.",
+      name: "September 4th - HIIT",
+      description: "A planned HIIT session for September 4th.",
       type: "cardio",
-      date: getDateString(3),
-      time: "17:00:00",
+      scheduled_datetime: getDateTimeString(3, "17:00:00"),
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -531,15 +526,14 @@ const generateDynamicWorkouts = () => {
   ];
 };
 
-// Generate May workouts
-const generateMayWorkouts = () => {
-  const mayWorkouts = [
+// Generate September workouts
+const generateSeptemberWorkouts = () => {
+  const septemberWorkouts = [
     {
       name: "Push Day",
       description: "A workout focused on chest, shoulders, and triceps.",
       type: "strength",
-      date: "2025-05-01",
-      time: "08:00:00",
+      scheduled_datetime: "2025-09-01 08:00:00",
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -575,8 +569,7 @@ const generateMayWorkouts = () => {
       name: "Pull Day",
       description: "A workout focused on back and biceps.",
       type: "strength",
-      date: "2025-05-02",
-      time: "09:00:00",
+      scheduled_datetime: "2025-09-02 09:00:00",
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -608,8 +601,7 @@ const generateMayWorkouts = () => {
       name: "Leg Day",
       description: "A workout focused on lower body strength.",
       type: "strength",
-      date: "2025-05-03",
-      time: "07:30:00",
+      scheduled_datetime: "2025-09-03 07:30:00",
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -645,8 +637,7 @@ const generateMayWorkouts = () => {
       name: "Cardio Blast",
       description: "A high-intensity cardio workout.",
       type: "cardio",
-      date: "2025-05-04",
-      time: "18:00:00",
+      scheduled_datetime: "2025-09-04 18:00:00",
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -674,8 +665,7 @@ const generateMayWorkouts = () => {
       name: "Core Strength",
       description: "A workout focused on core stability and strength.",
       type: "mobility",
-      date: "2025-05-05",
-      time: "10:00:00",
+      scheduled_datetime: "2025-09-05 10:00:00",
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -703,8 +693,7 @@ const generateMayWorkouts = () => {
       name: "Upper Body Strength",
       description: "A workout focused on building upper body strength.",
       type: "strength",
-      date: "2025-05-23",
-      time: "08:00:00",
+      scheduled_datetime: "2025-09-23 08:00:00",
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -740,8 +729,7 @@ const generateMayWorkouts = () => {
       name: "Endurance Cardio",
       description: "A workout focused on improving cardiovascular endurance.",
       type: "cardio",
-      date: "2025-05-23",
-      time: "10:00:00",
+      scheduled_datetime: "2025-09-23 10:00:00",
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -770,8 +758,7 @@ const generateMayWorkouts = () => {
       description:
         "A workout focused on improving flexibility and core strength.",
       type: "mobility",
-      date: "2025-05-23",
-      time: "18:00:00",
+      scheduled_datetime: "2025-09-23 18:00:00",
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -796,13 +783,13 @@ const generateMayWorkouts = () => {
       ],
     },
   ];
-  // Add dynamic workouts around the current date
-  return [...mayWorkouts, ...generateDynamicWorkouts()];
+  // Add dynamic workouts around September 2025
+  return [...septemberWorkouts, ...generateDynamicWorkouts()];
 };
 
 export const seedData = {
   exercises,
-  workouts: generateMayWorkouts(),
+  workouts: generateSeptemberWorkouts(),
 };
 
 // SQL statements to insert the seed data
@@ -868,13 +855,13 @@ VALUES (${index + 1}, '${unitCombo.join("||")}');
 ${seedData.workouts
   .map(
     (workout, workoutIndex) => `
-INSERT INTO workouts (id, name, description, type, date, time, duration, is_completed)
+INSERT INTO workouts (id, name, description, type, scheduled_datetime, duration, is_completed)
 VALUES (${workoutIndex + 1}, '${workout.name.replace(
       /'/g,
       "''"
     )}', '${workout.description.replace(/'/g, "''")}', '${workout.type}', '${
-      workout.date
-    }', '${workout.time}', ${workout.duration}, ${workout.is_completed});
+      workout.scheduled_datetime
+    }', ${workout.duration}, ${workout.is_completed});
 
 ${workout.exercises
   .map((exercise, exerciseIndex) => {

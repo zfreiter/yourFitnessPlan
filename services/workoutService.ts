@@ -12,7 +12,27 @@ import {
   CreateWorkoutForm,
   BaseWorkout,
   ExerciseFormData,
+  ExerciseDirection,
 } from "@/types/type";
+
+/*
+ * FUNCTION INDEX - workoutService.ts
+ * ===================================
+ *
+ * Helper Functions:
+ * - transformWorkout (Line 75) - Transforms database rows to Workout objects
+ *
+ * workoutService Methods:
+ * - getAllWorkouts (Line 130) - Fetches all workouts from database
+ * - getWorkoutById (Line 175) - Fetches specific workout by ID
+ * - getWorkoutsByDate (Line 270) - Fetches workouts for specific date
+ * - transformToAppFormat (Line 365) - Transforms workout data to app format
+ * - insertWorkout (Line 405) - Inserts new workout into database
+ * - updateWorkoutNewExercise (Line 515) - Adds new exercise to existing workout
+ * - updateExerciseOrder (Line 635) - Updates exercise ordering in workout
+ * - updateWorkoutType (Line 645) - Updates workout type in workout
+ * ===================================
+ */
 
 // Interface for raw database row (used in old approach)
 interface WorkoutRow {
@@ -20,8 +40,7 @@ interface WorkoutRow {
   name: string;
   description: string;
   type: string;
-  date: string;
-  time: string;
+  scheduled_datetime: string;
   duration: number;
   is_completed: number;
   workout_exercise_id: number; // Add this field
@@ -49,8 +68,7 @@ interface WorkoutDataRow {
   name: string;
   description: string;
   type: string;
-  date: string;
-  time: string;
+  scheduled_datetime: string;
   duration: number;
   is_completed: number;
 }
@@ -136,8 +154,7 @@ const transformWorkout = (rows: WorkoutRow[]): Workout | null => {
     name: rows[0].name,
     description: rows[0].description,
     workoutType: rows[0].type as ExerciseType,
-    date: rows[0].date,
-    time: rows[0].time,
+    scheduled_datetime: rows[0].scheduled_datetime,
     duration: rows[0].duration,
     exercises: Array.from(exercisesMap.values()),
     isCompleted: !!rows[0].is_completed,
@@ -175,7 +192,7 @@ export const workoutService = {
         LEFT JOIN exercise_sets es ON we.id = es.workout_exercise_id
         LEFT JOIN exercise_unit_combinations euc ON we.exercise_id = euc.exercise_id
         GROUP BY w.id, we.id, es.id
-        ORDER BY w.date, w.time, we.exercise_order, es.set_order
+        ORDER BY w.scheduled_datetime, we.exercise_order, es.set_order
       `);
 
       // Group rows by workout
@@ -276,8 +293,7 @@ export const workoutService = {
         name: workout.name,
         description: workout.description,
         workoutType: workout.type as ExerciseType,
-        date: workout.date,
-        time: workout.time,
+        scheduled_datetime: workout.scheduled_datetime,
         duration: workout.duration,
         exercises,
         isCompleted: !!workout.is_completed,
@@ -287,6 +303,7 @@ export const workoutService = {
       throw new Error("Failed to fetch workout");
     }
   },
+
   getWorkoutsByDate: async (
     db: SQLite.SQLiteDatabase,
     date: string
@@ -294,7 +311,7 @@ export const workoutService = {
     try {
       // Get all workouts for the date
       const workoutRows = await db.getAllAsync<WorkoutDataRow>(
-        `SELECT * FROM workouts WHERE date = ? ORDER BY time`,
+        `SELECT * FROM workouts WHERE DATE(scheduled_datetime) = ? ORDER BY scheduled_datetime`,
         [date]
       );
 
@@ -362,8 +379,7 @@ export const workoutService = {
             name: workout.name,
             description: workout.description,
             workoutType: workout.type as ExerciseType,
-            date: workout.date,
-            time: workout.time,
+            scheduled_datetime: workout.scheduled_datetime,
             duration: workout.duration,
             exercises,
             isCompleted: !!workout.is_completed,
@@ -377,14 +393,14 @@ export const workoutService = {
       throw new Error("Failed to fetch workouts by date");
     }
   },
+
   transformToAppFormat: (workouts: Workout[]): AppWorkout[] => {
     return workouts.map((workout) => ({
       id: workout.id?.toString() || "",
       name: workout.name,
       description: workout.description,
       type: workout.workoutType as ExerciseType,
-      date: workout.date,
-      time: workout.time,
+      scheduled_datetime: workout.scheduled_datetime,
       duration: workout.duration,
       exercises: workout.exercises.map((exercise) => ({
         exercise: {
@@ -415,6 +431,7 @@ export const workoutService = {
       isCompleted: workout.isCompleted,
     }));
   },
+
   insertWorkout: async (
     db: SQLite.SQLiteDatabase,
     createWorkout: CreateWorkoutForm
@@ -425,26 +442,24 @@ export const workoutService = {
         name,
         description,
         workoutType,
-        date,
-        time,
+        scheduled_datetime,
         duration,
         isCompleted,
       } = createWorkout;
 
       let insertedWorkoutId: number = 0;
-
+      const [date, time] = scheduled_datetime.split("T");
       await db.withTransactionAsync(async () => {
         const workoutId = await db.runAsync(
           `
-        INSERT INTO workouts (name, description, type, date, time, duration, is_completed)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO workouts (name, description, type, scheduled_datetime, duration, is_completed)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
           [
             name,
             description || "",
             workoutType,
-            date.toString(),
-            time,
+            `${date} ${time}`,
             duration || 0,
             isCompleted ? 1 : 0,
           ]
@@ -522,6 +537,7 @@ export const workoutService = {
       };
     }
   },
+
   updateWorkoutNewExercise: async (
     db: SQLite.SQLiteDatabase,
     workoutId: number,
@@ -639,24 +655,69 @@ export const workoutService = {
       return { success: false, error: "Failed to update workout" };
     }
   },
+
   updateExerciseOrder: async (
     db: SQLite.SQLiteDatabase,
-    exerciseIds: { id: number; newOrder: number }[]
+    exerciseFirstId: number,
+    exerciseSecondId: number,
+    exerciseFirstOrder: number,
+    exerciseSecondOrder: number
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      // update the exercise order in the database
       await db.withExclusiveTransactionAsync(async () => {
-        for (const exercise of exerciseIds) {
-          await db.runAsync(
-            `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
-            [exercise.newOrder, exercise.id]
-          );
-        }
+        await db.runAsync(
+          `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
+          [exerciseSecondOrder, exerciseFirstId]
+        );
+
+        await db.runAsync(
+          `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
+          [exerciseFirstOrder, exerciseSecondId]
+        );
       });
       return { success: true };
     } catch (error) {
       console.error("Error updating exercise order:", error);
       return { success: false, error: "Failed to update exercise order" };
+    }
+  },
+
+  updateWorkoutType: async (
+    db: SQLite.SQLiteDatabase,
+    workoutId: number,
+    workoutType: ExerciseType
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await db.withExclusiveTransactionAsync(async () => {
+        await db.runAsync(`UPDATE workouts SET type = ? WHERE id = ?`, [
+          workoutType,
+          workoutId,
+        ]);
+      });
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating workout type:", error);
+      return { success: false, error: "Failed to update workout type" };
+    }
+  },
+  updateWorkoutField: async (
+    db: SQLite.SQLiteDatabase,
+    workoutId: number,
+    fieldName: string,
+    value: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (fieldName === "date") {
+        console.log("updating date --------------> ", value);
+      }
+      // await db.runAsync(`UPDATE workouts SET ${fieldName} = ? WHERE id = ?`, [
+      //   value,
+      //   workoutId,
+      // ]);
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating workout field:", error);
+      return { success: false, error: "Failed to update workout field" };
     }
   },
 };

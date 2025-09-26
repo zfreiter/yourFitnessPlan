@@ -19,30 +19,30 @@ export default function useAutoUpdateExerciseOrder(exercises: Exercise[]) {
   // Debounced function to update database
   const debouncedUpdateDatabase = useCallback(
     debounce(async (exerciseIds: { id: number; newOrder: number }[]) => {
-      if (exerciseIds.length > 0) {
-        console.log(
-          "Updating database with exercise order changes:",
-          exerciseIds
-        );
-        if (db) {
-          const result = await workoutService.updateExerciseOrder(
-            db,
-            exerciseIds
-          );
-          if (result.success) {
-            console.log("Exercise order updated successfully");
-            // update the workouts state with the updated exercises
-            //   setWorkouts((prevWorkouts) => {
-            //     return prevWorkouts.map((workout) => {
-            //       if (workout.id === updatedExercises[0].workout_id) {
-            //         return { ...workout, exercises: updatedExercises };
-            //       }
-            //       return workout;
-            //     });
-            //   });
-          }
-        }
-      }
+      // if (exerciseIds.length > 0) {
+      //   console.log(
+      //     "Updating database with exercise order changes:",
+      //     exerciseIds
+      //   );
+      //   if (db) {
+      //     const result = await workoutService.updateExerciseOrder(
+      //       db,
+      //       exerciseIds
+      //     );
+      // if (result.success) {
+      //   console.log("Exercise order updated successfully");
+      // update the workouts state with the updated exercises
+      //   setWorkouts((prevWorkouts) => {
+      //     return prevWorkouts.map((workout) => {
+      //       if (workout.id === updatedExercises[0].workout_id) {
+      //         return { ...workout, exercises: updatedExercises };
+      //       }
+      //       return workout;
+      //     });
+      //   });
+      // }
+      // }
+      // }
     }, 500),
     []
   );

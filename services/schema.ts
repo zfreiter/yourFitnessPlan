@@ -58,8 +58,7 @@ CREATE TABLE IF NOT EXISTS workouts (
     name TEXT NOT NULL,
     description TEXT,
     type TEXT CHECK(type IN ('strength', 'cardio', 'mobility', 'circuit')),
-    date TEXT NOT NULL,
-    time TEXT NOT NULL,
+    scheduled_datetime TEXT NOT NULL,
     duration INTEGER,
     is_completed INTEGER DEFAULT 0
 );

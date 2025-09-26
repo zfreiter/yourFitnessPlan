@@ -27,7 +27,7 @@ export default function SetInputs({
 }: SetInputsProps) {
   const { watch, control } = useFormContext();
   const exercise = watch(`exercises.${exerciseIndex}`);
-  const { setWorkouts } = useWorkout();
+  const { updateWorkoutExerciseSet } = useWorkout();
   const { db } = useDatabase();
 
   // Use refs to maintain stable debounced functions
@@ -50,29 +50,13 @@ export default function SetInputs({
 
           const response = await setService.updateSet(db, updateData);
           if (response.success) {
-            setWorkouts((prevWorkouts: Workout[]) => {
-              return prevWorkouts.map((workout: Workout) => {
-                if (workout.id.toString() === exercise.workout_id.toString()) {
-                  const updatedExercises = workout.exercises.map((ex) => {
-                    if (ex.id === exercise.id) {
-                      const updatedSets = ex.sets.map((s) => {
-                        if (s.id === set.id) {
-                          return {
-                            ...s,
-                            [field]: parseInt(text) || 0,
-                          };
-                        }
-                        return s;
-                      });
-                      return { ...ex, sets: updatedSets };
-                    }
-                    return ex;
-                  });
-                  return { ...workout, exercises: updatedExercises };
-                }
-                return workout;
-              });
-            });
+            updateWorkoutExerciseSet(
+              exercise.workout_id,
+              exercise.id,
+              set.id,
+              field,
+              text
+            );
           } else {
             console.error("Failed to update set:", response.error);
           }
@@ -115,7 +99,7 @@ export default function SetInputs({
     };
   }, []);
   return (
-    <View style={styles.SetCardInputOptionsContainer}>
+    <View style={[styles.SetCardInputOptionsContainer]}>
       {options.track_reps === 1 && (
         <View style={styles.inputContainer}>
           <Text style={styles.SetCardInputLabel}>Reps</Text>
@@ -157,12 +141,22 @@ export default function SetInputs({
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.weight`}
             control={control}
-            render={({ field: { onChange, value } }) => {
+            render={({ field: { onChange, value, onBlur } }) => {
               return (
                 <TextInput
                   keyboardType="numeric"
                   style={styles.SetCardInput}
                   value={value?.toString() || ""}
+                  onFocus={() => {
+                    setIsFocusedOldValue(value || 0);
+                    onChange(null);
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (value === null) {
+                      onChange(isFocusedOldValue || 0);
+                    }
+                  }}
                   onChangeText={(text) => {
                     onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
                     debouncedWeightChange(text); // Debounce the database update
@@ -180,12 +174,22 @@ export default function SetInputs({
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.duration`}
             control={control}
-            render={({ field: { onChange, value } }) => {
+            render={({ field: { onChange, value, onBlur } }) => {
               return (
                 <TextInput
                   style={styles.SetCardInput}
                   keyboardType="numeric"
                   value={value?.toString() || ""}
+                  onFocus={() => {
+                    setIsFocusedOldValue(value || 0);
+                    onChange(null);
+                  }}
+                  onBlur={() => {
+                    onBlur();
+                    if (value === null) {
+                      onChange(isFocusedOldValue || 0);
+                    }
+                  }}
                   onChangeText={(text) => {
                     onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
                     debouncedDurationChange(text); // Debounce the database update
@@ -203,11 +207,21 @@ export default function SetInputs({
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.distance`}
             control={control}
-            render={({ field: { onChange, value } }) => (
+            render={({ field: { onChange, value, onBlur } }) => (
               <TextInput
                 style={styles.SetCardInput}
                 keyboardType="numeric"
                 value={value?.toString() || ""}
+                onFocus={() => {
+                  setIsFocusedOldValue(value || 0);
+                  onChange(null);
+                }}
+                onBlur={() => {
+                  onBlur();
+                  if (value === null) {
+                    onChange(isFocusedOldValue || 0);
+                  }
+                }}
                 onChangeText={(text) => {
                   onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
                   debouncedDistanceChange(text); // Debounce the database update

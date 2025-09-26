@@ -1,5 +1,6 @@
 import { useSession } from "@/context/sessionContext";
-import AntDesign from "@expo/vector-icons/AntDesign";
+import { AntDesign } from "@expo/vector-icons";
+
 import { router, Tabs } from "expo-router";
 import { useEffect } from "react";
 import { View, Text, StatusBar } from "react-native";
@@ -86,7 +87,7 @@ export default function AppLayout() {
                 />
               ),
               tabBarIcon: ({ color }) => (
-                <AntDesign name="pluscircleo" size={24} color={color} />
+                <AntDesign name="plus-circle" size={24} color={color} />
               ),
             }}
           />

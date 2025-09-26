@@ -3,7 +3,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { View, Pressable, StyleSheet } from "react-native";
-import { Exercise } from "@/types/type";
+import { Exercise, ExerciseDirection } from "@/types/type";
+import { useWorkout } from "@/context/workoutContent";
+import { workoutService } from "@/services/workoutService";
 
 export default function ExerciseControls({
   exerciseIndex,
@@ -13,6 +15,7 @@ export default function ExerciseControls({
   exercise: Exercise;
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const { updateWorkoutExerciseOrder } = useWorkout();
   const { watch } = useFormContext();
   const { db } = useDatabase();
   const { move } = useFieldArray({
@@ -22,11 +25,34 @@ export default function ExerciseControls({
   const exercises = watch("exercises");
   const size = exercises.length;
 
+  // console.log(
+  //   "exercise id, name, order",
+  //   exercises[exerciseIndex].id,
+  //   exercises[exerciseIndex].exercise_name,
+  //   exercises[exerciseIndex].exercise_order
+  // );
   const handleMoveUp = async () => {
     setIsUpdating(true);
     try {
       if (exerciseIndex !== 0) {
-        move(exerciseIndex, exerciseIndex - 1);
+        // add service to update the exercise order
+
+        const result = await workoutService.updateExerciseOrder(
+          db!,
+          exercises[exerciseIndex].id,
+          exercises[exerciseIndex - 1].id,
+          exercises[exerciseIndex].exercise_order,
+          exercises[exerciseIndex - 1].exercise_order
+        );
+        if (result.success) {
+          move(exerciseIndex, exerciseIndex - 1);
+          updateWorkoutExerciseOrder(
+            exercise.workout_id,
+            exerciseIndex,
+            exerciseIndex - 1,
+            ExerciseDirection.UP
+          );
+        }
       }
     } catch (error) {
       console.error("Error moving exercise:", error);
@@ -39,7 +65,23 @@ export default function ExerciseControls({
     setIsUpdating(true);
     try {
       if (exerciseIndex !== (size || 0) - 1) {
-        move(exerciseIndex, exerciseIndex + 1);
+        // add service to update the exercise order
+        const result = await workoutService.updateExerciseOrder(
+          db!,
+          exercises[exerciseIndex].id,
+          exercises[exerciseIndex + 1].id,
+          exercises[exerciseIndex].exercise_order,
+          exercises[exerciseIndex + 1].exercise_order
+        );
+        if (result.success) {
+          move(exerciseIndex, exerciseIndex + 1);
+          updateWorkoutExerciseOrder(
+            exercise.workout_id,
+            exerciseIndex,
+            exerciseIndex + 1,
+            ExerciseDirection.DOWN
+          );
+        }
       }
     } catch (error) {
       console.error("Error moving exercise:", error);

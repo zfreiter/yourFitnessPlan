@@ -77,8 +77,7 @@ export interface Workout {
   name: string;
   description?: string;
   type: ExerciseType;
-  date: string;
-  time: string;
+  scheduled_datetime: string;
   duration?: number;
   exercises: WorkoutExercise[];
   isCompleted: boolean;
@@ -88,8 +87,7 @@ export interface SubmitNewWorkout {
   name: string;
   description?: string;
   type: ExerciseType;
-  date: string;
-  time: string;
+  scheduled_datetime: string;
   duration?: number;
   exercises: WorkoutExercise[];
   isCompleted: boolean;

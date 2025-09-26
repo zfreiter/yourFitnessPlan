@@ -1,7 +1,6 @@
 import { ExerciseSet } from "@/types/type";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useFieldArray, useFormContext } from "react-hook-form";
-import SetControls from "./setControls";
 import SetInputs from "./setInputs";
 import { useState } from "react";
 import CustomModal from "@/components/ui/customModal";
@@ -27,7 +26,7 @@ export default function SetCard({
   };
 }) {
   const { db } = useDatabase();
-  const { setWorkouts } = useWorkout();
+  const { deleteWorkoutExerciseSet } = useWorkout();
   const { watch } = useFormContext();
   const { remove } = useFieldArray({
     name: `exercises.${exerciseIndex}.sets`,
@@ -51,30 +50,11 @@ export default function SetCard({
         );
 
         if (response.success) {
-          setWorkouts((prevWorkouts) =>
-            prevWorkouts.map((workout) => {
-              // Find the workout that contains the exercise
-              if (workout.id === exercise.workout_id) {
-                // Update the exercise that contains the sets we are working with
-                const updatedExercises = workout.exercises.map((ex) => {
-                  // Find the set to remove and then update the set_order of the sets that come after the removed set
-                  if (ex.id === exercise.id) {
-                    const updatedSets = ex.sets
-                      .filter((s: ExerciseSet) => s.id !== set.id)
-                      .map((s: ExerciseSet) => {
-                        if (s.set_order > set.set_order!) {
-                          return { ...s, set_order: s.set_order - 1 };
-                        }
-                        return s;
-                      });
-                    return { ...ex, sets: updatedSets };
-                  }
-                  return ex;
-                });
-                return { ...workout, exercises: updatedExercises };
-              }
-              return workout;
-            })
+          deleteWorkoutExerciseSet(
+            exercise.workout_id,
+            exercise.id,
+            set.id,
+            set.set_order!
           );
 
           remove(setIndex);
@@ -90,12 +70,27 @@ export default function SetCard({
   };
 
   return (
-    <View style={styles.SetCardInputContainer}>
+    <View
+      style={[
+        styles.SetCardInputContainer,
+        {
+          backgroundColor: isModalVisible
+            ? "#FF686B"
+            : isLongPressed
+            ? "#FF686B"
+            : "#E0E0E0",
+        },
+      ]}
+    >
       <Pressable
-        delayLongPress={1000}
+        delayLongPress={300}
         style={[
           {
-            backgroundColor: isLongPressed ? "#E5E7EB" : "transparent",
+            backgroundColor: isModalVisible
+              ? "#FF686B"
+              : isLongPressed
+              ? "#FF686B"
+              : "#E0E0E0",
             transform: [{ scale: isLongPressed ? 0.98 : 1 }],
           },
         ]}

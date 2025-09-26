@@ -51,7 +51,7 @@ export default function WorkoutDetails() {
       </View>
     );
   }
-
+  console.log("workout loading page ...");
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView
@@ -59,14 +59,14 @@ export default function WorkoutDetails() {
         style={{ flex: 1 }}
         keyboardVerticalOffset={300}
       >
-        <TouchableOpacity
+        {/* <TouchableOpacity
           onPress={handleBack}
           style={styles.backButton}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color="black" />
           <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <ActiveWorkoutSession workout={workout} />
       </KeyboardAvoidingView>
     </View>
@@ -78,6 +78,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     gap: 10,
+    backgroundColor: "#E0E0E0",
   },
   backButton: {
     flexDirection: "row",

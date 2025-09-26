@@ -1,4 +1,4 @@
-import { Exercise, ExerciseSet } from "@/types/type";
+import { Exercise, ExerciseSet, Workout } from "@/types/type";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -9,7 +9,6 @@ import { IconButton } from "@/components/ui/iconButton";
 import { useFieldArray } from "react-hook-form";
 import { useDatabase } from "@/context/databaseContext";
 import { exerciseService } from "@/services/exerciseService";
-import { Workout } from "@/types/type";
 import { useWorkout } from "@/context/workoutContent";
 import AddSet from "./addSet";
 
@@ -25,7 +24,7 @@ export default function ExerciseManager({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const { control, watch } = useFormContext();
   const { db } = useDatabase();
-  const { setWorkouts } = useWorkout();
+  const { deleteWorkoutExercise, setWorkouts } = useWorkout();
   const { remove } = useFieldArray({
     name: "exercises",
   });
@@ -39,16 +38,7 @@ export default function ExerciseManager({
         const response = await exerciseService.deleteExercise(db, exercise.id);
         if (response.success) {
           remove(exerciseIndex);
-          setWorkouts((prev: Workout[]) => {
-            return prev.map((workout) => {
-              return {
-                ...workout,
-                exercises: workout.exercises.filter(
-                  (e) => e.id !== exercise.id
-                ),
-              };
-            });
-          });
+          deleteWorkoutExercise(exercise.id);
         }
       }
     } catch (error) {
@@ -62,7 +52,7 @@ export default function ExerciseManager({
     <View style={[styles.ExerciseCardContainer]}>
       <Pressable
         disabled={isUpdating}
-        delayLongPress={1000}
+        delayLongPress={300}
         style={[
           styles.exerciseCardContent,
           {
@@ -149,7 +139,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: "black",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "white",
     borderRadius: 10,
     minHeight: 60, // Ensure minimum height to prevent layout issues
     width: "100%",

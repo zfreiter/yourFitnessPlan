@@ -50,20 +50,25 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
   const router = useRouter();
   // Contains the list of workouts for the current selected day
   const [currentDayList, setCurrentDayList] = useState<Workout[]>([]);
-  const [currentDay, setCurrentDay] = useState<string | null>(null);
+  const [currentDay, setCurrentDay] = useState<string | null>(
+    new Date().toLocaleDateString("en-US")
+  );
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
 
   useEffect(() => {
     const formatWorkoutDate: MarkedDates = {};
 
     workouts.forEach((workout, index) => {
-      if (!(workout.date in formatWorkoutDate)) {
-        formatWorkoutDate[workout.date] = { dots: [] };
+      if (!(workout.scheduled_datetime in formatWorkoutDate)) {
+        formatWorkoutDate[workout.scheduled_datetime.split(" ")[0]] = {
+          dots: [],
+        };
       }
-      formatWorkoutDate[workout.date].dots.push(
+      formatWorkoutDate[workout.scheduled_datetime.split(" ")[0]].dots.push(
         convertType(workout.workoutType, index)
       );
     });
+
     setMarkedDates(formatWorkoutDate);
   }, [workouts]);
 
@@ -71,11 +76,14 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
   useEffect(() => {
     if (currentDay) {
       setCurrentDayList(
-        workouts.filter((workout) => workout.date === currentDay)
+        workouts.filter(
+          (workout) => workout.scheduled_datetime.split(" ")[0] === currentDay
+        )
       );
     }
   }, [workouts, currentDay]);
 
+  console.log("current day", currentDay);
   return (
     <View style={{ flex: 1, margin: 0 }}>
       <View>
@@ -99,7 +107,14 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
       </View>
       <View style={{ flex: 1, margin: 10 }}>
         <CreateWorkoutButton
-          onPress={() => router.push("/(app)/create-workout")}
+          onPress={() =>
+            router.push({
+              pathname: "/(app)/create-workout",
+              params: {
+                date: currentDay,
+              },
+            })
+          }
         />
         <ScrollView>
           <DailyWorkoutSchedule

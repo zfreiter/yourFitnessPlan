@@ -6,8 +6,7 @@ export const workouts: Workout[] = [
     name: "Push Day",
     description: "A workout focused on chest, shoulders, and triceps.",
     type: "strength",
-    date: "2025-05-01",
-    time: "08:00 AM", // Added time
+    scheduled_datetime: "2025-05-01T08:00:00",
     duration: 3600, // 1 hour
     exercises: [
       {
@@ -58,8 +57,7 @@ export const workouts: Workout[] = [
     name: "Pull Day",
     description: "A workout focused on back and biceps.",
     type: "strength",
-    date: "2025-05-02",
-    time: "09:00 AM", // Added time
+    scheduled_datetime: "2025-05-02T09:00:00",
     duration: 3600,
     exercises: [
       {
@@ -104,8 +102,7 @@ export const workouts: Workout[] = [
     name: "Leg Day",
     description: "A workout focused on lower body strength.",
     type: "strength",
-    date: "2025-05-03",
-    time: "07:30 AM", // Added time
+    scheduled_datetime: "2025-05-03T07:30:00",
     duration: 3600,
     exercises: [
       {
@@ -154,8 +151,7 @@ export const workouts: Workout[] = [
     name: "Cardio Blast",
     description: "A high-intensity cardio workout.",
     type: "cardio",
-    date: "2025-05-04",
-    time: "06:00 PM", // Added time
+    scheduled_datetime: "2025-05-04T06:00:00",
     duration: 1800, // 30 minutes
     exercises: [
       {
@@ -197,8 +193,7 @@ export const workouts: Workout[] = [
     name: "Core Strength",
     description: "A workout focused on core stability and strength.",
     type: "mobility",
-    date: "2025-05-05",
-    time: "10:00 AM", // Added time
+    scheduled_datetime: "2025-05-05T10:00:00",
     duration: 1800,
     exercises: [
       {
@@ -239,8 +234,7 @@ export const workouts: Workout[] = [
     name: "Upper Body Strength",
     description: "A workout focused on building upper body strength.",
     type: "strength",
-    date: "2025-05-23",
-    time: "08:00 AM",
+    scheduled_datetime: "2025-05-23T08:00:00",
     duration: 3600, // 1 hour
     exercises: [
       {
@@ -289,8 +283,7 @@ export const workouts: Workout[] = [
     name: "Endurance Cardio",
     description: "A workout focused on improving cardiovascular endurance.",
     type: "cardio",
-    date: "2025-05-23",
-    time: "10:00 AM",
+    scheduled_datetime: "2025-05-23T10:00:00",
     duration: 1800, // 30 minutes
     exercises: [
       {
@@ -332,8 +325,7 @@ export const workouts: Workout[] = [
     description:
       "A workout focused on improving flexibility and core strength.",
     type: "mobility",
-    date: "2025-05-23",
-    time: "06:00 PM",
+    scheduled_datetime: "2025-05-23T06:00:00",
     duration: 1800, // 30 minutes
     exercises: [
       {
