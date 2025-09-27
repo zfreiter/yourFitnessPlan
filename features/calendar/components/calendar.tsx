@@ -50,9 +50,7 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
   const router = useRouter();
   // Contains the list of workouts for the current selected day
   const [currentDayList, setCurrentDayList] = useState<Workout[]>([]);
-  const [currentDay, setCurrentDay] = useState<string | null>(
-    new Date().toLocaleDateString("en-US")
-  );
+  const [currentDay, setCurrentDay] = useState<string | null>(null);
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
 
   useEffect(() => {
