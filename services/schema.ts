@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS workouts (
     type TEXT CHECK(type IN ('strength', 'cardio', 'mobility', 'circuit')),
     scheduled_datetime TEXT NOT NULL,
     duration INTEGER,
-    is_completed INTEGER DEFAULT 0
+    is_completed INTEGER DEFAULT 0,
+    completed_at TEXT DEFAULT NULL
 );
 
 -- Workout exercises junction table (removed unique constraint to allow multiple instances)

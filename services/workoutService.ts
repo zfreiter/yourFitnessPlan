@@ -60,6 +60,7 @@ interface WorkoutRow {
   valid_units?: string;
   exercise_order?: number; // <-- add this line
   set_order?: number; // <-- add this line for set ordering
+  completed_at?: number | null;
 }
 
 // Interface for workout rows from workouts table
@@ -71,6 +72,7 @@ interface WorkoutDataRow {
   scheduled_datetime: string;
   duration: number;
   is_completed: number;
+  completed_at?: number | null;
 }
 
 // Interface for exercise rows from workout_exercises
@@ -158,6 +160,7 @@ const transformWorkout = (rows: WorkoutRow[]): Workout | null => {
     duration: rows[0].duration,
     exercises: Array.from(exercisesMap.values()),
     isCompleted: !!rows[0].is_completed,
+    completed_at: rows[0].completed_at ?? null,
   };
 
   return workout;
@@ -297,6 +300,7 @@ export const workoutService = {
         duration: workout.duration,
         exercises,
         isCompleted: !!workout.is_completed,
+        completed_at: workout.completed_at ?? null,
       };
     } catch (error) {
       console.error(`Error fetching workout with id ${id}:`, error);
@@ -383,6 +387,7 @@ export const workoutService = {
             duration: workout.duration,
             exercises,
             isCompleted: !!workout.is_completed,
+            completed_at: workout.completed_at ?? null,
           };
         })
       );
@@ -448,7 +453,7 @@ export const workoutService = {
       } = createWorkout;
 
       let insertedWorkoutId: number = 0;
-      const [date, time] = scheduled_datetime.split("T");
+
       await db.withTransactionAsync(async () => {
         const workoutId = await db.runAsync(
           `
@@ -459,7 +464,7 @@ export const workoutService = {
             name,
             description || "",
             workoutType,
-            `${date} ${time}`,
+            scheduled_datetime,
             duration || 0,
             isCompleted ? 1 : 0,
           ]
@@ -707,13 +712,27 @@ export const workoutService = {
     value: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      if (fieldName === "date") {
-        console.log("updating date --------------> ", value);
-      }
-      // await db.runAsync(`UPDATE workouts SET ${fieldName} = ? WHERE id = ?`, [
-      //   value,
-      //   workoutId,
-      // ]);
+      await db.runAsync(`UPDATE workouts SET ${fieldName} = ? WHERE id = ?`, [
+        value,
+        workoutId,
+      ]);
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating workout field:", error);
+      return { success: false, error: "Failed to update workout field" };
+    }
+  },
+  updateCompleted: async (
+    db: SQLite.SQLiteDatabase,
+    workoutId: number,
+    isCompleted: boolean,
+    completed_at: string | null
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await db.runAsync(
+        "UPDATE workouts SET is_completed = ?, completed_at = ? WHERE id = ?",
+        [isCompleted, completed_at, workoutId]
+      );
       return { success: true };
     } catch (error) {
       console.error("Error updating workout field:", error);

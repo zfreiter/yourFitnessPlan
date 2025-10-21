@@ -39,6 +39,7 @@ export interface BaseWorkout {
   duration: number;
   exercises: BaseWorkoutExercise[];
   isCompleted: boolean;
+  completed_at?: number | string | null;
 }
 
 export interface ExerciseSet extends BaseExerciseSet {

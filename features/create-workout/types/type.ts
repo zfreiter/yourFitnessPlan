@@ -28,4 +28,5 @@ export interface WorkoutUpdateFormValues {
   duration: number;
   exercises: Exercise[];
   isCompleted: boolean;
+  completed_at?: number | string | null;
 }

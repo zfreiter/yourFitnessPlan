@@ -6,6 +6,7 @@ import { View, Text, StatusBar } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppButton } from "@/components/button";
+import { HomeProvider } from "@/context/HomeContext";
 
 export default function AppLayout() {
   const { session, isLoading, signOut } = useSession();
@@ -26,7 +27,7 @@ export default function AppLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar />
-
+      {/* <HomeProvider> */}
       <Tabs
         backBehavior="history"
         screenOptions={{
@@ -104,6 +105,7 @@ export default function AppLayout() {
           />
         </Tabs.Protected>
       </Tabs>
+      {/* </HomeProvider> */}
     </SafeAreaProvider>
   );
 }

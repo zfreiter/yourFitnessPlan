@@ -8,6 +8,7 @@ export default function StackLayout() {
     router.dismissAll(); // Dismiss the workout session stack
     router.navigate("/(app)/calendar"); // Go to calendar in tab navigator
   };
+
   return (
     <SafeAreaProvider>
       <StatusBar />

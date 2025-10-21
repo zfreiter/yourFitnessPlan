@@ -49,6 +49,11 @@ interface WorkoutContextType {
     fieldName: string,
     value: string
   ) => void;
+  updateContextWorkoutCompleted: (
+    workoutId: number,
+    isCompleted: boolean,
+    completedDate: string | null
+  ) => void;
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
@@ -87,10 +92,20 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         setWorkouts(workouts);
       }
     };
+
     if (db) {
       fetchWorkouts();
     }
   }, [db]);
+
+  // workouts.forEach((workout) => {
+  //   console.log(
+  //     "workout",
+  //     workout.isCompleted,
+  //     workout.completed_at,
+  //     workout.scheduled_datetime
+  //   );
+  // });
 
   function updateWorkoutExerciseOrder(
     workoutId: number,
@@ -233,21 +248,39 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     fieldName: string,
     value: string
   ) {
-    console.log("updating workout field", workoutId, fieldName, value);
-    // setWorkouts((prevWorkouts: Workout[]) =>
-    //   prevWorkouts.map((workout: Workout) => {
-    //     const updatedWorkout =
-    //       workout.id === workoutId
-    //         ? fieldName === "date"
-    //           ? { ...workout, date: value, time: value }
-    //           : { ...workout, [fieldName]: value }
-    //         : workout;
-    //     console.log("updatedWorkout", updatedWorkout);
+    setWorkouts((prevWorkouts: Workout[]) =>
+      prevWorkouts.map((workout: Workout) => {
+        const updatedWorkout =
+          workout.id === workoutId
+            ? fieldName === "date"
+              ? { ...workout, date: value, time: value }
+              : { ...workout, [fieldName]: value }
+            : workout;
 
-    //     return updatedWorkout;
-    //   })
-    // );
+        return updatedWorkout;
+      })
+    );
   }
+  function updateContextWorkoutCompleted(
+    workoutId: number,
+    isCompleted: boolean,
+    completedDate: string | null
+  ) {
+    setWorkouts((prevWorkouts: Workout[]) =>
+      prevWorkouts.map((workout: Workout) => {
+        if (workout.id === workoutId) {
+          return {
+            ...workout,
+            isCompleted: isCompleted,
+            completed_at: completedDate,
+          };
+        }
+
+        return workout;
+      })
+    );
+  }
+
   return (
     <WorkoutContext.Provider
       value={{
@@ -262,6 +295,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         updateWorkoutExerciseSet,
         updateWorkoutType,
         updateContextWorkoutField,
+        updateContextWorkoutCompleted,
       }}
     >
       {children}

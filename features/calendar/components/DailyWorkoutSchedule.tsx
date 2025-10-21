@@ -79,14 +79,14 @@ export function WorkoutLink({ workout }: { workout: Workout }) {
 }
 export function getWorkoutTypeColor(type: string) {
   switch (type) {
-    case "strength":
+    case "#ff0000ff":
       return "red";
     case "cardio":
       return "blue";
     case "circuit":
       return "green";
     case "mobility":
-      return "yellow";
+      return "#f096f0ff";
     default:
       return "red";
   }
