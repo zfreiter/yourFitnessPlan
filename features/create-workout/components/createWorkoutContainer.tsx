@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import * as Localization from "expo-localization";
+import { Checkbox } from "expo-checkbox";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -38,23 +39,23 @@ const getCurrentDateInLocalTimezone = () => {
 // Date/time helpers to ensure consistent combined value: YYYY-MM-DDTHH:MM
 const DEFAULT_TIME = "12:00";
 const getDatePart = (dateTime: string) =>
-  dateTime && dateTime.includes("T") ? dateTime.split("T")[0] : dateTime;
+  dateTime && dateTime.includes(" ") ? dateTime.split(" ")[0] : dateTime;
 const getTimePart = (dateTime: string) => {
   if (!dateTime) return DEFAULT_TIME;
-  if (dateTime.includes("T")) return dateTime.split("T")[1].slice(0, 5);
+  if (dateTime.includes(" ")) return dateTime.split(" ")[1].slice(0, 5);
   // If only time is present (e.g., "08:30"), normalize to HH:MM
   const candidate = dateTime.slice(0, 5);
   return /\d{2}:\d{2}/.test(candidate) ? candidate : DEFAULT_TIME;
 };
 const combineDateTime = (datePart: string, timePart: string) =>
-  `${datePart}T${timePart}`;
+  `${datePart} ${timePart}`;
 
 // Helper function to parse date/time string safely in local timezone
 const parseDateInLocalTimezone = (dateString: string) => {
   const datePart = getDatePart(dateString) || getCurrentDateInLocalTimezone();
   const timePart = getTimePart(dateString) || DEFAULT_TIME;
   // Add seconds to avoid platform quirks, construct ISO-like local string
-  return new Date(`${datePart}T${timePart}:00`);
+  return new Date(`${datePart} ${timePart}:00`);
 };
 
 type CreateWorkoutContainerProps = {
@@ -89,8 +90,17 @@ export function CreateWorkoutContainer({
       workoutType: "Select workout",
       exercises: [],
       isCompleted: false,
+      completed_at: null,
     },
   });
+
+  // Debug: Log initial form values
+  // useEffect(() => {
+  //   console.log(
+  //     "Form initialized with completed_at:",
+  //     getValues().completed_at
+  //   );
+  // }, []);
 
   const {
     control,
@@ -118,8 +128,22 @@ export function CreateWorkoutContainer({
   useFocusEffect(
     useCallback(() => {
       return () => {
-        console.log("Resetting state.");
-        reset();
+        reset({
+          name: "",
+          description: "",
+          duration: undefined,
+          scheduled_datetime: (() => {
+            const initialDatePart = (date as string)
+              ? (date as string)
+              : getCurrentDateInLocalTimezone();
+            const initialTimePart = DEFAULT_TIME;
+            return combineDateTime(initialDatePart, initialTimePart);
+          })(),
+          workoutType: "Select workout",
+          exercises: [],
+          isCompleted: false,
+          completed_at: null,
+        });
       };
     }, [])
   );
@@ -142,6 +166,7 @@ export function CreateWorkoutContainer({
     control,
     name: "scheduled_datetime",
   });
+  const isCompleted = useWatch({ control, name: "isCompleted" });
 
   const onSubmit = async (data: CreateWorkoutForm) => {
     if (db) {
@@ -317,6 +342,7 @@ export function CreateWorkoutContainer({
                         if (mode === "date") {
                           // Update date part and preserve time
                           const yyyy = selectedDate.getFullYear();
+
                           const mm = String(
                             selectedDate.getMonth() + 1
                           ).padStart(2, "0");
@@ -329,8 +355,8 @@ export function CreateWorkoutContainer({
                           onChange(combineDateTime(dateString, timePart));
                           setMode("time");
                         } else {
-                          console.log("time ", selectedDate.toISOString());
                           // Update time part and preserve date
+
                           const hh = String(selectedDate.getHours()).padStart(
                             2,
                             "0"
@@ -343,6 +369,7 @@ export function CreateWorkoutContainer({
                             getDatePart(value) ||
                             getCurrentDateInLocalTimezone();
                           onChange(combineDateTime(datePart, timeString));
+
                           setMode("date");
                           setShow(false);
                         }
@@ -402,6 +429,34 @@ export function CreateWorkoutContainer({
                 />
               )}
             />
+
+            {/* <View
+              style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+                Workout completed
+              </Text>
+              <Controller
+                name="isCompleted"
+                control={control}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Checkbox
+                    value={value}
+                    onValueChange={(newValue) => {
+                      const isCompletedDate = getValues().scheduled_datetime;
+
+                      if (newValue === true) {
+                        setValue("completed_at", isCompletedDate);
+                      } else {
+                        setValue("completed_at", null);
+                      }
+                      onChange(newValue);
+                    }}
+                    color={value ? "#00994C" : undefined}
+                  />
+                )}
+              />
+            </View> */}
 
             <AppButton
               title="Create workout"

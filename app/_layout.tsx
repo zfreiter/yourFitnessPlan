@@ -1,4 +1,5 @@
 import { DatabaseProvider } from "@/context/databaseContext";
+import { HomeProvider } from "@/context/HomeContext";
 import { SessionProvider } from "@/context/sessionContext";
 import { WorkoutProvider } from "@/context/workoutContent";
 import { Slot } from "expo-router";
@@ -11,9 +12,11 @@ export default function RootLayout() {
       <SessionProvider>
         <DatabaseProvider>
           <WorkoutProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <Slot />
-            </GestureHandlerRootView>
+            <HomeProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <Slot />
+              </GestureHandlerRootView>
+            </HomeProvider>
           </WorkoutProvider>
         </DatabaseProvider>
       </SessionProvider>

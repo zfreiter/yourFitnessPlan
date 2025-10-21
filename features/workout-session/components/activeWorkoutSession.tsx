@@ -22,6 +22,7 @@ export default function ActiveWorkoutSession({
       duration: workout.duration,
       exercises: workout.exercises,
       isCompleted: workout.isCompleted,
+      completed_at: workout.completed_at,
     },
   });
 

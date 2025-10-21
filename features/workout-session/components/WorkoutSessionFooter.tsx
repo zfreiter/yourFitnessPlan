@@ -6,7 +6,13 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import { GenericTextInput } from "../../../components/ui/GenericTextInput";
 import { useDebouncedFieldUpdate } from "@/hooks/useDebouncedFieldUpdate";
 import { useWorkout } from "@/context/workoutContent";
-
+import { workoutService } from "@/services/workoutService";
+import { useDatabase } from "@/context/databaseContext";
+import { convertDate } from "@/utils/date";
+import { dateToUnixEpoch } from "@/utils/date";
+import { Checkbox } from "expo-checkbox";
+import { format } from "date-fns";
+import { useHome } from "@/context/HomeContext";
 interface WorkoutSessionFooterProps {
   show: boolean;
   mode: "date" | "time";
@@ -24,11 +30,13 @@ export function WorkoutSessionFooter({
 }: WorkoutSessionFooterProps) {
   const { control, getValues, setValue, watch } = useFormContext();
   const [backupDate, setBackupDate] = useState(getValues("date"));
-  const { updateContextWorkoutField } = useWorkout();
+  const { updateContextWorkoutField, updateContextWorkoutCompleted } =
+    useWorkout();
   const watchDuration = watch("duration");
   const [duration, setDuration] = useState(watchDuration);
   const workoutId = getValues("id");
-
+  const { db } = useDatabase();
+  const { setResetFlag } = useHome();
   const debouncedUpdateDuration = useDebouncedFieldUpdate({
     fieldName: "duration",
     workoutId,
@@ -112,7 +120,7 @@ export function WorkoutSessionFooter({
               mode={mode}
               is24Hour={false}
               display="default"
-              onChange={(event: any, selectedDate?: Date) => {
+              onChange={async (event: any, selectedDate?: Date) => {
                 // On Android, the picker emits a 'dismissed' type when Cancel is pressed.
 
                 if (
@@ -133,15 +141,69 @@ export function WorkoutSessionFooter({
 
                 onChange(selectedDate);
 
+                // Set to time picker
                 if (mode === "date") {
                   setMode("time");
-                } else {
+                }
+
+                // We need to update the db and the context with the new date
+                if (mode === "time") {
                   // update the date in the db and context
-                  updateContextWorkoutField(
-                    workoutId,
-                    "date",
-                    selectedDate.toISOString()
+                  // console.log(
+                  //   "updating date in the db and context toISOString, yyyy, month, day, hours, mins",
+                  //   selectedDate.toISOString(),
+                  //   selectedDate.getFullYear(),
+                  //   String(selectedDate.getMonth() + 1).padStart(2, "0"),
+                  //   String(selectedDate.getDate()).padStart(2, "0"),
+                  //   String(selectedDate.getHours()).padStart(2, "0"),
+                  //   String(selectedDate.getMinutes()).padStart(2, "0")
+                  // );
+                  // console.log(
+                  //   "formated date with library ",
+                  //   format(selectedDate, "yyyy-MM-d'T'HH':'mm")
+                  // );
+                  console.log(
+                    "date in workout footer ",
+                    format(selectedDate, "yyyy-MM-d' 'HH':'mm':'ss")
                   );
+                  const convertedDate = convertDate(selectedDate);
+                  try {
+                    if (!db) {
+                      console.log("Database error. Can not connect");
+                      onChange(backupDate);
+                      setShow(false);
+                      setMode("date");
+                      return;
+                    }
+                    const convertedDate = format(
+                      selectedDate,
+                      "yyyy-MM-d' 'HH':'mm"
+                    );
+                    const result = await workoutService.updateWorkoutField(
+                      db,
+                      workoutId,
+                      "scheduled_datetime",
+                      convertedDate
+                    );
+
+                    if (result) {
+                      console.log(
+                        "new date to check ",
+                        selectedDate.toISOString()
+                      );
+                      updateContextWorkoutField(
+                        workoutId,
+                        "scheduled_datetime",
+                        convertedDate
+                      );
+                    }
+                  } catch (error) {
+                    onChange(backupDate);
+                    setShow(false);
+                    setMode("date");
+                    return;
+                  }
+
                   setBackupDate(selectedDate);
 
                   setMode("date");
@@ -152,6 +214,55 @@ export function WorkoutSessionFooter({
           )}
         />
       )}
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
+        <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+          Workout completed
+        </Text>
+        <Controller
+          name="isCompleted"
+          control={control}
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Checkbox
+              style={{ backgroundColor: "white" }}
+              value={value}
+              onValueChange={async (newValue) => {
+                const workoutId = getValues().id;
+                const scheduledDate = getValues().date;
+                const completedDate = format(
+                  new Date(),
+                  "yyyy-MM-d' 'HH':'mm':'ss"
+                );
+
+                if (db) {
+                  const result = await workoutService.updateCompleted(
+                    db,
+                    workoutId,
+                    newValue,
+                    newValue ? completedDate : null
+                  );
+                  if (result) {
+                    setResetFlag(true);
+                    updateContextWorkoutCompleted(
+                      workoutId,
+                      newValue,
+                      newValue ? completedDate : null
+                    );
+                    setValue("isCompleted", newValue);
+                    setValue("completed_at", newValue ? completedDate : null);
+                  } else {
+                    console.log("Could not update database");
+                  }
+                } else {
+                  console.log("Database error, unable to connect");
+                }
+
+                onChange(newValue);
+              }}
+              color={value ? "#00994C" : undefined}
+            />
+          )}
+        />
+      </View>
     </View>
   );
 }

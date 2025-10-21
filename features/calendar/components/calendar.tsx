@@ -34,13 +34,13 @@ interface MarkedDates {
 const convertType = (type: string, index: number) => {
   switch (type) {
     case "strength":
-      return { key: `strength-${index}`, color: "red" };
+      return { key: `strength-${index}`, color: "#ff0000ff" };
     case "cardio":
       return { key: `cardio-${index}`, color: "blue" };
     case "circuit":
       return { key: `circuit-${index}`, color: "green" };
     case "mobility":
-      return { key: `mobility-${index}`, color: "yellow" };
+      return { key: `mobility-${index}`, color: "#f096f0ff" };
     default:
       return { key: `strength-${index}`, color: "red" };
   }
@@ -81,7 +81,6 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
     }
   }, [workouts, currentDay]);
 
-  console.log("current day", currentDay);
   return (
     <View style={{ flex: 1, margin: 0 }}>
       <View>

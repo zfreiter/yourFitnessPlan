@@ -364,7 +364,12 @@ type DateOffset = number; // days offset from September 1, 2025
 function getDateTimeString(offset: DateOffset = 0, time: string = "08:00:00") {
   const d = new Date(2025, 8, 1); // September 1, 2025 (month is 0-indexed)
   d.setDate(d.getDate() + offset);
-  return `${d.toISOString().slice(0, 10)} ${time}`; // YYYY-MM-DD HH:MM:SS
+
+  // Set the time
+  const [hours, minutes] = time.split(":");
+  d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+  return d.toISOString().slice(0, 16); // Returns "2025-09-01T08:00"
 }
 
 // Generate dynamic workouts around September 2025
@@ -374,7 +379,7 @@ const generateDynamicWorkouts = () => {
       name: "September 1st Full Body",
       description: "A full body workout for September 1st.",
       type: "strength",
-      scheduled_datetime: getDateTimeString(0, "07:00:00"),
+      scheduled_datetime: "2025-10-04 08:00:00",
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -409,7 +414,7 @@ const generateDynamicWorkouts = () => {
       name: "August 31st Cardio",
       description: "A cardio session from August 31st.",
       type: "cardio",
-      scheduled_datetime: getDateTimeString(-1, "18:30:00"),
+      scheduled_datetime: "2025-10-03 08:00:00",
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -437,7 +442,7 @@ const generateDynamicWorkouts = () => {
       name: "September 2nd Mobility",
       description: "A mobility workout for September 2nd.",
       type: "mobility",
-      scheduled_datetime: getDateTimeString(1, "06:45:00"),
+      scheduled_datetime: "2025-10-02 08:00:00",
       duration: 1500,
       is_completed: 0,
       exercises: [
@@ -465,7 +470,7 @@ const generateDynamicWorkouts = () => {
       name: "August 30th - Upper Body",
       description: "Upper body strength session from August 30th.",
       type: "strength",
-      scheduled_datetime: getDateTimeString(-2, "08:15:00"),
+      scheduled_datetime: "2025-10-01 08:00:00",
       duration: 3600,
       is_completed: 0,
       exercises: [
@@ -499,7 +504,7 @@ const generateDynamicWorkouts = () => {
       name: "September 4th - HIIT",
       description: "A planned HIIT session for September 4th.",
       type: "cardio",
-      scheduled_datetime: getDateTimeString(3, "17:00:00"),
+      scheduled_datetime: "2025-10-01 08:00:00",
       duration: 1800,
       is_completed: 0,
       exercises: [
@@ -793,6 +798,165 @@ export const seedData = {
 };
 
 // SQL statements to insert the seed data
+// Utility: format date to YYYY-MM-DDTHH:MM:SS in local time
+function formatDateTimeLocal(date: Date, time: string = "18:00:00") {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day} ${time}`;
+}
+
+// Utility: get date string for a given date at end of day local time
+function endOfDayDateString(date: Date): string {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return formatDateTimeLocal(d, "23:59:59");
+}
+
+// Generate one completed workout per day from a start date through today
+function generateCompletedDailyWorkouts(startDateString: string) {
+  const start = new Date(startDateString);
+  const today = new Date();
+
+  // If start is after today, return empty
+  if (start > today) return [] as Array<any>;
+
+  const days: Array<any> = [];
+  const cursor = new Date(start);
+
+  while (cursor <= today) {
+    const scheduled_datetime = formatDateTimeLocal(cursor, "18:00:00");
+    const completed_at = endOfDayDateString(cursor);
+
+    days.push({
+      name: `Completed Workout ${scheduled_datetime.slice(0, 10)}`,
+      description: "Auto-generated completed daily workout.",
+      type: "mobility",
+      scheduled_datetime,
+      duration: 1800,
+      is_completed: 1,
+      completed_at,
+      exercises: [
+        {
+          exercise_id: 8, // Plank from seed exercises
+          exercise_name: "Plank",
+          track_reps: 0,
+          track_weight: 0,
+          track_time: 1,
+          track_distance: 0,
+          sets: [{ time: 60 }, { time: 90 }],
+        },
+      ],
+    });
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return days;
+}
+
+// Extend workouts with completed daily workouts from 2025-10-04 to today
+seedData.workouts = [
+  ...seedData.workouts,
+  ...generateCompletedDailyWorkouts("2025-10-04"),
+];
+
+// Add specific test workouts for 10/7, 10/8, 10/9 with completed_at timestamps
+const testWorkouts = [
+  {
+    name: "Test Workout 10/7/2025",
+    description: "Test workout for October 7th, 2025",
+    type: "strength",
+    scheduled_datetime: "2025-10-15 18:00:00",
+    duration: 3600,
+    is_completed: 1,
+    completed_at: "2025-10-01 08:00:00",
+    exercises: [
+      {
+        exercise_id: 1, // Bench Press
+        exercise_name: "Bench Press",
+        track_reps: 1,
+        track_weight: 1,
+        track_time: 0,
+        track_distance: 0,
+        sets: [
+          { reps: 10, weight: 135 },
+          { reps: 8, weight: 155 },
+          { reps: 6, weight: 175 },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Test Workout 10/8/2025",
+    description: "Test workout for October 8th, 2025",
+    type: "cardio",
+    scheduled_datetime: "2025-10-14 07:00:00",
+    duration: 1800,
+    is_completed: 1,
+    completed_at: "2025-10-14 07:00:00",
+    exercises: [
+      {
+        exercise_id: 9, // Running
+        exercise_name: "Running",
+        track_reps: 0,
+        track_weight: 0,
+        track_time: 1,
+        track_distance: 1,
+        sets: [{ time: 1800, distance: 3.5 }],
+      },
+    ],
+  },
+  {
+    name: "Test Workout 10/9/2025",
+    description: "Test workout for October 9th, 2025",
+    type: "mobility",
+    scheduled_datetime: "2025-10-09 19:30:00",
+    duration: 1500,
+    is_completed: 1,
+    completed_at: "2025-10-09 19:30:00",
+    exercises: [
+      {
+        exercise_id: 8, // Plank
+        exercise_name: "Plank",
+        track_reps: 0,
+        track_weight: 0,
+        track_time: 1,
+        track_distance: 0,
+        sets: [{ time: 60 }, { time: 90 }, { time: 120 }],
+      },
+    ],
+  },
+  {
+    name: `Test Workout ${new Date().toLocaleDateString()}`,
+    description: `Test workout for today (${new Date().toLocaleDateString()})`,
+    type: "strength",
+    scheduled_datetime: "2025-10-07 17:00:00",
+    duration: 2700,
+    is_completed: 1,
+    completed_at: "2025-10-07 17:00:00",
+    exercises: [
+      {
+        exercise_id: 2, // Squat
+        exercise_name: "Squat",
+        track_reps: 1,
+        track_weight: 1,
+        track_time: 0,
+        track_distance: 0,
+        sets: [
+          { reps: 12, weight: 95 },
+          { reps: 10, weight: 115 },
+          { reps: 8, weight: 135 },
+          { reps: 6, weight: 155 },
+        ],
+      },
+    ],
+  },
+];
+
+// Add test workouts to the seed data
+seedData.workouts = [...seedData.workouts, ...testWorkouts];
+
 export const seedDataSQL = `
 -- Insert valid units
 INSERT INTO exercise_valid_units (unit) VALUES ('reps');
@@ -853,48 +1017,61 @@ VALUES (${index + 1}, '${unitCombo.join("||")}');
 
 -- Insert workouts and their exercises
 ${seedData.workouts
-  .map(
-    (workout, workoutIndex) => `
-INSERT INTO workouts (id, name, description, type, scheduled_datetime, duration, is_completed)
+  .map((workout, workoutIndex) => {
+    const hasCompletedAt = typeof (workout as any).completed_at === "string";
+    const insertWorkout = hasCompletedAt
+      ? `INSERT INTO workouts (id, name, description, type, scheduled_datetime, duration, is_completed, completed_at)
 VALUES (${workoutIndex + 1}, '${workout.name.replace(
-      /'/g,
-      "''"
-    )}', '${workout.description.replace(/'/g, "''")}', '${workout.type}', '${
-      workout.scheduled_datetime
-    }', ${workout.duration}, ${workout.is_completed});
+          /'/g,
+          "''"
+        )}', '${workout.description.replace(/'/g, "''")}', '${
+          workout.type
+        }', '${workout.scheduled_datetime}', ${workout.duration}, ${
+          workout.is_completed
+        }, '${(workout as any).completed_at}');`
+      : `INSERT INTO workouts (id, name, description, type, scheduled_datetime, duration, is_completed)
+VALUES (${workoutIndex + 1}, '${workout.name.replace(
+          /'/g,
+          "''"
+        )}', '${workout.description.replace(/'/g, "''")}', '${
+          workout.type
+        }', '${workout.scheduled_datetime}', ${workout.duration}, ${
+          workout.is_completed
+        });`;
 
-${workout.exercises
-  .map((exercise, exerciseIndex) => {
-    // Calculate the workout_exercise_id based on the position
-    const workoutExerciseId = workoutIndex * 100 + exerciseIndex + 1;
+    const workoutExercisesSQL = workout.exercises
+      .map((exercise, exerciseIndex) => {
+        // Calculate the workout_exercise_id based on the position
+        const workoutExerciseId = workoutIndex * 100 + exerciseIndex + 1;
 
-    return `
-INSERT INTO workout_exercises (id, workout_id, exercise_id, exercise_name, track_reps, track_weight, track_time, track_distance, exercise_order)
+        const insertExercise = `INSERT INTO workout_exercises (id, workout_id, exercise_id, exercise_name, track_reps, track_weight, track_time, track_distance, exercise_order)
 VALUES (${workoutExerciseId}, ${workoutIndex + 1}, ${
-      exercise.exercise_id
-    }, '${exercise.exercise_name.replace(/'/g, "''")}', ${
-      exercise.track_reps
-    }, ${exercise.track_weight}, ${exercise.track_time}, ${
-      exercise.track_distance
-    }, ${exerciseIndex + 1});
+          exercise.exercise_id
+        }, '${exercise.exercise_name.replace(/'/g, "''")}', ${
+          exercise.track_reps
+        }, ${exercise.track_weight}, ${exercise.track_time}, ${
+          exercise.track_distance
+        }, ${exerciseIndex + 1});`;
 
-${exercise.sets
-  .map(
-    (set, setIndex) => `
-INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
-VALUES (${workoutExerciseId}, 
-  ${"reps" in set ? set.reps : "NULL"}, 
-  ${"weight" in set ? set.weight : "NULL"}, 
-  ${"time" in set ? set.time : "NULL"}, 
-  ${"distance" in set ? set.distance : "NULL"},
-  ${setIndex + 1});
-`
-  )
-  .join("\n")}
-`;
+        const insertSets = exercise.sets
+          .map(
+            (
+              set,
+              setIndex
+            ) => `INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
+VALUES (${workoutExerciseId}, ${"reps" in set ? set.reps : "NULL"}, ${
+              "weight" in set ? set.weight : "NULL"
+            }, ${"time" in set ? set.time : "NULL"}, ${
+              "distance" in set ? set.distance : "NULL"
+            }, ${setIndex + 1});`
+          )
+          .join("\n");
+
+        return `${insertExercise}\n${insertSets}`;
+      })
+      .join("\n\n");
+
+    return `${insertWorkout}\n\n${workoutExercisesSQL}`;
   })
-  .join("\n")}
-`
-  )
   .join("\n")}
 `;
