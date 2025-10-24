@@ -3,7 +3,7 @@ import { debounce } from "@/utils/debounce";
 import { StyleSheet, Text, View, TextInput, Keyboard } from "react-native";
 import { useFormContext, Controller, useFieldArray } from "react-hook-form";
 import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { setService } from "@/services/setService";
 import { useEffect, useRef, useState } from "react";
 

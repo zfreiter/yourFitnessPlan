@@ -20,7 +20,7 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
 import { AppButton } from "@/components/button";
 import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
 import { ExerciseType } from "@/types/interfaces/types";
 import { CreateWorkoutForm, Exercise } from "@/types/type";

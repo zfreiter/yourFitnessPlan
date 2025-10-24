@@ -6,7 +6,7 @@ import { ExerciseType } from "../../../types/interfaces/types";
 import { debounce } from "@/utils/debounce";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 interface WorkoutTypePickerProps {
   workoutType: ExerciseType;
   items: string[];

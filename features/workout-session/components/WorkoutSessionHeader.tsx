@@ -6,7 +6,7 @@ import AddExercise from "./addExercise";
 import { Controller, useFormContext } from "react-hook-form";
 import { GenericTextInput } from "@/components/ui/GenericTextInput";
 import { useDebouncedFieldUpdate } from "@/hooks/useDebouncedFieldUpdate";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 
 interface WorkoutSessionHeaderProps {
   showExerciseModal: boolean;

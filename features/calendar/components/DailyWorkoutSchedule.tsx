@@ -1,7 +1,8 @@
 import { Workout } from "@/types/type";
 import { Link } from "expo-router";
 import { View, Text } from "react-native";
-
+import { colors } from "@/utils/colors";
+import WorkoutCard from "@/features/home/TodaysWorkout/WorkoutCard";
 export default function DailyWorkoutSchedule({
   currentDay,
   workoutList,
@@ -23,71 +24,77 @@ export default function DailyWorkoutSchedule({
     <View style={{ flex: 1, padding: 0 }}>
       <Text style={{ marginTop: 10 }}>{date}</Text>
       <View
-        style={{ height: 1, backgroundColor: "#ccc", marginVertical: 10 }}
+        style={{
+          height: 1,
+          backgroundColor: "#ccc",
+          marginVertical: 10,
+        }}
       />
-      {workoutList.length > 0 &&
-        workoutList.map((workout) => (
-          <WorkoutLink key={workout.id} workout={workout} />
-        ))}
+      <View style={{ gap: 10 }}>
+        {workoutList.length > 0 &&
+          workoutList.map((workout) => (
+            <WorkoutCard key={workout.id} workout={workout} detailed={true} />
+          ))}
+      </View>
     </View>
   );
 }
 
-export function WorkoutLink({ workout }: { workout: Workout }) {
-  // workout types are strength, cardio, circuit, mobility
-  // workout colors are red, green, blue, yellow
-  return (
-    <Link
-      href={{
-        pathname: "/workout-session/[workoutId]",
-        params: { workoutId: workout.id },
-      }}
-      style={{ marginVertical: 5 }}
-      push
-    >
-      <View
-        style={{
-          backgroundColor: "#8EDAF5",
-          padding: 10,
-          borderRadius: 5,
-          marginVertical: 0,
-          width: "100%",
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ fontSize: 18, fontWeight: "bold", marginRight: 10 }}>
-            {workout.name}
-          </Text>
-          <View
-            style={{
-              borderRadius: 20,
-              backgroundColor: getWorkoutTypeColor(workout.workoutType),
-              width: 10,
-              height: 10,
-            }}
-          />
-        </View>
-        <Text>{workout.description}</Text>
-      </View>
-    </Link>
-  );
-}
-export function getWorkoutTypeColor(type: string) {
-  switch (type) {
-    case "#ff0000ff":
-      return "red";
-    case "cardio":
-      return "blue";
-    case "circuit":
-      return "green";
-    case "mobility":
-      return "#f096f0ff";
-    default:
-      return "red";
-  }
-}
+// export function WorkoutLink({ workout }: { workout: Workout }) {
+//   // workout types are strength, cardio, circuit, mobility
+//   // workout colors are red, green, blue, yellow
+//   return (
+//     <Link
+//       href={{
+//         pathname: "/workout-session/[workoutId]",
+//         params: { workoutId: workout.id },
+//       }}
+//       style={{ marginVertical: 5 }}
+//       push
+//     >
+//       <View
+//         style={{
+//           backgroundColor: "#8EDAF5",
+//           padding: 10,
+//           borderRadius: 5,
+//           marginVertical: 0,
+//           width: "100%",
+//         }}
+//       >
+//         <View
+//           style={{
+//             flexDirection: "row",
+//             alignItems: "center",
+//           }}
+//         >
+//           <Text style={{ fontSize: 18, fontWeight: "bold", marginRight: 10 }}>
+//             {workout.name}
+//           </Text>
+//           <View
+//             style={{
+//               borderRadius: 20,
+//               backgroundColor: getWorkoutTypeColor(workout.workoutType),
+//               width: 10,
+//               height: 10,
+//             }}
+//           />
+//         </View>
+//         <Text>{workout.description}</Text>
+//       </View>
+//     </Link>
+//   );
+// }
+// export function getWorkoutTypeColor(type: string) {
+//   switch (type) {
+//     case "strength":
+//       return colors.strength;
+//     case "cardio":
+//       return colors.cardio;
+//     case "circuit":
+//       return colors.circuit;
+//     case "mobility":
+//       return "colors.mobility";
+//     default:
+//       return "";
+//   }
+// }

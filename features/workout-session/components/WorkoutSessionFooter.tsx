@@ -5,7 +5,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { GenericTextInput } from "../../../components/ui/GenericTextInput";
 import { useDebouncedFieldUpdate } from "@/hooks/useDebouncedFieldUpdate";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
 import { convertDate } from "@/utils/date";

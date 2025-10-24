@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useState, useCallback, useMemo } from "react";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { AppButton } from "@/components/button";
 import { ExerciseFormData } from "@/types/common/workoutInterface";
 import {

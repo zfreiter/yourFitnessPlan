@@ -1,7 +1,7 @@
 import { DatabaseProvider } from "@/context/databaseContext";
 import { HomeProvider } from "@/context/HomeContext";
 import { SessionProvider } from "@/context/sessionContext";
-import { WorkoutProvider } from "@/context/workoutContent";
+import { WorkoutProvider } from "@/context/workoutContext";
 import { Slot } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";

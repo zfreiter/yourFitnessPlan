@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Workout } from "@/types/type";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { useEffect, useState } from "react";
 import ActiveWorkoutSession from "@/features/workout-session/components/activeWorkoutSession";
 import Ionicons from "@expo/vector-icons/Ionicons";

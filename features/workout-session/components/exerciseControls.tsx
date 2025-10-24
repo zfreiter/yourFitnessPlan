@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { View, Pressable, StyleSheet } from "react-native";
 import { Exercise, ExerciseDirection } from "@/types/type";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
 
 export default function ExerciseControls({

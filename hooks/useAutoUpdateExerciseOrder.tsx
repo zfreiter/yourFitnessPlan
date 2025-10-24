@@ -3,7 +3,7 @@ import { Exercise } from "@/types/type";
 import { debounce } from "@/utils/debounce";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 // This hook is used to update the exercise order in the database when the user reorders the exercises
 // It uses a debounced function to update the database after a delay
 // It also updates the exercises state when the initial exercises change

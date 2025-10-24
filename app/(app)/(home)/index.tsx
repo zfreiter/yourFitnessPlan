@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { useSession } from "@/context/sessionContext";
 import { ShimmerSkeleton, SkeletonTextLines } from "@/components/ui/skeleton";
 import HomeHeader from "@/features/home/HomeHeader";
-import TodaysWorkoutCard from "@/features/home/TodaysWorkoutCard";
+import TodaysWorkout from "@/features/home/TodaysWorkout/TodaysWorkout";
 import QuickActions from "@/features/home/QuickActions";
 import ProgressCard from "@/features/home/ProgressCard";
 import LastWorkoutCard from "@/features/home/LastWorkoutCard";
@@ -15,7 +15,7 @@ export default function Index() {
     <View style={styles.container}>
       <View style={styles.content}>
         <HomeHeader />
-        <TodaysWorkoutCard />
+        <TodaysWorkout />
         <QuickActions />
         <ProgressCard />
         <LastWorkoutCard />

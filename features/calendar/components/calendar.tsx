@@ -6,7 +6,7 @@ import { useRouter, useNavigation } from "expo-router";
 import DailyWorkoutSchedule from "@/features/calendar/components/DailyWorkoutSchedule";
 import { CreateWorkoutButton } from "./calendarButtons";
 import { Workout } from "@/types/type";
-
+import { colors } from "@/utils/colors";
 interface CalendarDay {
   dateString: string;
   day: number;
@@ -34,15 +34,15 @@ interface MarkedDates {
 const convertType = (type: string, index: number) => {
   switch (type) {
     case "strength":
-      return { key: `strength-${index}`, color: "#ff0000ff" };
+      return { key: `strength-${index}`, color: colors.strength };
     case "cardio":
-      return { key: `cardio-${index}`, color: "blue" };
+      return { key: `cardio-${index}`, color: colors.cardio };
     case "circuit":
-      return { key: `circuit-${index}`, color: "green" };
+      return { key: `circuit-${index}`, color: colors.circuit };
     case "mobility":
-      return { key: `mobility-${index}`, color: "#f096f0ff" };
+      return { key: `mobility-${index}`, color: colors.mobility };
     default:
-      return { key: `strength-${index}`, color: "red" };
+      return { key: `strength-${index}`, color: "" };
   }
 };
 

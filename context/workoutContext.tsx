@@ -14,8 +14,10 @@ import {
   SetStateAction,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
+import { format, addDays } from "date-fns";
 
 interface WorkoutContextType {
   workouts: Workout[];
@@ -54,6 +56,7 @@ interface WorkoutContextType {
     isCompleted: boolean,
     completedDate: string | null
   ) => void;
+  currentWorkouts?: Workout[];
 }
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
@@ -72,7 +75,8 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const { db, isLoading } = useDatabase();
-
+  const today = format(new Date(), "yyyy-MM-dd");
+  const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
   useEffect(() => {
     const fetchExercises = async () => {
       if (db) {
@@ -98,14 +102,13 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     }
   }, [db]);
 
-  // workouts.forEach((workout) => {
-  //   console.log(
-  //     "workout",
-  //     workout.isCompleted,
-  //     workout.completed_at,
-  //     workout.scheduled_datetime
-  //   );
-  // });
+  const currentWorkouts = useMemo(() => {
+    return workouts.filter(
+      (workout) =>
+        format(workout.scheduled_datetime, "yyyy-MM-dd") === today ||
+        format(workout.scheduled_datetime, "yyyy-MM-dd") === tomorrow
+    );
+  }, [workouts]);
 
   function updateWorkoutExerciseOrder(
     workoutId: number,
@@ -296,6 +299,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         updateWorkoutType,
         updateContextWorkoutField,
         updateContextWorkoutCompleted,
+        currentWorkouts,
       }}
     >
       {children}

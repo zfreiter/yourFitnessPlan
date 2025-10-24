@@ -1,7 +1,7 @@
 // Unused currently
 import { IconButton } from "@/components/ui/iconButton";
 import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { setService } from "@/services/setService";
 import { Exercise, Workout } from "@/types/type";
 import { useFieldArray, useFormContext } from "react-hook-form";

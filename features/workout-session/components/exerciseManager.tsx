@@ -9,7 +9,7 @@ import { IconButton } from "@/components/ui/iconButton";
 import { useFieldArray } from "react-hook-form";
 import { useDatabase } from "@/context/databaseContext";
 import { exerciseService } from "@/services/exerciseService";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import AddSet from "./addSet";
 
 export default function ExerciseManager({

@@ -20,7 +20,7 @@
 
 */
 //import { workouts } from "@/constants/workouts";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import CalendarIndex from "@/features/calendar/components/calendar";
 import { View } from "react-native";
 

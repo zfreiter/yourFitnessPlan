@@ -6,7 +6,7 @@ import { useState } from "react";
 import CustomModal from "@/components/ui/customModal";
 import { useDatabase } from "@/context/databaseContext";
 import { setService } from "@/services/setService";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { IconButton } from "@/components/ui/iconButton";
 
 export default function SetCard({

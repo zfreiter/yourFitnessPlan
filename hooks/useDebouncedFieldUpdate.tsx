@@ -1,7 +1,7 @@
 import { debounce } from "@/utils/debounce";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContent";
+import { useWorkout } from "@/context/workoutContext";
 import { useRef } from "react";
 
 interface Props {
