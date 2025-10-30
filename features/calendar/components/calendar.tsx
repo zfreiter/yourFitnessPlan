@@ -7,6 +7,7 @@ import DailyWorkoutSchedule from "@/features/calendar/components/DailyWorkoutSch
 import { CreateWorkoutButton } from "./calendarButtons";
 import { Workout } from "@/types/type";
 import { colors } from "@/utils/colors";
+import FabButton from "@/components/fabButton";
 interface CalendarDay {
   dateString: string;
   day: number;
@@ -102,24 +103,21 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
           }}
         />
       </View>
-      <View style={{ flex: 1, margin: 10 }}>
-        <CreateWorkoutButton
-          onPress={() =>
-            router.push({
-              pathname: "/(app)/create-workout",
-              params: {
-                date: currentDay,
-              },
-            })
-          }
+      <View style={styles.scheduleContainer}>
+        <DailyWorkoutSchedule
+          currentDay={currentDay}
+          workoutList={currentDayList}
         />
-        <ScrollView>
-          <DailyWorkoutSchedule
-            currentDay={currentDay}
-            workoutList={currentDayList}
-          />
-        </ScrollView>
       </View>
+      <FabButton today={currentDay} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scheduleContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+});
