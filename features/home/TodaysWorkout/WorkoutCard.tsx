@@ -23,7 +23,7 @@ export default function WorkoutCard({
     <Link
       style={styles.cardContainer}
       href={{
-        pathname: "/workout-session/[workoutId]",
+        pathname: "/[workoutId]",
         params: { workoutId: workout.id },
       }}
       asChild

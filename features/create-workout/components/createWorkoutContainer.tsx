@@ -26,7 +26,7 @@ import { ExerciseType } from "@/types/interfaces/types";
 import { CreateWorkoutForm, Exercise } from "@/types/type";
 import { AddExercise } from "./addExercise";
 import ExerciseListItem from "./exerciseListItem";
-
+import { useRouter } from "expo-router";
 // Helper function to get current date in user's timezone
 const getCurrentDateInLocalTimezone = () => {
   const now = new Date();
@@ -65,6 +65,7 @@ type CreateWorkoutContainerProps = {
 export function CreateWorkoutContainer({
   exerciseList,
 }: CreateWorkoutContainerProps) {
+  //const router = useRouter();
   const { date } = useLocalSearchParams();
   const [workoutType, setWorkoutType] =
     useState<ExerciseType>("Select workout");
@@ -180,7 +181,7 @@ export function CreateWorkoutContainer({
           setWorkouts([...workouts, result.data]);
         }
         reset();
-        router.replace("/calendar");
+        router.back();
       } else {
         console.error("Failed to insert workout:", result.error);
       }
