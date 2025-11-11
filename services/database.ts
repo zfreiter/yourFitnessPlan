@@ -7,7 +7,7 @@ const DATABASE_NAME = "workout.db";
 export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
   try {
     const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
-
+    console.log("databse ", db);
     try {
       // Create tables
       await db.execAsync(SCHEMA);

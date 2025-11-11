@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { useSession } from "@/context/sessionContext";
+import { useAuth } from "@/context/authContext";
 import { ShimmerSkeleton, SkeletonTextLines } from "@/components/ui/skeleton";
 import HomeHeader from "@/features/home/HomeHeader";
 import TodaysWorkout from "@/features/home/TodaysWorkout/TodaysWorkout";
@@ -11,7 +11,7 @@ import Carousel from "@/features/home/Carousel";
 import FabButton from "@/components/fabButton";
 
 export default function Index() {
-  const { session, isLoading, signOut } = useSession();
+  const { isAuthInitialized, isLoading, user } = useAuth();
   return (
     <View style={styles.container}>
       <View style={styles.content}>
@@ -21,7 +21,7 @@ export default function Index() {
         <ProgressCard />
         <LastWorkoutCard />
         <Carousel />
-        {isLoading || !session ? (
+        {isLoading || !isAuthInitialized ? (
           <View style={{ width: "100%" }}>
             <ShimmerSkeleton
               height={35}
@@ -33,9 +33,7 @@ export default function Index() {
           </View>
         ) : (
           <>
-            <Text
-              style={styles.text}
-            >{`Home page, welcome back ${session}`}</Text>
+            <Text style={styles.text}>{`Home page, welcome back $`}</Text>
             <Text style={styles.text}>
               CREATE AND FINISH ALL THE FUNCTIONS FOR WORKOUT CONTEXT, IMPLEMENT
               THESE ON WORKOUT-SESSION LAYOUT AND PAGE
