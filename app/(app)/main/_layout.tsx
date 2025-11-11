@@ -1,4 +1,4 @@
-import { useSession } from "@/context/sessionContext";
+import { useAuth } from "@/context/authContext";
 import { AntDesign } from "@expo/vector-icons";
 import { router, Tabs } from "expo-router";
 import { useEffect } from "react";
@@ -9,20 +9,7 @@ import { AppButton } from "@/components/button";
 import { HomeProvider } from "@/context/HomeContext";
 
 export default function MainLayoutTabs() {
-  const { session, isLoading, signOut } = useSession();
-  useEffect(() => {
-    if (!isLoading && !session) {
-      router.replace("/login");
-    }
-  }, [isLoading, session]);
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
+  const { isAuthInitialized, isLoading } = useAuth();
 
   return (
     <SafeAreaProvider>
@@ -32,13 +19,13 @@ export default function MainLayoutTabs() {
         backBehavior="history"
         screenOptions={{
           tabBarActiveTintColor: "#8EDAF5",
-          headerShown: true, // Ensure the header is visible
+          headerShown: true,
           headerStyle: {
-            backgroundColor: "#8EDAF5", // Change the header background color
+            backgroundColor: "#8EDAF5",
           },
-          headerTintColor: "#fff", // Change the header text color
+          headerTintColor: "#fff",
           headerTitleStyle: {
-            fontWeight: "bold", // Make the title bold
+            fontWeight: "bold",
           },
           headerRight: () => <></>,
         }}

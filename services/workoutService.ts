@@ -453,7 +453,7 @@ export const workoutService = {
       } = createWorkout;
 
       let insertedWorkoutId: number = 0;
-
+      if (!db) throw new Error("No database connection");
       await db.withTransactionAsync(async () => {
         const workoutId = await db.runAsync(
           `

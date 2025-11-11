@@ -1,8 +1,11 @@
 import { Button, Pressable, Text, View } from "react-native";
-import { useSession } from "@/context/sessionContext";
-import { Link } from "expo-router";
+import { useAuth } from "@/context/authContext";
+import { Link, useRouter } from "expo-router";
+
 export default function Index() {
-  const { session, isLoading, signOut } = useSession();
+  const { signOut } = useAuth();
+  const router = useRouter();
+
   return (
     <View
       style={{
@@ -47,7 +50,12 @@ export default function Index() {
       <View style={{ flex: 1 }} />
 
       <View style={{ margin: 0 }}>
-        <Button title="Sign out" onPress={signOut} />
+        <Button
+          title="Sign out"
+          onPress={async () => {
+            await signOut();
+          }}
+        />
       </View>
     </View>
   );

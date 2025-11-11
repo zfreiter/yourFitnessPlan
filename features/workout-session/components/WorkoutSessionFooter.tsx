@@ -59,7 +59,15 @@ export function WorkoutSessionFooter({
   }, [watchDuration]);
 
   return (
-    <View style={{ flexDirection: "column", gap: 10, marginVertical: 10 }}>
+    <View
+      style={{
+        flexDirection: "column",
+        gap: 10,
+        marginVertical: 10,
+        marginBottom: 50,
+        //paddingBottom: 100,
+      }}
+    >
       <GenericTextInput
         name="duration"
         placeholder="Workout Duration(minutes)"

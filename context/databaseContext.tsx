@@ -28,7 +28,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const initializeDatabase = async () => {
     try {
       const database = await SQLite.openDatabaseAsync("workout.db");
-
+      console.log("database ", database);
       //Drop all tables
       // await database.execAsync(`
       //   DROP TABLE IF EXISTS exercise_sets;

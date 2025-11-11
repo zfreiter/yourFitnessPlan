@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useHome } from "@/context/HomeContext";
-import { useSession } from "@/context/sessionContext";
+import { useAuth } from "@/context/authContext";
 import { getCurrentGreetingForCurrentTime } from "@/utils/Welcome";
 // TODO: Implement the Home Header Greeting + streak
 // Greeting time of day
@@ -9,13 +9,13 @@ import { getCurrentGreetingForCurrentTime } from "@/utils/Welcome";
 // skeleton loading
 export default function HomeHeader() {
   const { weeklyTotal, monthlyTotal } = useHome();
-  const { session } = useSession();
+  const { user } = useAuth();
 
   return (
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
         <Text style={styles.text}>
-          {getCurrentGreetingForCurrentTime()}, {session}
+          {getCurrentGreetingForCurrentTime()}, {user?.full_name}!
         </Text>
       </View>
       <View style={styles.streakContainer}>
