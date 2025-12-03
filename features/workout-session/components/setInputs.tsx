@@ -6,6 +6,7 @@ import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
 import { setService } from "@/services/setService";
 import { useEffect, useRef, useState } from "react";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 interface SetInputsProps {
   set: ExerciseSet;
@@ -26,6 +27,7 @@ export default function SetInputs({
   options,
 }: SetInputsProps) {
   const { watch, control } = useFormContext();
+  const { theme } = useColorTheme();
   const exercise = watch(`exercises.${exerciseIndex}`);
   const { updateWorkoutExerciseSet } = useWorkout();
   const { db } = useDatabase();
@@ -99,16 +101,32 @@ export default function SetInputs({
     };
   }, []);
   return (
-    <View style={[styles.SetCardInputOptionsContainer]}>
+    <View
+      style={[
+        styles.SetCardInputOptionsContainer,
+        { backgroundColor: theme.surface2 },
+      ]}
+    >
       {options.track_reps === 1 && (
         <View style={styles.inputContainer}>
-          <Text style={styles.SetCardInputLabel}>Reps</Text>
+          <Text
+            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+          >
+            Reps
+          </Text>
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.reps`}
             control={control}
             render={({ field: { onChange, value, onBlur } }) => (
               <TextInput
-                style={styles.SetCardInput}
+                style={[
+                  styles.SetCardInput,
+                  {
+                    backgroundColor: theme.input,
+                    borderColor: theme.accent,
+                    color: theme.textPrimary,
+                  },
+                ]}
                 keyboardType="numeric"
                 value={value?.toString() || ""}
                 onFocus={() => {
@@ -132,12 +150,18 @@ export default function SetInputs({
       )}
 
       {options.track_reps === 1 && options.track_weight === 1 && (
-        <Text style={{ bottom: -10, fontSize: 20 }}>x</Text>
+        <Text style={{ bottom: -10, fontSize: 20, color: theme.textSecondary }}>
+          x
+        </Text>
       )}
 
       {options.track_weight === 1 && (
         <View style={styles.inputContainer}>
-          <Text style={styles.SetCardInputLabel}>wt.</Text>
+          <Text
+            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+          >
+            wt.
+          </Text>
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.weight`}
             control={control}
@@ -145,7 +169,14 @@ export default function SetInputs({
               return (
                 <TextInput
                   keyboardType="numeric"
-                  style={styles.SetCardInput}
+                  style={[
+                    styles.SetCardInput,
+                    {
+                      backgroundColor: theme.input,
+                      borderColor: theme.accent,
+                      color: theme.textPrimary,
+                    },
+                  ]}
                   value={value?.toString() || ""}
                   onFocus={() => {
                     setIsFocusedOldValue(value || 0);
@@ -170,14 +201,25 @@ export default function SetInputs({
 
       {options.track_time === 1 && (
         <View style={styles.inputContainer}>
-          <Text style={styles.SetCardInputLabel}>Time</Text>
+          <Text
+            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+          >
+            Time
+          </Text>
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.duration`}
             control={control}
             render={({ field: { onChange, value, onBlur } }) => {
               return (
                 <TextInput
-                  style={styles.SetCardInput}
+                  style={[
+                    styles.SetCardInput,
+                    {
+                      backgroundColor: theme.input,
+                      borderColor: theme.accent,
+                      color: theme.textPrimary,
+                    },
+                  ]}
                   keyboardType="numeric"
                   value={value?.toString() || ""}
                   onFocus={() => {
@@ -202,14 +244,25 @@ export default function SetInputs({
       )}
 
       {options.track_distance === 1 && (
-        <View style={styles.inputContainer}>
-          <Text style={styles.SetCardInputLabel}>Dist.</Text>
+        <View style={[styles.inputContainer, {}]}>
+          <Text
+            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+          >
+            Dist.
+          </Text>
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.distance`}
             control={control}
             render={({ field: { onChange, value, onBlur } }) => (
               <TextInput
-                style={styles.SetCardInput}
+                style={[
+                  styles.SetCardInput,
+                  {
+                    backgroundColor: theme.input,
+                    borderColor: theme.accent,
+                    color: theme.textPrimary,
+                  },
+                ]}
                 keyboardType="numeric"
                 value={value?.toString() || ""}
                 onFocus={() => {

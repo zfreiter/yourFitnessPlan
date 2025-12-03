@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppButton } from "../../../components/button";
 import { WorkoutTypePicker } from "./WorkoutTypePicker";
@@ -7,6 +7,8 @@ import { Controller, useFormContext } from "react-hook-form";
 import { GenericTextInput } from "@/components/ui/GenericTextInput";
 import { useDebouncedFieldUpdate } from "@/hooks/useDebouncedFieldUpdate";
 import { useWorkout } from "@/context/workoutContext";
+import { useColorTheme } from "@/context/colorThemeContext";
+import { useBlurOnKeyboardClose } from "@/hooks/useBlurOnKeyboardClose";
 
 interface WorkoutSessionHeaderProps {
   showExerciseModal: boolean;
@@ -21,11 +23,19 @@ export function WorkoutSessionHeader({
 }: WorkoutSessionHeaderProps) {
   const { getValues, setValue, control, watch } = useFormContext();
   const { updateContextWorkoutField } = useWorkout();
+  const { theme } = useColorTheme();
+  const NameInputRef = useRef<TextInput>(null);
+  const descriptionInputRef = useRef<TextInput>(null);
   const watchName = watch("name");
   const [name, setName] = useState(watchName);
   const watchDescription = watch("description");
   const [description, setDescription] = useState(watchDescription);
+  const [isDescriptionFocused, setIsDescriptionFocused] =
+    useState<boolean>(false);
   const workoutId = getValues("id");
+
+  useBlurOnKeyboardClose(NameInputRef);
+  useBlurOnKeyboardClose(descriptionInputRef);
 
   const debouncedUpdateName = useDebouncedFieldUpdate({
     fieldName: "name",
@@ -70,17 +80,22 @@ export function WorkoutSessionHeader({
     <View style={styles.container}>
       <GenericTextInput
         name="name"
+        inputRef={NameInputRef}
         placeholder="Workout Name"
         title="Workout Name"
         keyboardType="default"
       />
+
       <WorkoutTypePicker
         items={["Select workout", "strength", "cardio", "mobility", "circuit"]}
         name="type"
         workoutType={getValues().type}
       />
-      <View>
-        <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+
+      <View style={{ gap: 4 }}>
+        <Text
+          style={{ fontSize: 16, fontWeight: "bold", color: theme.textPrimary }}
+        >
           Workout Description
         </Text>
         <Controller
@@ -88,18 +103,26 @@ export function WorkoutSessionHeader({
           control={control}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              placeholder="Workout Description"
+              placeholder="Workout Description..."
               value={value}
+              ref={descriptionInputRef}
+              placeholderTextColor={theme.placeholderColor}
               onChangeText={onChange}
+              onFocus={() => setIsDescriptionFocused(true)}
+              onBlur={() => {
+                setIsDescriptionFocused(false);
+                onBlur();
+              }}
               editable
               multiline
               numberOfLines={4}
               style={{
                 borderWidth: 1,
-                borderColor: "black",
+                borderColor: isDescriptionFocused ? theme.accent : theme.border,
                 minHeight: 80,
                 textAlignVertical: "top",
-                backgroundColor: "white",
+                backgroundColor: theme.surface,
+                color: theme.textPrimary,
                 borderRadius: 8,
               }}
             />
@@ -109,7 +132,10 @@ export function WorkoutSessionHeader({
 
       <AppButton
         title="Add exercise"
-        style={{ marginBottom: 10, marginTop: 0 }}
+        style={{
+          marginBottom: 10,
+          marginTop: 0,
+        }}
         onPress={handleAddExercise}
       />
       <Modal

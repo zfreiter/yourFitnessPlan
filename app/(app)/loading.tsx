@@ -9,12 +9,11 @@ export default function LoadingScreen() {
   const { user, isAuthInitialized } = useContext(AuthContext)!;
 
   useEffect(() => {
-    console.log("Auth initialized:", isAuthInitialized, "User:", user);
     if (!isAuthInitialized) return;
 
     // Redirect once auth is ready
     if (user) {
-      router.replace("/main");
+      router.replace("/(app)/main/");
     } else {
       router.replace("/login");
     }

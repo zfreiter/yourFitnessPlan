@@ -1,10 +1,14 @@
 import { View, Text } from "react-native";
 import { StyleSheet } from "react-native";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function LastWorkoutCard() {
+  const { theme } = useColorTheme();
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Last Workout Card</Text>
+      <Text style={[styles.text, { color: theme.textPrimary }]}>
+        Last Workout Card
+      </Text>
     </View>
   );
 }

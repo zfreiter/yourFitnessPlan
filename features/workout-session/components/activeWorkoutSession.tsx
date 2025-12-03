@@ -6,6 +6,7 @@ import { WorkoutUpdateFormValues } from "@/features/create-workout/types/type";
 import ExerciseManager from "./exerciseManager";
 import { WorkoutSessionHeader } from "./WorkoutSessionHeader";
 import { WorkoutSessionFooter } from "./WorkoutSessionFooter";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function ActiveWorkoutSession({
   workout,
@@ -27,6 +28,7 @@ export default function ActiveWorkoutSession({
   });
 
   const { control, setValue } = methods;
+  const { theme } = useColorTheme();
   const [mode, setMode] = useState<"date" | "time">("time");
   const [show, setShow] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useColorTheme } from "@/context/colorThemeContext";
 import {
   AccessibilityInfo,
   Alert,
@@ -22,6 +23,7 @@ import { ValidUnit } from "@/types/interfaces/types";
 import { Exercise, ExerciseFormData } from "@/types/type";
 import { ExerciseProps } from "../types/type";
 import { Ionicons } from "@expo/vector-icons";
+import Entypo from "@expo/vector-icons/Entypo";
 
 export function AddExercise({
   workoutType,
@@ -31,7 +33,9 @@ export function AddExercise({
   const [chosenExercise, setChosenExercise] = useState<Exercise | null>(null);
   const [optionsChoice, setOptionsChoice] = useState<string | null>(null);
   const [isScreenReaderEnabled, setIsScreenReaderEnabled] = useState(false);
+  const { theme } = useColorTheme();
   const methods = useFormContext();
+
   useEffect(() => {
     AccessibilityInfo.isScreenReaderEnabled().then(setIsScreenReaderEnabled);
   }, []);
@@ -73,7 +77,7 @@ export function AddExercise({
     name: "sets",
   });
 
-  const watchSets = watch("sets");
+  const watchSetsLen = watch("sets").length;
 
   const onSubmit = useCallback(
     (data: ExerciseFormData) => {
@@ -224,8 +228,8 @@ export function AddExercise({
   }, [setShowExerciseModal]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.headerContainer}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <View style={[styles.headerContainer]}>
         <Pressable
           style={{ alignSelf: "flex-end", margin: 5 }}
           onPress={handleCloseModal}
@@ -237,12 +241,12 @@ export function AddExercise({
             <AppButton
               title="Cancel"
               style={{
-                backgroundColor: "#FF9500",
+                backgroundColor: theme.warning,
                 paddingHorizontal: 10,
                 paddingVertical: 5,
               }}
               onPress={handleCloseModal}
-              textStyle={{ color: "white" }}
+              textStyle={{ color: theme.textPrimary }}
             />
           )}
         </Pressable>
@@ -254,9 +258,22 @@ export function AddExercise({
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={true}
       >
-        <View>
-          <Text style={styles.text}>Select exercise</Text>
-          <View style={styles.pickerContainer}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.text, { color: theme.textPrimary }]}>
+            Select exercise
+          </Text>
+          <View
+            style={[
+              styles.pickerContainer,
+              {
+                margin: 0,
+                padding: 0,
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.accentStrong,
+              },
+            ]}
+          >
             <Controller
               name="exercise_id"
               control={control}
@@ -279,6 +296,13 @@ export function AddExercise({
                   }}
                   accessibilityLabel="Exercise selection"
                   accessibilityHint="Select an exercise from the list"
+                  style={[
+                    {
+                      height: 50,
+                      backgroundColor: theme.surface,
+                      color: theme.textPrimary,
+                    },
+                  ]}
                 >
                   <Picker.Item label="Select exercise" value="NA" />
                   {exerciseList.map((exercise) => (
@@ -286,6 +310,12 @@ export function AddExercise({
                       key={exercise.exercise_id}
                       label={exercise.exercise_name}
                       value={exercise.exercise_id.toString()}
+                      style={[
+                        {
+                          backgroundColor: theme.surface,
+                          color: theme.textPrimary,
+                        },
+                      ]}
                     />
                   ))}
                 </Picker>
@@ -293,32 +323,152 @@ export function AddExercise({
             />
           </View>
           {errors.exercise_id && (
-            <Text style={styles.textError}>{errors.exercise_id.message}</Text>
+            <Text style={[styles.textError, { color: theme.danger }]}>
+              {errors.exercise_id.message}
+            </Text>
           )}
           {/* Exercise Information */}
           {chosenExercise && (
             <View style={{}}>
-              <View style={styles.hr} />
-              <View>
-                <Text style={styles.exerciseName}>
-                  {`${chosenExercise.exercise_name}`}
-                </Text>
-                <Text style={styles.setDetailsHeader}>
-                  {chosenExercise.exercise_description}
-                </Text>
+              <View style={[styles.hr, { borderBottomColor: theme.hr }]} />
+              <View style={{}}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.exerciseName,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      {`${chosenExercise.exercise_name}`}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.setDetailsHeader,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {chosenExercise.exercise_description}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.SetCardInputContainer,
+                      {
+                        height: 40,
+                        width: 40,
+                        borderRadius: 20,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: theme.surface,
+                        borderWidth: 1,
+                        borderColor: theme.accentStrong,
+                      },
+                    ]}
+                  >
+                    <Pressable
+                      style={({ pressed }) => [
+                        {
+                          backgroundColor: pressed
+                            ? theme.surface
+                            : "transparent",
+                          transform: [{ scale: pressed ? 0.98 : 1 }],
+                        },
+                      ]}
+                      onPress={handleAddSet}
+                    >
+                      <View style={[styles.addIconContainer]}>
+                        <Ionicons
+                          name="add"
+                          size={20}
+                          color={theme.accentStrong}
+                        />
+                      </View>
+                    </Pressable>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.SetCardInputContainer,
+                      {
+                        height: 40,
+                        width: 40,
+                        borderRadius: 20,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: theme.surface,
+                        borderWidth: 1,
+                        borderColor: theme.accentStrong,
+                      },
+                    ]}
+                  >
+                    <Pressable
+                      style={({ pressed }) => [
+                        {
+                          backgroundColor: pressed
+                            ? theme.surface
+                            : "transparent",
+                          transform: [{ scale: pressed ? 0.98 : 1 }],
+                        },
+                      ]}
+                      onPress={() => handleRemoveSet(watchSetsLen - 1)}
+                    >
+                      <View style={[styles.addIconContainer]}>
+                        <Entypo
+                          name="minus"
+                          size={24}
+                          color={theme.accentStrong}
+                        />
+                      </View>
+                    </Pressable>
+                  </View>
+                </View>
               </View>
 
               {/* If the exercise has more than one option we need to give the user the options */}
               {chosenExercise.validUnits &&
                 chosenExercise.validUnits.length > 1 && (
                   <>
-                    <Text style={styles.optionsLabel}>Options</Text>
-                    <View style={styles.pickerContainer}>
+                    <Text
+                      style={[
+                        styles.optionsLabel,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      Options
+                    </Text>
+                    <View
+                      style={[
+                        styles.pickerContainer,
+                        {
+                          margin: 0,
+                          padding: 0,
+                          backgroundColor: theme.surface,
+                          borderWidth: 1,
+                          borderColor: theme.accentStrong,
+                        },
+                      ]}
+                    >
                       <Picker
                         mode="dialog"
                         onValueChange={onOptionChange}
                         accessibilityLabel="Exercise options"
                         accessibilityHint="Select the type of measurement for this exercise"
+                        style={[
+                          {
+                            height: 50,
+                            backgroundColor: theme.surface,
+                            color: theme.textPrimary,
+                          },
+                        ]}
                       >
                         {chosenExercise.validUnits.map((unit, index) => (
                           <Picker.Item
@@ -357,13 +507,9 @@ export function AddExercise({
                       style={{
                         padding: 10,
                         borderWidth: 1,
-                        borderColor: "#A0A0A0",
-                        backgroundColor: "#E0E0E0",
-                        borderRadius: 10,
-                        alignSelf: "flex-start",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                        borderRadius: 20,
                       }}
                       onLongPress={() => {
                         Alert.alert("Remove set", `Set ${index + 1} `);
@@ -377,11 +523,14 @@ export function AddExercise({
                             flexDirection: "column",
                           }}
                         >
-                          <Text style={{}}>Set {index + 1}</Text>
+                          <Text style={{ color: theme.textPrimary }}>
+                            Set {index + 1}
+                          </Text>
                           <View
                             style={{
                               flexDirection: "row",
                               alignItems: "center",
+                              justifyContent: "space-between",
                               gap: 10,
                             }}
                           >
@@ -400,11 +549,14 @@ export function AddExercise({
                             flexDirection: "column",
                           }}
                         >
-                          <Text style={{}}>Set {index + 1}</Text>
+                          <Text style={{ color: theme.textPrimary }}>
+                            Set {index + 1}
+                          </Text>
                           <View
                             style={{
                               flexDirection: "row",
                               alignItems: "center",
+                              justifyContent: "space-between",
                               gap: 10,
                             }}
                           >
@@ -420,34 +572,18 @@ export function AddExercise({
                       )}
                     </Pressable>
                   ))}
-
-                  <View style={styles.SetCardInputContainer}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        {
-                          backgroundColor: pressed ? "#E5E7EB" : "transparent",
-                          transform: [{ scale: pressed ? 0.98 : 1 }],
-                        },
-                      ]}
-                      onPress={handleAddSet}
-                    >
-                      <Text>Add Set</Text>
-                      <View style={styles.addIconContainer}>
-                        <Ionicons name="add" size={20} color="green" />
-                      </View>
-                    </Pressable>
-                  </View>
                 </View>
               )}
             </View>
           )}
 
-          <View style={styles.hr} />
+          <View style={[styles.hr, { borderBottomColor: theme.hr }]} />
           {chosenExercise && (
             <AppButton
               title="Add exercise"
               onPress={handleSubmit(onSubmit)}
               style={styles.addExerciseButton}
+              textStyle={{ color: theme.textPrimary }}
             />
           )}
         </View>
@@ -463,6 +599,8 @@ interface OptionsProps {
 }
 
 export function Options({ options, index, control }: OptionsProps) {
+  const { theme } = useColorTheme();
+
   const renderInput = (
     name: keyof ExerciseFormData["sets"][number],
     placeholder: string,
@@ -474,10 +612,35 @@ export function Options({ options, index, control }: OptionsProps) {
         name={`sets.${index}.${name}`}
         control={control}
         render={({ field: { onChange, value } }) => (
-          <View style={{ gap: 2 }}>
-            <Text style={styles.setInputLabel}>{placeholder}</Text>
+          <View
+            style={{
+              gap: 2,
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
+            <Text
+              style={[styles.setInputLabel, { color: theme.textSecondary }]}
+            >
+              {placeholder}
+            </Text>
             <TextInput
-              style={styles.setInput}
+              style={[
+                styles.setInput,
+                {
+                  height: 50,
+                  width: 70,
+                  paddingHorizontal: 10,
+                  textAlign: "center",
+                  textAlignVertical: "center",
+                  fontSize: 18,
+                  color: theme.textPrimary,
+                  backgroundColor: theme.surface,
+                  borderWidth: 1,
+                  borderColor: theme.accent,
+                  borderRadius: 8,
+                },
+              ]}
               keyboardType="numeric"
               onChangeText={(text) =>
                 onChange(text ? parseFloat(text) : undefined)
@@ -497,21 +660,24 @@ export function Options({ options, index, control }: OptionsProps) {
       return renderInput("reps", "Reps", `Set ${index + 1} reps`);
       break;
     case "weight":
-      return renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`);
+      return renderInput("weight", "kg", `Set ${index + 1} weight`);
       break;
     case "time":
-      return renderInput("duration", "Time (seconds)", `Set ${index + 1} time`);
+      return renderInput("duration", "sec.", `Set ${index + 1} time`);
+      break;
+    case "distance":
+      return renderInput("distance", "m", `Set ${index + 1} distance`);
       break;
     case "time-distance":
       return [
-        renderInput("duration", "Time (seconds)", `Set ${index + 1} time`),
-        renderInput("distance", "Distance (m)", `Set ${index + 1} distance`),
+        renderInput("duration", "sec.", `Set ${index + 1} time`),
+        renderInput("distance", "m", `Set ${index + 1} distance`),
       ];
       break;
     case "reps-weight":
       return [
         renderInput("reps", "Reps", `Set ${index + 1} reps`),
-        renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`),
+        renderInput("weight", "kg", `Set ${index + 1} weight`),
       ];
       break;
     default:
@@ -523,7 +689,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     fontWeight: "medium",
-    color: "#1F2937",
   },
   textError: {
     fontSize: 16,
@@ -580,20 +745,17 @@ const styles = StyleSheet.create({
   },
   scrollViewContainer: {
     padding: 10,
-    backgroundColor: "#F9FAFB",
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "flex-end",
     padding: 10,
-    backgroundColor: "#E5E7EB",
   },
   exerciseName: {
     marginTop: 4,
     textAlign: "left",
     fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
+    fontWeight: "500",
   },
   setDetailsHeader: {
     marginTop: 4,
@@ -624,6 +786,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 5,
     backgroundColor: "white",
+    fontSize: 16,
   },
   setInputLabel: {
     fontSize: 16,
@@ -639,20 +802,10 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: "#DC2626",
   },
-  SetCardInputContainer: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "black",
-    backgroundColor: "white",
-    borderRadius: 10,
-    alignSelf: "flex-start",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  SetCardInputContainer: {},
   addIconContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 5,
   },
 });
 

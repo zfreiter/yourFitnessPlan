@@ -48,9 +48,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // 🔹 Check if there's an existing session
       const { data: sessionData } = await supabase.auth.getSession();
       const session = sessionData.session;
-      console.log("Initial auth check ------------------>", session);
+
       if (session?.user) {
-        console.log("Existing session found:", session.user);
         // 🔹 Fetch the user's profile
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
@@ -62,8 +61,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(profileData);
           setIsAuthInitialized(true);
         } else {
-          console.log("Profile data not found:", profileData);
-          console.error("Error fetching profile:", profileError);
           setUser(null);
         }
       } else {
@@ -79,13 +76,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: subscription } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "SIGNED_IN" && session?.user) {
-          console.log("User signed in:", session.user);
           const { data: profileData, error: profileError } = await supabase
             .from("profiles")
             .select()
             .eq("id", session?.user.id)
             .single();
-          console.log("Profile data on sign in:", profileData, profileError);
+
           setUser(profileData);
           setIsAuthInitialized(true);
           router.replace("/(app)/main/"); // Redirect into the app
@@ -107,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       email,
       password,
     });
+
     if (error) throw error;
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")

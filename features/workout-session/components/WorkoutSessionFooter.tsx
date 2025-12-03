@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { View, Text, Pressable, TextInput, Platform } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -9,10 +9,11 @@ import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
 import { convertDate } from "@/utils/date";
-import { dateToUnixEpoch } from "@/utils/date";
 import { Checkbox } from "expo-checkbox";
 import { format } from "date-fns";
 import { useHome } from "@/context/HomeContext";
+import { useColorTheme } from "@/context/colorThemeContext";
+import { useBlurOnKeyboardClose } from "@/hooks/useBlurOnKeyboardClose";
 interface WorkoutSessionFooterProps {
   show: boolean;
   mode: "date" | "time";
@@ -32,9 +33,11 @@ export function WorkoutSessionFooter({
   const [backupDate, setBackupDate] = useState(getValues("date"));
   const { updateContextWorkoutField, updateContextWorkoutCompleted } =
     useWorkout();
+  const { theme } = useColorTheme();
   const watchDuration = watch("duration");
   const [duration, setDuration] = useState(watchDuration);
   const workoutId = getValues("id");
+  const DurationInputRef = useRef<TextInput>(null);
   const { db } = useDatabase();
   const { setResetFlag } = useHome();
   const debouncedUpdateDuration = useDebouncedFieldUpdate({
@@ -70,20 +73,25 @@ export function WorkoutSessionFooter({
     >
       <GenericTextInput
         name="duration"
+        inputRef={DurationInputRef}
         placeholder="Workout Duration(minutes)"
         title="Workout Duration"
         keyboardType="number-pad"
       />
       <View style={{ gap: 5 }}>
-        <Text style={{ fontSize: 16, fontWeight: "bold" }}>Date & Time</Text>
+        <Text
+          style={{ fontSize: 16, fontWeight: "bold", color: theme.textPrimary }}
+        >
+          Date & Time
+        </Text>
         <Pressable
           style={({ pressed }) => [
             {
-              backgroundColor: pressed ? "gray" : "white",
+              backgroundColor: pressed ? "gray" : theme.surface,
             },
             {
               padding: 10,
-              borderColor: "black",
+              borderColor: theme.accent,
               borderWidth: 1,
               borderRadius: 8,
             },
@@ -101,14 +109,16 @@ export function WorkoutSessionFooter({
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
             >
-              <AntDesign name="calendar" size={24} color="black" />
-              <Text style={{ textAlign: "center" }}>{mode}</Text>
+              <AntDesign name="calendar" size={24} color={theme.accent} />
+              <Text style={{ textAlign: "center", color: theme.textPrimary }}>
+                {mode}
+              </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 5 }}>
-              <Text style={{ margin: 5 }}>
+              <Text style={{ margin: 5, color: theme.textPrimary }}>
                 {getValues().date.toLocaleDateString()}
               </Text>
-              <Text style={{ margin: 5 }}>
+              <Text style={{ margin: 5, color: theme.textPrimary }}>
                 {getValues().date.toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -222,16 +232,28 @@ export function WorkoutSessionFooter({
           )}
         />
       )}
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
-        <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "bold",
+            alignSelf: "baseline",
+            color: theme.textPrimary,
+          }}
+        >
           Workout completed
         </Text>
+
         <Controller
           name="isCompleted"
           control={control}
           render={({ field: { onChange, onBlur, value } }) => (
             <Checkbox
-              style={{ backgroundColor: "white" }}
+              style={{
+                backgroundColor: theme.surface,
+                borderColor: theme.accent,
+              }}
               value={value}
               onValueChange={async (newValue) => {
                 const workoutId = getValues().id;
@@ -266,7 +288,7 @@ export function WorkoutSessionFooter({
 
                 onChange(newValue);
               }}
-              color={value ? "#00994C" : undefined}
+              color={value ? theme.accentActive : undefined}
             />
           )}
         />

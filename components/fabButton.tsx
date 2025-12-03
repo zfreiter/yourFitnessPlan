@@ -1,11 +1,14 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Link } from "expo-router";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 type FabButtonProps = {
   today?: string | null;
 };
 
 export default function FabButton({ today }: FabButtonProps) {
+  const { theme } = useColorTheme();
+  console.log("FAB THEME:", theme.accent);
   return (
     <Link
       href={{
@@ -16,7 +19,12 @@ export default function FabButton({ today }: FabButtonProps) {
       }}
       asChild
     >
-      <Pressable style={styles.fab}>
+      <Pressable
+        style={StyleSheet.flatten([
+          styles.fab,
+          { backgroundColor: theme.accentStrong },
+        ])}
+      >
         <Text style={styles.text}>+</Text>
       </Pressable>
     </Link>

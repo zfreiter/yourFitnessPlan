@@ -1,6 +1,8 @@
 import React from "react";
-import { TextInput, Text, View } from "react-native";
+import { TextInput, Text, View, TextStyle } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
+import { useColorTheme } from "@/context/colorThemeContext";
+import { useState } from "react";
 
 interface GenericTextInputProps {
   name: string;
@@ -13,23 +15,38 @@ interface GenericTextInputProps {
     | "email-address"
     | "phone-pad"
     | "url";
+  textStyle?: TextStyle | TextStyle[];
+  inputStyle?: TextStyle | TextStyle[];
+  inputRef?: React.RefObject<TextInput | null>;
 }
 
-export const GenericTextInput: React.FC<GenericTextInputProps> = ({
+export function GenericTextInput({
   name,
   placeholder,
   title,
   keyboardType,
-}) => {
+  textStyle,
+  inputStyle,
+  inputRef,
+}: GenericTextInputProps) {
   const {
     control,
     formState: { errors },
   } = useFormContext();
+  const { theme } = useColorTheme();
+  const [isFocused, setIsFocused] = useState<boolean>(false);
 
   return (
-    <View style={{ gap: title ? 5 : 0 }}>
+    <View style={{ gap: title ? 4 : 0 }}>
       {title && (
-        <Text style={{ fontSize: 16, fontWeight: "bold" }}>{title}</Text>
+        <Text
+          style={[
+            { fontSize: 16, fontWeight: "bold", color: theme.textPrimary },
+            textStyle,
+          ]}
+        >
+          {title}
+        </Text>
       )}
       <Controller
         name={name}
@@ -37,8 +54,15 @@ export const GenericTextInput: React.FC<GenericTextInputProps> = ({
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
             placeholder={placeholder}
+            placeholderTextColor={theme.placeholderColor}
             keyboardType={keyboardType}
+            ref={inputRef}
             value={String(value || "")}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              setIsFocused(false);
+              onBlur();
+            }}
             onChangeText={(text) => {
               // Only apply numeric filtering for number-pad keyboard type
               if (
@@ -51,13 +75,17 @@ export const GenericTextInput: React.FC<GenericTextInputProps> = ({
                 onChange(text);
               }
             }}
-            style={{
-              padding: 10,
-              backgroundColor: "white",
-              borderColor: "black",
-              borderWidth: 1,
-              borderRadius: 8,
-            }}
+            style={[
+              {
+                padding: 10,
+                backgroundColor: theme.surface,
+                borderColor: isFocused ? theme.accent : theme.border,
+                borderWidth: 1,
+                borderRadius: 8,
+                color: theme.textPrimary,
+              },
+              inputStyle,
+            ]}
           />
         )}
       />
@@ -68,4 +96,4 @@ export const GenericTextInput: React.FC<GenericTextInputProps> = ({
       )}
     </View>
   );
-};
+}

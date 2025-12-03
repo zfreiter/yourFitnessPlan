@@ -1,10 +1,14 @@
 import { View, Text } from "react-native";
 import { StyleSheet } from "react-native";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function QuickActions() {
+  const { theme } = useColorTheme();
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Quick Actions</Text>
+      <Text style={[styles.text, { color: theme.textPrimary }]}>
+        Quick Actions
+      </Text>
     </View>
   );
 }

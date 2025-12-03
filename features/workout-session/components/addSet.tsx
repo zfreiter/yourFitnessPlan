@@ -6,6 +6,7 @@ import { useFieldArray, useFormContext } from "react-hook-form";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { ExerciseSet } from "@/types/type";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function AddSet({
   setIndex,
@@ -23,7 +24,7 @@ export default function AddSet({
   });
   const exercise = watch(`exercises.${exerciseIndex}`);
   const { db } = useDatabase();
-
+  const { theme } = useColorTheme();
   const handleAddSet = async () => {
     if (db) {
       const newSet: ExerciseSet = {
@@ -70,9 +71,8 @@ export default function AddSet({
         ]}
         onPress={handleAddSet}
       >
-        <Text>Add Set</Text>
         <View style={styles.addIconContainer}>
-          <Ionicons name="add" size={20} color="green" />
+          <Ionicons name="add-circle-sharp" size={35} color={theme.accent} />
         </View>
       </Pressable>
     </View>
@@ -80,18 +80,10 @@ export default function AddSet({
 }
 
 const styles = StyleSheet.create({
-  SetCardInputContainer: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "black",
-    backgroundColor: "white",
-    borderRadius: 5,
-    minWidth: 50,
-    maxWidth: 118,
-  },
+  SetCardInputContainer: {},
   addIconContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 5,
+    //marginTop: 5,
   },
 });

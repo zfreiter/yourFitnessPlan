@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { UseFormSetValue, UseFormGetValues } from "react-hook-form";
+import { useColorTheme } from "@/context/colorThemeContext";
 import {
   BaseWorkoutExercise,
   CreateWorkoutForm,
@@ -14,16 +15,31 @@ export default function ExerciseListItem({
   setValue: UseFormSetValue<CreateWorkoutForm>;
   getValues: UseFormGetValues<CreateWorkoutForm>;
 }) {
+  const { theme } = useColorTheme();
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          borderWidth: 1,
+        },
+      ]}
+    >
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <Text style={styles.text}>{exercise.exercise_name}</Text>
-        <Text style={styles.text}>Sets: {exercise.sets?.length || 0}</Text>
+        <Text style={[styles.text, { color: theme.textPrimary }]}>
+          {exercise.exercise_name}
+        </Text>
+        <Text style={[styles.text, { color: theme.textPrimary }]}>
+          Sets: {exercise.sets?.length || 0}
+        </Text>
       </View>
       <Pressable
         style={({ pressed }) => [
           styles.button,
-          pressed && { backgroundColor: "" },
+          pressed && { backgroundColor: "black" },
         ]}
         onPress={() => {
           Alert.alert(
@@ -52,7 +68,7 @@ export default function ExerciseListItem({
           <FontAwesome6
             name="trash-can"
             size={24}
-            color={pressed ? "black" : "red"}
+            color={pressed ? theme.textSecondary : theme.danger}
           />
         )}
       </Pressable>

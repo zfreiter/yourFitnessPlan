@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text } from "react-native";
+import { View, Text, TextStyle, ViewStyle } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import { Picker } from "@react-native-picker/picker";
 import { ExerciseType } from "../../../types/interfaces/types";
@@ -7,16 +7,22 @@ import { debounce } from "@/utils/debounce";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
+import { useColorTheme } from "@/context/colorThemeContext";
+
 interface WorkoutTypePickerProps {
   workoutType: ExerciseType;
   items: string[];
   name: string;
+  textStyle?: TextStyle;
+  viewStyle?: ViewStyle;
 }
 
 export function WorkoutTypePicker({
   workoutType,
   items,
   name,
+  textStyle,
+  viewStyle,
 }: WorkoutTypePickerProps) {
   const {
     control,
@@ -26,24 +32,32 @@ export function WorkoutTypePicker({
   const { db } = useDatabase();
   const [workoutTypeState, setWorkoutTypeState] = useState(workoutType);
   const [oldWorkoutType, setOldWorkoutType] = useState(workoutType);
+  const [isFocused, setIsFocused] = useState<boolean>(false);
   const { updateWorkoutType } = useWorkout();
+  const { theme } = useColorTheme();
+
   return (
-    <View style={{ gap: 5 }}>
-      <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+    <View style={{ gap: 4 }}>
+      <Text
+        style={[{ fontSize: 16, fontWeight: "bold", color: theme.textPrimary }]}
+      >
         Select Workout Type:
       </Text>
 
       <View
-        style={{
-          width: "100%",
-          borderWidth: 1,
-          borderColor: "black",
-          borderRadius: 8,
-          overflow: "hidden",
-          padding: 0,
-          height: 40,
-          justifyContent: "center",
-        }}
+        style={[
+          {
+            width: "100%",
+            borderWidth: 1,
+            borderColor: theme.accent,
+            borderRadius: 8,
+            overflow: "hidden",
+            padding: 0,
+            height: 40,
+            justifyContent: "center",
+          },
+          viewStyle,
+        ]}
       >
         <Controller
           name={name}
@@ -56,7 +70,12 @@ export function WorkoutTypePicker({
             <Picker
               mode="dialog"
               key={workoutTypeState}
-              style={{ width: "100%", backgroundColor: "white" }}
+              style={{
+                width: "100%",
+                backgroundColor: theme.surface,
+                color: theme.textPrimary,
+              }}
+              onFocus={() => setIsFocused(true)}
               selectedValue={workoutTypeState}
               onValueChange={(value) => {
                 const oldWorkoutType = workoutTypeState;

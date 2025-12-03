@@ -1,8 +1,8 @@
 import { Workout } from "@/types/type";
-import { Link } from "expo-router";
 import { View, Text, ScrollView } from "react-native";
-import { colors } from "@/utils/colors";
 import WorkoutCard from "@/features/home/TodaysWorkout/WorkoutCard";
+import { useColorTheme } from "@/context/colorThemeContext";
+
 export default function DailyWorkoutSchedule({
   currentDay,
   workoutList,
@@ -10,9 +10,7 @@ export default function DailyWorkoutSchedule({
   currentDay: string | null;
   workoutList: Workout[];
 }): JSX.Element {
-  if (!currentDay) {
-    return <Text>No workouts for today</Text>;
-  }
+  const { theme } = useColorTheme();
   const date = new Date(currentDay + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "long", // Full weekday name
     year: "numeric", // Full year
@@ -20,13 +18,29 @@ export default function DailyWorkoutSchedule({
     day: "numeric", // Day of the month
   });
 
+  if (workoutList.length === 0) {
+    return (
+      <View style={{ flex: 1, padding: 0 }}>
+        <Text style={{ color: theme.textPrimary }}>{date}</Text>
+        <View
+          style={{
+            height: 1,
+            backgroundColor: theme.hr,
+            marginVertical: 10,
+          }}
+        />
+        <Text style={{ color: theme.textPrimary }}>No workouts for today</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, padding: 0 }}>
-      <Text style={{}}>{date}</Text>
+      <Text style={{ color: theme.textPrimary }}>{date}</Text>
       <View
         style={{
           height: 1,
-          backgroundColor: "#ccc",
+          backgroundColor: theme.hr,
           marginVertical: 10,
         }}
       />

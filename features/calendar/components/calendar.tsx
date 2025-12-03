@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView } from "react-native";
 import { Calendar, CalendarList, Agenda } from "react-native-calendars";
 import { StyleSheet } from "react-native";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import DailyWorkoutSchedule from "@/features/calendar/components/DailyWorkoutSchedule";
 import { CreateWorkoutButton } from "./calendarButtons";
 import { Workout } from "@/types/type";
 import { colors } from "@/utils/colors";
 import FabButton from "@/components/fabButton";
+import { useColorTheme } from "@/context/colorThemeContext";
+
 interface CalendarDay {
   dateString: string;
   day: number;
@@ -35,7 +37,10 @@ interface MarkedDates {
 const convertType = (type: string, index: number) => {
   switch (type) {
     case "strength":
-      return { key: `strength-${index}`, color: colors.strength };
+      return {
+        key: `strength-${index}`,
+        color: colors.strength,
+      };
     case "cardio":
       return { key: `cardio-${index}`, color: colors.cardio };
     case "circuit":
@@ -47,12 +52,26 @@ const convertType = (type: string, index: number) => {
   }
 };
 
-export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
-  const router = useRouter();
-  // Contains the list of workouts for the current selected day
+export default function CalendarIndex({
+  workouts,
+  today,
+}: {
+  workouts: Workout[];
+  today: string;
+}) {
   const [currentDayList, setCurrentDayList] = useState<Workout[]>([]);
-  const [currentDay, setCurrentDay] = useState<string | null>(null);
+  const [currentDay, setCurrentDay] = useState<string>(today);
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
+  const router = useRouter();
+  const { theme } = useColorTheme();
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setCurrentDay(today);
+      };
+    }, [today])
+  );
 
   useEffect(() => {
     const formatWorkoutDate: MarkedDates = {};
@@ -84,13 +103,39 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
 
   return (
     <View style={{ flex: 1, margin: 0 }}>
-      <View>
+      <View style={{}}>
         <Calendar
+          key={theme.background}
           markingType={"multi-dot"}
           markedDates={markedDates}
+          style={
+            {
+              //backgroundColor: theme.surface,
+              //borderColor: theme.border,
+              //borderBottomWidth: 1,
+            }
+          }
+          theme={{
+            backgroundColor: theme.surface,
+            calendarBackground: theme.surface,
+            arrowColor: theme.accent,
+            //textSectionTitleColor: "#b6c1cd",
+            //selectedDayBackgroundColor: "#00adf5",
+            //selectedDayTextColor: "#ffffff",
+            todayTextColor: theme.accent,
+            dayTextColor: theme.textPrimary,
+            textDisabledColor: theme.textSecondary,
+          }}
           renderHeader={(date: Date) => {
             return (
-              <Text style={{ fontSize: 18, fontWeight: "bold" }}>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  color: theme.textPrimary,
+                  backgroundColor: theme.surface,
+                }}
+              >
                 {new Date(date).toLocaleDateString("en-US", {
                   month: "long",
                   year: "numeric",
@@ -103,7 +148,12 @@ export default function CalendarIndex({ workouts }: { workouts: Workout[] }) {
           }}
         />
       </View>
-      <View style={styles.scheduleContainer}>
+      <View
+        style={[
+          styles.scheduleContainer,
+          { backgroundColor: theme.background },
+        ]}
+      >
         <DailyWorkoutSchedule
           currentDay={currentDay}
           workoutList={currentDayList}

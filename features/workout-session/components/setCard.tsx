@@ -8,6 +8,7 @@ import { useDatabase } from "@/context/databaseContext";
 import { setService } from "@/services/setService";
 import { useWorkout } from "@/context/workoutContext";
 import { IconButton } from "@/components/ui/iconButton";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function SetCard({
   set,
@@ -28,6 +29,7 @@ export default function SetCard({
   const { db } = useDatabase();
   const { deleteWorkoutExerciseSet } = useWorkout();
   const { watch } = useFormContext();
+  const { theme } = useColorTheme();
   const { remove } = useFieldArray({
     name: `exercises.${exerciseIndex}.sets`,
   });
@@ -78,7 +80,8 @@ export default function SetCard({
             ? "#FF686B"
             : isLongPressed
             ? "#FF686B"
-            : "#E0E0E0",
+            : theme.surface2,
+          borderColor: theme.border,
         },
       ]}
     >
@@ -90,7 +93,7 @@ export default function SetCard({
               ? "#FF686B"
               : isLongPressed
               ? "#FF686B"
-              : "#E0E0E0",
+              : theme.surface2,
             transform: [{ scale: isLongPressed ? 0.98 : 1 }],
           },
         ]}
@@ -102,7 +105,7 @@ export default function SetCard({
           setIsLongPressed(false);
         }}
       >
-        <Text>Set {setIndex + 1}</Text>
+        <Text style={{ color: theme.textPrimary }}>Set {setIndex + 1}</Text>
 
         <SetInputs
           set={set}

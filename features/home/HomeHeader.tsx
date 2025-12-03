@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useHome } from "@/context/HomeContext";
 import { useAuth } from "@/context/authContext";
+import { useColorTheme } from "@/context/colorThemeContext";
 import { getCurrentGreetingForCurrentTime } from "@/utils/Welcome";
 // TODO: Implement the Home Header Greeting + streak
 // Greeting time of day
@@ -8,24 +9,34 @@ import { getCurrentGreetingForCurrentTime } from "@/utils/Welcome";
 // db calls to get the streak
 // skeleton loading
 export default function HomeHeader() {
+  const { theme } = useColorTheme();
   const { weeklyTotal, monthlyTotal } = useHome();
   const { user } = useAuth();
 
   return (
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
-        <Text style={styles.text}>
+        <Text style={[styles.text, { color: theme.textPrimary }]}>
           {getCurrentGreetingForCurrentTime()}, {user?.full_name}!
         </Text>
       </View>
-      <View style={styles.streakContainer}>
-        <Text style={styles.text}>
+      <View
+        style={[
+          styles.streakContainer,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            shadowColor: theme.shadow,
+          },
+        ]}
+      >
+        <Text style={[styles.text, { color: theme.textPrimary }]}>
           {weeklyTotal !== 0
             ? `${weeklyTotal} workouts this week`
             : "Lets get started!"}
         </Text>
         {}
-        <Text style={styles.text}>
+        <Text style={[styles.text, { color: theme.textPrimary }]}>
           {monthlyTotal !== 0
             ? `${monthlyTotal} workouts this month`
             : "Keep it up!"}

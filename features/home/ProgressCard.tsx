@@ -1,10 +1,14 @@
 import { View, Text } from "react-native";
 import { StyleSheet } from "react-native";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function ProgressCard() {
+  const { theme } = useColorTheme();
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Progress Card</Text>
+      <Text style={[styles.text, { color: theme.textPrimary }]}>
+        Progress Card
+      </Text>
     </View>
   );
 }

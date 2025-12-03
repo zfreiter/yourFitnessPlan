@@ -6,6 +6,7 @@ import { View, Pressable, StyleSheet } from "react-native";
 import { Exercise, ExerciseDirection } from "@/types/type";
 import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function ExerciseControls({
   exerciseIndex,
@@ -17,6 +18,7 @@ export default function ExerciseControls({
   const [isUpdating, setIsUpdating] = useState(false);
   const { updateWorkoutExerciseOrder } = useWorkout();
   const { watch } = useFormContext();
+  const { theme } = useColorTheme();
   const { db } = useDatabase();
   const { move } = useFieldArray({
     name: "exercises",
@@ -25,18 +27,10 @@ export default function ExerciseControls({
   const exercises = watch("exercises");
   const size = exercises.length;
 
-  // console.log(
-  //   "exercise id, name, order",
-  //   exercises[exerciseIndex].id,
-  //   exercises[exerciseIndex].exercise_name,
-  //   exercises[exerciseIndex].exercise_order
-  // );
   const handleMoveUp = async () => {
     setIsUpdating(true);
     try {
       if (exerciseIndex !== 0) {
-        // add service to update the exercise order
-
         const result = await workoutService.updateExerciseOrder(
           db!,
           exercises[exerciseIndex].id,
@@ -102,28 +96,28 @@ export default function ExerciseControls({
         style={({ pressed }) => [
           styles.iconButton,
           exerciseIndex === 0 || isUpdating
-            ? styles.disabledButton
-            : styles.moveButton,
+            ? { backgroundColor: theme.disabled }
+            : { backgroundColor: theme.accent },
           pressed && styles.pressedButton,
         ]}
         disabled={exerciseIndex === 0}
         onPress={handleMoveUp}
       >
-        <Ionicons name="chevron-up" size={16} color="white" />
+        <Ionicons name="chevron-up" size={16} color={theme.background} />
       </Pressable>
 
       <Pressable
         style={({ pressed }) => [
           styles.iconButton,
           exerciseIndex === (size || 0) - 1 || isUpdating
-            ? styles.disabledButton
-            : styles.moveButton,
+            ? { backgroundColor: theme.disabled }
+            : { backgroundColor: theme.accent },
           pressed && styles.pressedButton,
         ]}
         disabled={exerciseIndex === (size || 0) - 1}
         onPress={handleMoveDown}
       >
-        <Ionicons name="chevron-down" size={16} color="white" />
+        <Ionicons name="chevron-down" size={16} color={theme.background} />
       </Pressable>
     </View>
   );
@@ -141,14 +135,14 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   exerciseCardContent: {
-    padding: 10,
+    // padding: 10,
     borderRadius: 10,
   },
   SetCardContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 5,
-    paddingTop: 10,
+    //paddingTop: 10,
     alignItems: "flex-start", // Ensure proper alignment
   },
   activeItem: {

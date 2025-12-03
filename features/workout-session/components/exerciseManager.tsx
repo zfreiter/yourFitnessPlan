@@ -11,6 +11,7 @@ import { useDatabase } from "@/context/databaseContext";
 import { exerciseService } from "@/services/exerciseService";
 import { useWorkout } from "@/context/workoutContext";
 import AddSet from "./addSet";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function ExerciseManager({
   exercise,
@@ -23,6 +24,7 @@ export default function ExerciseManager({
   const [isLongPressed, setIsLongPressed] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const { control, watch } = useFormContext();
+  const { theme } = useColorTheme();
   const { db } = useDatabase();
   const { deleteWorkoutExercise, setWorkouts } = useWorkout();
   const { remove } = useFieldArray({
@@ -49,7 +51,12 @@ export default function ExerciseManager({
   };
 
   return (
-    <View style={[styles.ExerciseCardContainer]}>
+    <View
+      style={[
+        styles.ExerciseCardContainer,
+        { borderColor: theme.border, backgroundColor: theme.surface },
+      ]}
+    >
       <Pressable
         disabled={isUpdating}
         delayLongPress={300}
@@ -75,10 +82,21 @@ export default function ExerciseManager({
             alignItems: "center",
           }}
         >
-          <Text>{exercise.exercise_name}</Text>
           <ExerciseControls exercise={exercise} exerciseIndex={exerciseIndex} />
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "700",
+              marginLeft: -40,
+              color: theme.textPrimary,
+            }}
+          >
+            {exercise.exercise_name}
+          </Text>
+
+          <AddSet setIndex={size} size={size} exerciseIndex={exerciseIndex} />
         </View>
-        <View style={styles.SetCardContainer}>
+        <View style={[styles.SetCardContainer]}>
           {(sets || []).map((set: ExerciseSet, setIndex: number) => (
             <SetCard
               key={`exercise-${exerciseIndex}-set-${setIndex}`}
@@ -93,7 +111,6 @@ export default function ExerciseManager({
               }}
             />
           ))}
-          <AddSet setIndex={size} size={size} exerciseIndex={exerciseIndex} />
         </View>
       </Pressable>
       <CustomModal
@@ -138,8 +155,7 @@ const styles = StyleSheet.create({
     padding: 0,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "black",
-    backgroundColor: "white",
+
     borderRadius: 10,
     minHeight: 60, // Ensure minimum height to prevent layout issues
     width: "100%",

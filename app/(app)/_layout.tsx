@@ -1,16 +1,17 @@
 import { Stack } from "expo-router";
+import { useColorTheme } from "@/context/colorThemeContext";
 import { useAuth } from "@/context/authContext";
 export default function RootLayout() {
   const { user } = useAuth();
-  console.log("user in RootLayout:", user);
+  const { theme } = useColorTheme();
   return (
     <Stack
       screenOptions={{
         headerShown: true, // Ensure the header is visible
         headerStyle: {
-          backgroundColor: "#8EDAF5", // Change the header background color
+          backgroundColor: theme.accent, // Change the header background color
         },
-        headerTintColor: "#fff", // Change the header text color
+        headerTintColor: "theme.textPrimary", // Change the header text color
         headerTitleStyle: {
           fontWeight: "bold", // Make the title bold
         },

@@ -7,6 +7,7 @@ import {
   TextStyle,
   GestureResponderEvent,
 } from "react-native";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 type AppButtonProps = {
   title: string;
@@ -21,21 +22,31 @@ export function AppButton({
   style,
   textStyle,
 }: AppButtonProps) {
+  const { theme } = useColorTheme();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed, style]}
+      style={({ pressed }) => [
+        styles.button,
+        pressed && styles.pressed,
+        { backgroundColor: theme.surface, borderColor: theme.accent },
+        style,
+      ]}
     >
-      <Text style={[styles.buttonText, textStyle]}>{title}</Text>
+      <Text
+        style={[styles.buttonText, { color: theme.textPrimary }, textStyle]}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: "#3B82F6",
     paddingVertical: 12,
     paddingHorizontal: 20,
+    borderWidth: 1,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -46,7 +57,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   buttonText: {
-    color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
   },

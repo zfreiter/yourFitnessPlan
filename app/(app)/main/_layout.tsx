@@ -7,9 +7,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppButton } from "@/components/button";
 import { HomeProvider } from "@/context/HomeContext";
+import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function MainLayoutTabs() {
   const { isAuthInitialized, isLoading } = useAuth();
+  const { theme } = useColorTheme();
 
   return (
     <SafeAreaProvider>
@@ -18,16 +20,23 @@ export default function MainLayoutTabs() {
       <Tabs
         backBehavior="history"
         screenOptions={{
-          tabBarActiveTintColor: "#8EDAF5",
+          tabBarActiveTintColor: theme.accent,
           headerShown: true,
           headerStyle: {
-            backgroundColor: "#8EDAF5",
+            backgroundColor: theme.accent,
           },
-          headerTintColor: "#fff",
+          headerTintColor: theme.textPrimary,
           headerTitleStyle: {
             fontWeight: "bold",
           },
           headerRight: () => <></>,
+          tabBarStyle: {
+            backgroundColor: theme.surface,
+            borderTopWidth: 0,
+            //height: 60,
+            paddingBottom: 8,
+            paddingTop: 8,
+          },
         }}
       >
         <Tabs.Protected guard={true}>
