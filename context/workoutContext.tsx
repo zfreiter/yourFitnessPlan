@@ -45,11 +45,19 @@ interface WorkoutContextType {
     field: string,
     text: string
   ) => void;
+  updateWorkoutSets: (
+    workoutId: number,
+    exercisesSetsMap: Map<number, ExerciseSet[]>
+  ) => void;
   updateWorkoutType: (workoutId: number, workoutType: ExerciseType) => void;
   updateContextWorkoutField: (
     workoutId: number,
     fieldName: string,
     value: string
+  ) => void;
+  updateContextWorkoutFields: (
+    workoutId: number,
+    fieldvalues: { fieldName: string; value: string }[]
   ) => void;
   updateContextWorkoutCompleted: (
     workoutId: number,
@@ -202,6 +210,27 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
       });
     });
   }
+  function updateWorkoutSets(
+    workoutId: number,
+    exercisesSetsMap: Map<number, ExerciseSet[]>
+  ) {
+    setWorkouts((prevWorkouts: Workout[]) => {
+      return prevWorkouts.map((workout: Workout) => {
+        if (workout.id === workoutId) {
+          const updatedExercises = workout.exercises.map((ex) => {
+            const updatedSets = exercisesSetsMap.get(ex.id);
+
+            if (updatedSets) {
+              return { ...ex, sets: updatedSets };
+            }
+            return ex;
+          });
+          return { ...workout, exercises: updatedExercises };
+        }
+        return workout;
+      });
+    });
+  }
   function deleteWorkoutExerciseSet(
     workoutId: number,
     exerciseId: number,
@@ -255,13 +284,28 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
       prevWorkouts.map((workout: Workout) => {
         const updatedWorkout =
           workout.id === workoutId
-            ? fieldName === "date"
-              ? { ...workout, date: value, time: value }
+            ? fieldName === "scheduled_datetime"
+              ? { ...workout, scheduled_datetime: value }
               : { ...workout, [fieldName]: value }
             : workout;
 
         return updatedWorkout;
       })
+    );
+  }
+  function updateContextWorkoutFields(
+    workoutId: number,
+    fieldvalues: { fieldName: string; value: string }[]
+  ) {
+    setWorkouts((prevWorkouts) =>
+      prevWorkouts.map((workout) =>
+        workout.id === workoutId
+          ? fieldvalues.reduce(
+              (acc, { fieldName, value }) => ({ ...acc, [fieldName]: value }),
+              workout
+            )
+          : workout
+      )
     );
   }
   function updateContextWorkoutCompleted(
@@ -296,8 +340,10 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         deleteWorkoutExercise,
         deleteWorkoutExerciseSet,
         updateWorkoutExerciseSet,
+        updateWorkoutSets,
         updateWorkoutType,
         updateContextWorkoutField,
+        updateContextWorkoutFields,
         updateContextWorkoutCompleted,
         currentWorkouts,
       }}

@@ -5,10 +5,9 @@ import { WorkoutTypePicker } from "./WorkoutTypePicker";
 import AddExercise from "./addExercise";
 import { Controller, useFormContext } from "react-hook-form";
 import { GenericTextInput } from "@/components/ui/GenericTextInput";
-import { useDebouncedFieldUpdate } from "@/hooks/useDebouncedFieldUpdate";
-import { useWorkout } from "@/context/workoutContext";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useBlurOnKeyboardClose } from "@/hooks/useBlurOnKeyboardClose";
+import { useWorkoutSession } from "@/context/WorkoutSessionContext";
 
 interface WorkoutSessionHeaderProps {
   showExerciseModal: boolean;
@@ -22,14 +21,13 @@ export function WorkoutSessionHeader({
   handleCloseExerciseModal,
 }: WorkoutSessionHeaderProps) {
   const { getValues, setValue, control, watch } = useFormContext();
-  const { updateContextWorkoutField } = useWorkout();
+  const { markDirty } = useWorkoutSession();
+
   const { theme } = useColorTheme();
+
   const NameInputRef = useRef<TextInput>(null);
   const descriptionInputRef = useRef<TextInput>(null);
-  const watchName = watch("name");
-  const [name, setName] = useState(watchName);
-  const watchDescription = watch("description");
-  const [description, setDescription] = useState(watchDescription);
+
   const [isDescriptionFocused, setIsDescriptionFocused] =
     useState<boolean>(false);
   const workoutId = getValues("id");
@@ -37,47 +35,9 @@ export function WorkoutSessionHeader({
   useBlurOnKeyboardClose(NameInputRef);
   useBlurOnKeyboardClose(descriptionInputRef);
 
-  const debouncedUpdateName = useDebouncedFieldUpdate({
-    fieldName: "name",
-    workoutId,
-    onSuccess: (workoutId, field, value) => {
-      setValue("name", value);
-      setName(value);
-      updateContextWorkoutField(workoutId, "name", value);
-    },
-    onError: (field, error) => {
-      setValue("name", watchName);
-      setName(watchName);
-      console.error("Error updating name:", error);
-    },
-  });
-
-  const debouncedUpdateDescription = useDebouncedFieldUpdate({
-    fieldName: "description",
-    workoutId,
-    onSuccess: (workoutId, field, value) => {
-      setValue("description", value);
-      setDescription(value);
-      updateContextWorkoutField(workoutId, "description", value);
-    },
-    onError: (field, error) => {
-      setValue("description", watchDescription);
-      setDescription(watchDescription);
-      console.error("Error updating description:", error);
-    },
-  });
-
-  useEffect(() => {
-    if (watchName !== name) {
-      debouncedUpdateName(watchName);
-    }
-    if (watchDescription !== description) {
-      debouncedUpdateDescription(watchDescription);
-    }
-  }, [watchName, watchDescription]);
-
   return (
-    <View style={styles.container}>
+    <View style={{ gap: theme.spacing.lg }}>
+      {/* Updates the current form but does not save to context or database */}
       <GenericTextInput
         name="name"
         inputRef={NameInputRef}
@@ -86,15 +46,21 @@ export function WorkoutSessionHeader({
         keyboardType="default"
       />
 
+      {/* Updates on change */}
       <WorkoutTypePicker
         items={["Select workout", "strength", "cardio", "mobility", "circuit"]}
         name="type"
         workoutType={getValues().type}
+        workoutId={workoutId}
       />
 
-      <View style={{ gap: 4 }}>
+      <View style={{ gap: theme.spacing.label }}>
         <Text
-          style={{ fontSize: 16, fontWeight: "bold", color: theme.textPrimary }}
+          style={{
+            fontSize: 16,
+            fontWeight: "bold",
+            color: theme.color.textPrimary,
+          }}
         >
           Workout Description
         </Text>
@@ -106,8 +72,12 @@ export function WorkoutSessionHeader({
               placeholder="Workout Description..."
               value={value}
               ref={descriptionInputRef}
-              placeholderTextColor={theme.placeholderColor}
-              onChangeText={onChange}
+              placeholderTextColor={theme.color.placeholderColor}
+              onChangeText={(text) => {
+                onChange(text);
+                // Mark form as needing update and add field to update list
+                markDirty("description");
+              }}
               onFocus={() => setIsDescriptionFocused(true)}
               onBlur={() => {
                 setIsDescriptionFocused(false);
@@ -118,11 +88,14 @@ export function WorkoutSessionHeader({
               numberOfLines={4}
               style={{
                 borderWidth: 1,
-                borderColor: isDescriptionFocused ? theme.accent : theme.border,
+                padding: 10,
+                borderColor: isDescriptionFocused
+                  ? theme.color.accent
+                  : theme.color.border,
                 minHeight: 80,
                 textAlignVertical: "top",
-                backgroundColor: theme.surface,
-                color: theme.textPrimary,
+                backgroundColor: theme.color.surface,
+                color: theme.color.textPrimary,
                 borderRadius: 8,
               }}
             />
@@ -133,7 +106,7 @@ export function WorkoutSessionHeader({
       <AppButton
         title="Add exercise"
         style={{
-          marginBottom: 10,
+          marginBottom: 0,
           marginTop: 0,
         }}
         onPress={handleAddExercise}
@@ -151,7 +124,5 @@ export function WorkoutSessionHeader({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-  },
+  container: {},
 });

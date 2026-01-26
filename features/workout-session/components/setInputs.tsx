@@ -1,12 +1,9 @@
 import { Exercise, ExerciseSet, Workout } from "@/types/type";
-import { debounce } from "@/utils/debounce";
 import { StyleSheet, Text, View, TextInput, Keyboard } from "react-native";
 import { useFormContext, Controller, useFieldArray } from "react-hook-form";
-import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContext";
-import { setService } from "@/services/setService";
 import { useEffect, useRef, useState } from "react";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { useWorkoutSession } from "@/context/WorkoutSessionContext";
 
 interface SetInputsProps {
   set: ExerciseSet;
@@ -26,60 +23,14 @@ export default function SetInputs({
   setIndex,
   options,
 }: SetInputsProps) {
+  const [isSetFocused, setIsSetFocused] = useState<boolean>(false);
+  const [isWeightFocused, setIsWeightFocused] = useState<boolean>(false);
+  const [isDurationFocused, setIsDurationFocused] = useState<boolean>(false);
+  const [isDistanceFocused, setIsDistanceFocused] = useState<boolean>(false);
+  const { markDirty } = useWorkoutSession();
   const { watch, control } = useFormContext();
   const { theme } = useColorTheme();
   const exercise = watch(`exercises.${exerciseIndex}`);
-  const { updateWorkoutExerciseSet } = useWorkout();
-  const { db } = useDatabase();
-
-  // Use refs to maintain stable debounced functions
-  const debouncedFunctionsRef = useRef<{
-    reps: ReturnType<typeof debounce>;
-    weight: ReturnType<typeof debounce>;
-    duration: ReturnType<typeof debounce>;
-    distance: ReturnType<typeof debounce>;
-  } | null>(null);
-
-  // Create debounced functions only once
-  if (!debouncedFunctionsRef.current) {
-    const createDebouncedFn = (field: keyof ExerciseSet) =>
-      debounce(async (text: string) => {
-        if (db) {
-          const updateData = {
-            ...set,
-            [field]: parseInt(text) || 0,
-          };
-
-          const response = await setService.updateSet(db, updateData);
-          if (response.success) {
-            updateWorkoutExerciseSet(
-              exercise.workout_id,
-              exercise.id,
-              set.id,
-              field,
-              text
-            );
-          } else {
-            console.error("Failed to update set:", response.error);
-          }
-        }
-      }, 1000);
-
-    debouncedFunctionsRef.current = {
-      reps: createDebouncedFn("reps"),
-      weight: createDebouncedFn("weight"),
-      duration: createDebouncedFn("duration"),
-      distance: createDebouncedFn("distance"),
-    };
-  }
-
-  const {
-    reps: debouncedRepsChange,
-    weight: debouncedWeightChange,
-    duration: debouncedDurationChange,
-    distance: debouncedDistanceChange,
-  } = debouncedFunctionsRef.current;
-
   const [isFocusedOldValue, setIsFocusedOldValue] = useState<number | null>(
     null
   );
@@ -100,20 +51,25 @@ export default function SetInputs({
       keyboardDidHideListener?.remove();
     };
   }, []);
+
   return (
     <View
       style={[
         styles.SetCardInputOptionsContainer,
-        { backgroundColor: theme.surface2 },
+        { backgroundColor: theme.color.surface2 },
       ]}
     >
       {options.track_reps === 1 && (
         <View style={styles.inputContainer}>
           <Text
-            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+            style={[
+              styles.SetCardInputLabel,
+              { color: theme.color.textPrimary },
+            ]}
           >
             Reps
           </Text>
+
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.reps`}
             control={control}
@@ -122,26 +78,29 @@ export default function SetInputs({
                 style={[
                   styles.SetCardInput,
                   {
-                    backgroundColor: theme.input,
-                    borderColor: theme.accent,
-                    color: theme.textPrimary,
+                    backgroundColor: theme.color.input,
+                    borderColor: isSetFocused
+                      ? theme.color.accentActive
+                      : theme.color.border,
+                    color: theme.color.textPrimary,
                   },
                 ]}
                 keyboardType="numeric"
                 value={value?.toString() || ""}
                 onFocus={() => {
+                  setIsSetFocused(true);
                   setIsFocusedOldValue(value || 0);
-                  onChange(null);
                 }}
                 onBlur={() => {
                   onBlur();
+                  setIsSetFocused(false);
                   if (value === null) {
                     onChange(isFocusedOldValue || 0);
                   }
                 }}
                 onChangeText={(text) => {
-                  onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
-                  debouncedRepsChange(text); // Debounce the database update
+                  onChange(parseInt(text) || 0);
+                  markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
                 }}
               />
             )}
@@ -150,7 +109,13 @@ export default function SetInputs({
       )}
 
       {options.track_reps === 1 && options.track_weight === 1 && (
-        <Text style={{ bottom: -10, fontSize: 20, color: theme.textSecondary }}>
+        <Text
+          style={{
+            bottom: -10,
+            fontSize: 20,
+            color: theme.color.textSecondary,
+          }}
+        >
           x
         </Text>
       )}
@@ -158,7 +123,10 @@ export default function SetInputs({
       {options.track_weight === 1 && (
         <View style={styles.inputContainer}>
           <Text
-            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+            style={[
+              styles.SetCardInputLabel,
+              { color: theme.color.textPrimary },
+            ]}
           >
             wt.
           </Text>
@@ -172,25 +140,28 @@ export default function SetInputs({
                   style={[
                     styles.SetCardInput,
                     {
-                      backgroundColor: theme.input,
-                      borderColor: theme.accent,
-                      color: theme.textPrimary,
+                      backgroundColor: theme.color.input,
+                      borderColor: isWeightFocused
+                        ? theme.color.accentActive
+                        : theme.color.border,
+                      color: theme.color.textPrimary,
                     },
                   ]}
                   value={value?.toString() || ""}
                   onFocus={() => {
+                    setIsWeightFocused(true);
                     setIsFocusedOldValue(value || 0);
-                    onChange(null);
                   }}
                   onBlur={() => {
+                    setIsWeightFocused(false);
                     onBlur();
                     if (value === null) {
                       onChange(isFocusedOldValue || 0);
                     }
                   }}
                   onChangeText={(text) => {
-                    onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
-                    debouncedWeightChange(text); // Debounce the database update
+                    onChange(parseInt(text) || 0);
+                    markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
                   }}
                 />
               );
@@ -202,7 +173,10 @@ export default function SetInputs({
       {options.track_time === 1 && (
         <View style={styles.inputContainer}>
           <Text
-            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+            style={[
+              styles.SetCardInputLabel,
+              { color: theme.color.textPrimary },
+            ]}
           >
             Time
           </Text>
@@ -215,26 +189,29 @@ export default function SetInputs({
                   style={[
                     styles.SetCardInput,
                     {
-                      backgroundColor: theme.input,
-                      borderColor: theme.accent,
-                      color: theme.textPrimary,
+                      backgroundColor: theme.color.input,
+                      borderColor: isDurationFocused
+                        ? theme.color.accentActive
+                        : theme.color.border,
+                      color: theme.color.textPrimary,
                     },
                   ]}
                   keyboardType="numeric"
                   value={value?.toString() || ""}
                   onFocus={() => {
+                    setIsDurationFocused(true);
                     setIsFocusedOldValue(value || 0);
-                    onChange(null);
                   }}
                   onBlur={() => {
+                    setIsDurationFocused(false);
                     onBlur();
                     if (value === null) {
                       onChange(isFocusedOldValue || 0);
                     }
                   }}
                   onChangeText={(text) => {
-                    onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
-                    debouncedDurationChange(text); // Debounce the database update
+                    onChange(parseInt(text) || 0);
+                    markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
                   }}
                 />
               );
@@ -246,7 +223,10 @@ export default function SetInputs({
       {options.track_distance === 1 && (
         <View style={[styles.inputContainer, {}]}>
           <Text
-            style={[styles.SetCardInputLabel, { color: theme.textPrimary }]}
+            style={[
+              styles.SetCardInputLabel,
+              { color: theme.color.textPrimary },
+            ]}
           >
             Dist.
           </Text>
@@ -258,26 +238,29 @@ export default function SetInputs({
                 style={[
                   styles.SetCardInput,
                   {
-                    backgroundColor: theme.input,
-                    borderColor: theme.accent,
-                    color: theme.textPrimary,
+                    backgroundColor: theme.color.input,
+                    borderColor: isDistanceFocused
+                      ? theme.color.accentActive
+                      : theme.color.border,
+                    color: theme.color.textPrimary,
                   },
                 ]}
                 keyboardType="numeric"
                 value={value?.toString() || ""}
                 onFocus={() => {
+                  setIsDistanceFocused(true);
                   setIsFocusedOldValue(value || 0);
-                  onChange(null);
                 }}
                 onBlur={() => {
+                  setIsDistanceFocused(false);
                   onBlur();
                   if (value === null) {
                     onChange(isFocusedOldValue || 0);
                   }
                 }}
                 onChangeText={(text) => {
-                  onChange(parseInt(text) || 0); // Update form immediately for UI responsiveness
-                  debouncedDistanceChange(text); // Debounce the database update
+                  onChange(parseInt(text) || 0);
+                  markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
                 }}
               />
             )}

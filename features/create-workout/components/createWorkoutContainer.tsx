@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { useColorTheme } from "@/context/colorThemeContext";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   KeyboardAvoidingView,
   Keyboard,
@@ -13,21 +12,30 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import * as Localization from "expo-localization";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
+
+import DurationWheelPicker from "./durationWheelPicker";
+
+import { useColorTheme } from "@/context/colorThemeContext";
+import { useDatabase } from "@/context/databaseContext";
+import { useWorkout } from "@/context/workoutContext";
+
+import * as Localization from "expo-localization";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AntDesign from "@expo/vector-icons/AntDesign";
-import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
+
 import { AppButton } from "@/components/button";
-import { useDatabase } from "@/context/databaseContext";
-import { useWorkout } from "@/context/workoutContext";
+import { AddExercise } from "./addExercise";
+import ExerciseListItem from "./exerciseListItem";
+
 import { workoutService } from "@/services/workoutService";
 import { ExerciseType } from "@/types/interfaces/types";
 import { CreateWorkoutForm, Exercise } from "@/types/type";
-import { AddExercise } from "./addExercise";
-import ExerciseListItem from "./exerciseListItem";
-import { useRouter } from "expo-router";
+
+import { useBlurOnKeyboardHide } from "@/hooks/useBlurOnKeyboardClose";
+
 // Helper function to get current date in user's timezone
 const getCurrentDateInLocalTimezone = () => {
   const now = new Date();
@@ -186,6 +194,8 @@ export function CreateWorkoutContainer({
     }
   };
 
+  useBlurOnKeyboardHide();
+
   return (
     <TouchableWithoutFeedback //onPress={Keyboard.dismiss} web issues going to need to create a wrapper
       accessible={false}
@@ -196,20 +206,30 @@ export function CreateWorkoutContainer({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={[
           styles.keyboardAvoidingViewContainer,
-          { backgroundColor: theme.background },
+          { backgroundColor: theme.color.background },
         ]}
         keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
       >
         <FormProvider {...methods}>
           <ScrollView
-            contentContainerStyle={[styles.scrollViewContainer]}
+            contentContainerStyle={[
+              styles.scrollViewContainer,
+              {
+                gap: theme.spacing.lg,
+                paddingVertical: theme.spacing.xl,
+                paddingHorizontal: theme.spacing.md,
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
           >
             <View>
               <Text
                 style={[
                   styles.text,
-                  { marginTop: 10, marginBottom: 4, color: theme.textPrimary },
+                  {
+                    marginBottom: theme.spacing.label,
+                    color: theme.color.textPrimary,
+                  },
                 ]}
               >
                 Select Workout Type:
@@ -219,11 +239,12 @@ export function CreateWorkoutContainer({
                 style={[
                   styles.pickerContainer,
                   {
-                    margin: 0,
-                    padding: 0,
-                    backgroundColor: theme.surface,
+                    height: theme.spacing.button_height,
                     borderWidth: 1,
-                    borderColor: theme.accentStrong,
+                    borderColor: theme.color.border,
+                    borderRadius: 8,
+                    backgroundColor: theme.color.surface,
+                    justifyContent: "center",
                   },
                 ]}
               >
@@ -237,14 +258,18 @@ export function CreateWorkoutContainer({
                   render={({ field: { onChange, onBlur, value } }) => (
                     <Picker
                       mode="dialog"
-                      selectionColor={theme.textPrimary}
+                      selectionColor={theme.color.textPrimary}
+                      dropdownIconColor={theme.color.accent}
+                      itemStyle={{
+                        lineHeight: 22,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
                       style={[
                         {
-                          height: 50,
-                          backgroundColor: theme.surface,
-                          color: theme.textPrimary,
-
-                          marginLeft: 5,
+                          backgroundColor: theme.color.surface,
+                          color: theme.color.textPrimary,
+                          marginLeft: theme.spacing.md,
                         },
                       ]}
                       selectedValue={value}
@@ -264,12 +289,12 @@ export function CreateWorkoutContainer({
                           key={`workout-type-${index}`}
                           label={item}
                           value={item}
-                          color="#0B1A17"
+                          color={"#0B1A17"}
                           style={[
-                            styles.picker,
                             {
-                              backgroundColor: theme.surface,
-                              color: theme.textPrimary,
+                              backgroundColor: theme.color.surface,
+                              color: theme.color.textPrimary,
+                              height: theme.spacing.button_height,
                             },
                           ]}
                         />
@@ -279,7 +304,7 @@ export function CreateWorkoutContainer({
                 />
               </View>
               {errors.workoutType && (
-                <Text style={[styles.textError, { color: theme.danger }]}>
+                <Text style={[styles.textError, { color: theme.color.danger }]}>
                   Select workout
                 </Text>
               )}
@@ -290,14 +315,13 @@ export function CreateWorkoutContainer({
                 title="Add exercise"
                 onPress={() => setShowExerciseModal(true)}
                 style={{
-                  backgroundColor: theme.surface,
-                  borderColor: theme.accent,
-
-                  height: 50,
+                  backgroundColor: theme.color.accent,
+                  borderColor: theme.color.border,
+                  height: theme.spacing.button_height,
                   borderWidth: 1,
                   marginVertical: 0,
                 }}
-                textStyle={{ color: theme.textPrimary }}
+                textStyle={{ color: theme.color.textPrimary }}
               />
             )}
 
@@ -326,80 +350,96 @@ export function CreateWorkoutContainer({
               />
             </Modal>
 
-            <Pressable
-              style={({ pressed }) => [
-                {
-                  backgroundColor: pressed ? "gray" : "white",
-                },
-                styles.button,
-                {
-                  backgroundColor: theme.surface,
-                  height: 50,
-                  borderWidth: 1,
-                  borderColor: theme.accentStrong,
-                },
-              ]}
-              onPress={openDatePicker}
-            >
-              <View
+            {/* Date selector */}
+            <View>
+              <Text
                 style={{
-                  flexDirection: "row",
-                  gap: 5,
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  color: theme.color.textPrimary,
+                  marginBottom: theme.spacing.label,
+                  fontSize: theme.spacing.lg,
                 }}
+              >
+                Date selector
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: pressed ? "gray" : "white",
+                  },
+                  styles.button,
+                  {
+                    backgroundColor: theme.color.surface,
+                    height: theme.spacing.button_height,
+                    borderWidth: 1,
+                    borderColor: theme.color.border,
+                  },
+                ]}
+                onPress={openDatePicker}
               >
                 <View
                   style={{
-                    paddingLeft: 5,
                     flexDirection: "row",
-                    alignItems: "baseline",
-                    justifyContent: "flex-start",
-                    gap: 5,
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
                 >
-                  <AntDesign
-                    name="calendar"
-                    size={24}
-                    color={theme.accentStrong}
-                  />
-                  <Text
-                    style={[
-                      {
-                        fontSize: 16,
-                        color: theme.textPrimary,
-                      },
-                    ]}
+                  <View
+                    style={{
+                      paddingLeft: theme.spacing.md,
+                      flexDirection: "row",
+                      alignItems: "baseline",
+                      justifyContent: "flex-start",
+                      gap: theme.spacing.sm,
+                    }}
                   >
-                    {mode}
-                  </Text>
+                    <AntDesign
+                      name="calendar"
+                      size={24}
+                      color={theme.color.accentStrong}
+                    />
+                    <Text
+                      style={[
+                        {
+                          fontSize: 16,
+                          color: theme.color.textPrimary,
+                        },
+                      ]}
+                    >
+                      {mode}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: theme.spacing.xs }}>
+                    <Text
+                      style={[{ margin: 5, color: theme.color.textPrimary }]}
+                    >
+                      {parseDateInLocalTimezone(
+                        scheduledDateTime
+                      ).toLocaleDateString(userLocale, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        timeZone: userTimeZone || undefined,
+                      })}
+                    </Text>
+                    <Text
+                      style={[{ margin: 5, color: theme.color.textPrimary }]}
+                    >
+                      {parseDateInLocalTimezone(
+                        scheduledDateTime
+                      ).toLocaleTimeString(userLocale, {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                        timeZone: userTimeZone || undefined,
+                      })}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flexDirection: "row", gap: 5 }}>
-                  <Text style={[{ margin: 5, color: theme.textPrimary }]}>
-                    {parseDateInLocalTimezone(
-                      scheduledDateTime
-                    ).toLocaleDateString(userLocale, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      timeZone: userTimeZone || undefined,
-                    })}
-                  </Text>
-                  <Text style={[{ margin: 5, color: theme.textPrimary }]}>
-                    {parseDateInLocalTimezone(
-                      scheduledDateTime
-                    ).toLocaleTimeString(userLocale, {
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                      timeZone: userTimeZone || undefined,
-                    })}
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
+              </Pressable>
+            </View>
 
             {show && (
+              // DateTime Picker
               <Controller
                 name="scheduled_datetime"
                 control={control}
@@ -452,111 +492,125 @@ export function CreateWorkoutContainer({
               />
             )}
 
-            <Controller
-              name="duration"
-              control={control}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  placeholder="Workout Duration(minutes)"
-                  placeholderTextColor={theme.placeholderColor}
-                  keyboardType="number-pad"
-                  value={value?.toString()}
-                  onFocus={() => setIsFocusedDurationInput(true)}
-                  onBlur={() => {
-                    setIsFocusedDurationInput(false);
-                    onBlur();
-                  }}
-                  onChangeText={(text) => {
-                    const numericValue = text.replace(/[^0-9]/g, "");
-                    onChange(numericValue);
-                  }}
-                  style={[
-                    styles.textInput,
-                    {
-                      height: 50,
-                      color: theme.textPrimary,
-                      backgroundColor: theme.surface,
-                      borderColor: isFocusedDurationInput
-                        ? theme.accentStrong
-                        : theme.border,
-                    },
-                  ]}
-                />
-              )}
-            />
-
-            <Controller
-              name="name"
-              control={control}
-              rules={{ required: true }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  placeholder="Workout Name"
-                  placeholderTextColor={theme.placeholderColor}
-                  value={value.toString()}
-                  onFocus={() => setIsFocusedNameInput(true)}
-                  onBlur={() => {
-                    setIsFocusedNameInput(false);
-                    onBlur();
-                  }}
-                  onChangeText={onChange}
-                  editable
-                  style={[
-                    styles.textInput,
-                    {
-                      height: 50,
-                      backgroundColor: theme.surface,
-                      color: theme.textPrimary,
-                      borderColor: isFocusedNameInput
-                        ? theme.accentStrong
-                        : theme.border,
-                    },
-                  ]}
-                />
-              )}
-            />
-            {errors.name && (
-              <Text style={[styles.textError, { color: theme.danger }]}>
-                Workout name is required
+            {/* Workout length */}
+            <View>
+              <Text
+                style={{
+                  color: theme.color.textPrimary,
+                  marginBottom: theme.spacing.label,
+                  fontSize: theme.spacing.lg,
+                }}
+              >
+                Workout length (minutes)
               </Text>
-            )}
-            <Controller
-              name="description"
-              control={control}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  placeholder="Workout Description"
-                  placeholderTextColor={theme.placeholderColor}
-                  value={value.toString()}
-                  onFocus={() => setIsFocusedDescriptionInput(true)}
-                  onBlur={() => {
-                    setIsFocusedDescriptionInput(false);
-                    onBlur();
-                  }}
-                  onChangeText={onChange}
-                  editable
-                  multiline
-                  //numberOfLines={4}
-                  style={[
-                    styles.areaTextInput,
-                    {
-                      minHeight: 120,
-                      backgroundColor: theme.surface,
-                      color: theme.textPrimary,
-                      borderColor: isFocusedDescriptionInput
-                        ? theme.accentStrong
-                        : theme.border,
-                    },
-                  ]}
-                />
+
+              <DurationWheelPicker />
+            </View>
+
+            {/* Name */}
+            <View>
+              <Text
+                style={{
+                  color: theme.color.textPrimary,
+                  marginBottom: theme.spacing.label,
+                  fontSize: theme.spacing.lg,
+                }}
+              >
+                Name
+              </Text>
+              <Controller
+                name="name"
+                control={control}
+                rules={{ required: true }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    placeholder="Workout Name"
+                    placeholderTextColor={theme.color.placeholderColor}
+                    value={value.toString()}
+                    onFocus={() => setIsFocusedNameInput(true)}
+                    onBlur={() => {
+                      setIsFocusedNameInput(false);
+                      onBlur();
+                    }}
+                    onChangeText={onChange}
+                    editable
+                    style={[
+                      styles.textInput,
+                      {
+                        height: theme.spacing.input_height,
+                        paddingHorizontal: theme.spacing.lg,
+                        color: theme.color.textPrimary,
+                        backgroundColor: theme.color.surface,
+                        borderColor: isFocusedNameInput
+                          ? theme.color.accentStrong
+                          : theme.color.border,
+                      },
+                    ]}
+                  />
+                )}
+              />
+              {errors.name && (
+                <Text style={[styles.textError, { color: theme.color.danger }]}>
+                  Workout name is required
+                </Text>
               )}
-            />
+            </View>
+
+            {/* Workout Description */}
+            <View>
+              <Text
+                style={{
+                  color: theme.color.textPrimary,
+                  marginBottom: theme.spacing.label,
+                  fontSize: theme.spacing.lg,
+                }}
+              >
+                Workout Description
+              </Text>
+              <Controller
+                name="description"
+                control={control}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    placeholder="Workout Description..."
+                    placeholderTextColor={theme.color.placeholderColor}
+                    value={value.toString()}
+                    onFocus={() => setIsFocusedDescriptionInput(true)}
+                    onBlur={() => {
+                      setIsFocusedDescriptionInput(false);
+                      onBlur();
+                    }}
+                    onChangeText={onChange}
+                    editable
+                    multiline
+                    style={[
+                      styles.areaTextInput,
+                      {
+                        minHeight: theme.spacing.input_height * 2,
+                        padding: theme.spacing.lg,
+                        backgroundColor: theme.color.surface,
+                        color: theme.color.textPrimary,
+                        borderColor: isFocusedDescriptionInput
+                          ? theme.color.accentStrong
+                          : theme.color.border,
+                      },
+                    ]}
+                  />
+                )}
+              />
+            </View>
           </ScrollView>
           <AppButton
             title="Create workout"
             onPress={() => handleSubmit(onSubmit)()}
-            style={[styles.createWorkoutButton, { height: 50 }]}
-            textStyle={{ color: theme.textPrimary }}
+            style={[
+              {
+                height: theme.spacing.button_height,
+                marginHorizontal: theme.spacing.md,
+                marginBottom: theme.spacing.xxl,
+              },
+            ]}
+            textStyle={{ color: theme.color.textPrimary }}
           />
         </FormProvider>
       </KeyboardAvoidingView>
@@ -577,38 +631,26 @@ const styles = StyleSheet.create({
   pickerContainer: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "black",
     borderRadius: 8,
     overflow: "hidden",
     padding: 0,
   },
   picker: {
-    width: "100%",
+    //width: "100%",
   },
   keyboardAvoidingViewContainer: {
-    flex: 1,
-    paddingHorizontal: 10,
-    paddingBottom: 20,
+    flexGrow: 1,
   },
   scrollViewContainer: {
-    gap: 20,
-    marginBottom: 50,
+    flexGrow: 1,
   },
   textInput: {
-    padding: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "white",
-    borderColor: "black",
     fontSize: 16,
     borderWidth: 1,
     borderRadius: 8,
   },
   areaTextInput: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "black",
     minHeight: 80,
     fontSize: 16,
     textAlignVertical: "top",
@@ -620,8 +662,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
   },
-  createWorkoutButton: {
-    backgroundColor: "#0FBD83",
-    marginVertical: 40,
-  },
+  createWorkoutButton: {},
 });

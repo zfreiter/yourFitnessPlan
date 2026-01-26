@@ -8,7 +8,7 @@ type FabButtonProps = {
 
 export default function FabButton({ today }: FabButtonProps) {
   const { theme } = useColorTheme();
-  console.log("FAB THEME:", theme.accent);
+
   return (
     <Link
       href={{
@@ -22,7 +22,7 @@ export default function FabButton({ today }: FabButtonProps) {
       <Pressable
         style={StyleSheet.flatten([
           styles.fab,
-          { backgroundColor: theme.accentStrong },
+          { backgroundColor: theme.color.accentStrong },
         ])}
       >
         <Text style={styles.text}>+</Text>

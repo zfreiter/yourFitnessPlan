@@ -13,13 +13,13 @@ export default function TodaysWorkout() {
         style={[
           styles.container,
           {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            shadowColor: theme.shadow,
+            backgroundColor: theme.color.surface,
+            borderColor: theme.color.border,
+            shadowColor: theme.color.shadow,
           },
         ]}
       >
-        <Text style={[styles.text, { color: theme.textPrimary }]}>
+        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
           No workouts schedule
         </Text>
       </View>
@@ -30,13 +30,13 @@ export default function TodaysWorkout() {
       style={[
         styles.container,
         {
-          backgroundColor: theme.surface,
-          borderColor: theme.border,
-          shadowColor: theme.shadow,
+          backgroundColor: theme.color.surface,
+          borderColor: theme.color.border,
+          shadowColor: theme.color.shadow,
         },
       ]}
     >
-      <Text style={[styles.text, { color: theme.textPrimary }]}>
+      <Text style={[styles.text, { color: theme.color.textPrimary }]}>
         Today's Workout
       </Text>
       <View style={{ gap: 10 }}>

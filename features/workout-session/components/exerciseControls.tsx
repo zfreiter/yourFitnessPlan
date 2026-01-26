@@ -7,6 +7,8 @@ import { Exercise, ExerciseDirection } from "@/types/type";
 import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
 import { useColorTheme } from "@/context/colorThemeContext";
+import Entypo from "@expo/vector-icons/Entypo";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 
 export default function ExerciseControls({
   exerciseIndex,
@@ -17,7 +19,7 @@ export default function ExerciseControls({
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const { updateWorkoutExerciseOrder } = useWorkout();
-  const { watch } = useFormContext();
+  const { watch, setValue, resetField } = useFormContext();
   const { theme } = useColorTheme();
   const { db } = useDatabase();
   const { move } = useFieldArray({
@@ -31,6 +33,7 @@ export default function ExerciseControls({
     setIsUpdating(true);
     try {
       if (exerciseIndex !== 0) {
+        // update the exercise order in the database
         const result = await workoutService.updateExerciseOrder(
           db!,
           exercises[exerciseIndex].id,
@@ -39,7 +42,10 @@ export default function ExerciseControls({
           exercises[exerciseIndex - 1].exercise_order
         );
         if (result.success) {
+          // update the form state
           move(exerciseIndex, exerciseIndex - 1);
+
+          // update the context state
           updateWorkoutExerciseOrder(
             exercise.workout_id,
             exerciseIndex,
@@ -93,31 +99,27 @@ export default function ExerciseControls({
       }}
     >
       <Pressable
-        style={({ pressed }) => [
-          styles.iconButton,
-          exerciseIndex === 0 || isUpdating
-            ? { backgroundColor: theme.disabled }
-            : { backgroundColor: theme.accent },
-          pressed && styles.pressedButton,
-        ]}
+        style={({ pressed }) => []}
         disabled={exerciseIndex === 0}
         onPress={handleMoveUp}
       >
-        <Ionicons name="chevron-up" size={16} color={theme.background} />
+        <FontAwesome6
+          name="circle-chevron-up"
+          size={32}
+          color={theme.color.accent}
+        />
       </Pressable>
 
       <Pressable
-        style={({ pressed }) => [
-          styles.iconButton,
-          exerciseIndex === (size || 0) - 1 || isUpdating
-            ? { backgroundColor: theme.disabled }
-            : { backgroundColor: theme.accent },
-          pressed && styles.pressedButton,
-        ]}
+        style={({ pressed }) => []}
         disabled={exerciseIndex === (size || 0) - 1}
         onPress={handleMoveDown}
       >
-        <Ionicons name="chevron-down" size={16} color={theme.background} />
+        <FontAwesome6
+          name="circle-chevron-down"
+          size={32}
+          color={theme.color.accent}
+        />
       </Pressable>
     </View>
   );

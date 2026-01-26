@@ -7,6 +7,8 @@ import ExerciseManager from "./exerciseManager";
 import { WorkoutSessionHeader } from "./WorkoutSessionHeader";
 import { WorkoutSessionFooter } from "./WorkoutSessionFooter";
 import { useColorTheme } from "@/context/colorThemeContext";
+import UpdateManagerFabButton from "./updateManagerFabButton";
+import { WorkoutSessionProvider } from "@/context/WorkoutSessionContext";
 
 export default function ActiveWorkoutSession({
   workout,
@@ -109,21 +111,24 @@ export default function ActiveWorkoutSession({
     ),
     [show, mode, openDatePicker, setMode, setShow]
   );
-  // console.log("active workout session rendering ...");
+
   return (
     <FormProvider {...methods}>
-      <FlatList
-        data={exercises || []}
-        renderItem={useCallback(
-          ({ item, index }: { item: any; index: number }) => (
-            <ExerciseManager exercise={item} exerciseIndex={index} />
-          ),
-          []
-        )}
-        keyExtractor={(item) => item.id.toString()}
-        ListHeaderComponent={header}
-        ListFooterComponent={footer}
-      />
+      <WorkoutSessionProvider>
+        <FlatList
+          data={exercises || []}
+          renderItem={useCallback(
+            ({ item, index }: { item: any; index: number }) => (
+              <ExerciseManager exercise={item} exerciseIndex={index} />
+            ),
+            []
+          )}
+          keyExtractor={(item) => item.id.toString()}
+          ListHeaderComponent={header}
+          ListFooterComponent={footer}
+        />
+        <UpdateManagerFabButton />
+      </WorkoutSessionProvider>
     </FormProvider>
   );
 }

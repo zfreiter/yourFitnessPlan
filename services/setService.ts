@@ -174,4 +174,37 @@ export const setService = {
       return { success: false, error: error as string };
     }
   },
+  updateSets: async (
+    db: SQLite.SQLiteDatabase,
+    sets: ExerciseSet[]
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await db.withTransactionAsync(async () => {
+        const statement = await db.prepareAsync(
+          `UPDATE exercise_sets 
+         SET reps = ?, weight = ?, time = ?, distance = ? 
+         WHERE id = ?`
+        );
+
+        try {
+          for (const set of sets) {
+            await statement.executeAsync([
+              set.reps ?? null,
+              set.weight ?? null,
+              set.time ?? null,
+              set.distance ?? null,
+              set.id,
+            ]);
+          }
+        } finally {
+          await statement.finalizeAsync();
+        }
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error(error);
+      return { success: false, error: error as string };
+    }
+  },
 };

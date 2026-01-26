@@ -11,3 +11,13 @@ export function useBlurOnKeyboardClose(ref: React.RefObject<TextInput | null>) {
     return () => sub.remove();
   }, [ref]);
 }
+
+export function useBlurOnKeyboardHide() {
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidHide", () => {
+      Keyboard.dismiss();
+    });
+
+    return () => sub.remove();
+  }, []);
+}

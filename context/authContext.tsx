@@ -21,7 +21,7 @@ export interface AuthContextType {
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
-  undefined
+  undefined,
 );
 
 // This hook can be used to access the user info.
@@ -44,11 +44,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // 🔥 On mount, check for an existing Supabase session
   useEffect(() => {
+    console.log("AuthProvider mounted, checking session...");
     const initAuth = async () => {
       // 🔹 Check if there's an existing session
       const { data: sessionData } = await supabase.auth.getSession();
       const session = sessionData.session;
-
+      console.log("Existing session:", session?.user);
       if (session?.user) {
         // 🔹 Fetch the user's profile
         const { data: profileData, error: profileError } = await supabase
@@ -67,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
       }
 
+      setIsAuthInitialized(true);
       setIsLoading(false);
     };
 
@@ -75,24 +77,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // 🔥 Listen for auth state changes
     const { data: subscription } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Auth event:", event);
+
         if (event === "SIGNED_IN" && session?.user) {
-          const { data: profileData, error: profileError } = await supabase
+          const { data: profileData } = await supabase
             .from("profiles")
             .select()
             .eq("id", session?.user.id)
             .single();
 
-          setUser(profileData);
-          setIsAuthInitialized(true);
-          router.replace("/(app)/main/"); // Redirect into the app
+          if (profileData) {
+            setUser(profileData);
+            setIsAuthInitialized(true);
+            router.replace("/(app)/main/");
+          }
         }
 
         if (event === "SIGNED_OUT") {
           setUser(null);
-          setIsAuthInitialized(false);
+          setIsAuthInitialized(true);
           router.replace("/login"); // Redirect out of the app
         }
-      }
+
+        if (event === "USER_UPDATED") {
+          console.log("User updated, may need to re-authenticate");
+        }
+      },
     );
 
     return () => subscription.subscription.unsubscribe();

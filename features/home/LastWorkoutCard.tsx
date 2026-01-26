@@ -6,7 +6,7 @@ export default function LastWorkoutCard() {
   const { theme } = useColorTheme();
   return (
     <View style={styles.container}>
-      <Text style={[styles.text, { color: theme.textPrimary }]}>
+      <Text style={[styles.text, { color: theme.color.textPrimary }]}>
         Last Workout Card
       </Text>
     </View>

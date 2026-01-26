@@ -21,26 +21,28 @@ export default function DailyWorkoutSchedule({
   if (workoutList.length === 0) {
     return (
       <View style={{ flex: 1, padding: 0 }}>
-        <Text style={{ color: theme.textPrimary }}>{date}</Text>
+        <Text style={{ color: theme.color.textPrimary }}>{date}</Text>
         <View
           style={{
             height: 1,
-            backgroundColor: theme.hr,
+            backgroundColor: theme.color.hr,
             marginVertical: 10,
           }}
         />
-        <Text style={{ color: theme.textPrimary }}>No workouts for today</Text>
+        <Text style={{ color: theme.color.textPrimary }}>
+          No workouts for today
+        </Text>
       </View>
     );
   }
 
   return (
     <View style={{ flex: 1, padding: 0 }}>
-      <Text style={{ color: theme.textPrimary }}>{date}</Text>
+      <Text style={{ color: theme.color.textPrimary }}>{date}</Text>
       <View
         style={{
           height: 1,
-          backgroundColor: theme.hr,
+          backgroundColor: theme.color.hr,
           marginVertical: 10,
         }}
       />

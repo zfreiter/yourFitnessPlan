@@ -22,17 +22,17 @@ export default function ExerciseListItem({
       style={[
         styles.container,
         {
-          backgroundColor: theme.surface,
-          borderColor: theme.border,
+          backgroundColor: theme.color.surface,
+          borderColor: theme.color.border,
           borderWidth: 1,
         },
       ]}
     >
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <Text style={[styles.text, { color: theme.textPrimary }]}>
+        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
           {exercise.exercise_name}
         </Text>
-        <Text style={[styles.text, { color: theme.textPrimary }]}>
+        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
           Sets: {exercise.sets?.length || 0}
         </Text>
       </View>
@@ -68,7 +68,7 @@ export default function ExerciseListItem({
           <FontAwesome6
             name="trash-can"
             size={24}
-            color={pressed ? theme.textSecondary : theme.danger}
+            color={pressed ? theme.color.textSecondary : theme.color.danger}
           />
         )}
       </Pressable>

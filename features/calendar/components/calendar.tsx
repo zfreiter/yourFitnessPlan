@@ -105,7 +105,7 @@ export default function CalendarIndex({
     <View style={{ flex: 1, margin: 0 }}>
       <View style={{}}>
         <Calendar
-          key={theme.background}
+          key={theme.color.background}
           markingType={"multi-dot"}
           markedDates={markedDates}
           style={
@@ -116,15 +116,15 @@ export default function CalendarIndex({
             }
           }
           theme={{
-            backgroundColor: theme.surface,
-            calendarBackground: theme.surface,
-            arrowColor: theme.accent,
+            backgroundColor: theme.color.surface,
+            calendarBackground: theme.color.surface,
+            arrowColor: theme.color.accent,
             //textSectionTitleColor: "#b6c1cd",
             //selectedDayBackgroundColor: "#00adf5",
             //selectedDayTextColor: "#ffffff",
-            todayTextColor: theme.accent,
-            dayTextColor: theme.textPrimary,
-            textDisabledColor: theme.textSecondary,
+            todayTextColor: theme.color.accent,
+            dayTextColor: theme.color.textPrimary,
+            textDisabledColor: theme.color.textSecondary,
           }}
           renderHeader={(date: Date) => {
             return (
@@ -132,8 +132,8 @@ export default function CalendarIndex({
                 style={{
                   fontSize: 18,
                   fontWeight: "bold",
-                  color: theme.textPrimary,
-                  backgroundColor: theme.surface,
+                  color: theme.color.textPrimary,
+                  backgroundColor: theme.color.surface,
                 }}
               >
                 {new Date(date).toLocaleDateString("en-US", {
@@ -151,7 +151,7 @@ export default function CalendarIndex({
       <View
         style={[
           styles.scheduleContainer,
-          { backgroundColor: theme.background },
+          { backgroundColor: theme.color.background },
         ]}
       >
         <DailyWorkoutSchedule

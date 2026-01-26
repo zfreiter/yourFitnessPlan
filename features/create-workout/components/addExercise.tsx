@@ -22,8 +22,8 @@ import { AppButton } from "@/components/button";
 import { ValidUnit } from "@/types/interfaces/types";
 import { Exercise, ExerciseFormData } from "@/types/type";
 import { ExerciseProps } from "../types/type";
-import { Ionicons } from "@expo/vector-icons";
-import Entypo from "@expo/vector-icons/Entypo";
+
+import { ExerciseControl } from "./exerciseControl";
 
 export function AddExercise({
   workoutType,
@@ -81,13 +81,14 @@ export function AddExercise({
 
   const onSubmit = useCallback(
     (data: ExerciseFormData) => {
-      //console.log("data", data);
       if (data.exercise_id === -1) {
         setError("exercise_id", { message: "Please select an exercise" });
         return;
       }
+      // Get the current list of exercises from the parent form
       const currentExerciseList = methods.getValues("exercises");
 
+      // Create a new exercise object to add
       const newExercise: ExerciseFormData = {
         exercise_id: data.exercise_id,
         exercise_name: data.exercise_name,
@@ -100,10 +101,9 @@ export function AddExercise({
         sets: data.sets,
         exercise_order: 0,
       };
-      //console.log("newExercise", data.exercise_description);
+
       methods.setValue("exercises", [...currentExerciseList, newExercise]);
 
-      //reset the form to default values and close the modal double check this
       reset({
         exercise_id: -1,
         track_reps: 0,
@@ -228,10 +228,17 @@ export function AddExercise({
   }, [setShowExerciseModal]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View
+      style={{
+        flex: 1,
+        paddingTop: theme.spacing.xl,
+        paddingHorizontal: theme.spacing.md,
+        backgroundColor: theme.color.background,
+      }}
+    >
       <View style={[styles.headerContainer]}>
         <Pressable
-          style={{ alignSelf: "flex-end", margin: 5 }}
+          style={{ alignSelf: "flex-end" }}
           onPress={handleCloseModal}
           accessibilityLabel="Close exercise modal"
           accessibilityHint="Double tap to close the exercise selection modal"
@@ -241,96 +248,125 @@ export function AddExercise({
             <AppButton
               title="Cancel"
               style={{
-                backgroundColor: theme.warning,
-                paddingHorizontal: 10,
-                paddingVertical: 5,
+                backgroundColor: theme.color.warning,
+                height: theme.spacing.button_height,
               }}
               onPress={handleCloseModal}
-              textStyle={{ color: theme.textPrimary }}
+              textStyle={{ color: theme.color.textPrimary }}
             />
           )}
         </Pressable>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollViewContainer}
+        contentContainerStyle={[{ paddingTop: theme.spacing.xl }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={true}
       >
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.text, { color: theme.textPrimary }]}>
-            Select exercise
-          </Text>
-          <View
-            style={[
-              styles.pickerContainer,
-              {
-                margin: 0,
-                padding: 0,
-                backgroundColor: theme.surface,
-                borderWidth: 1,
-                borderColor: theme.accentStrong,
-              },
-            ]}
-          >
-            <Controller
-              name="exercise_id"
-              control={control}
-              rules={{
-                required: "Exercise selection is required",
-                validate: (value) =>
-                  value.toString() !== "" || "Please select an exercise",
-              }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <Picker
-                  mode="dialog"
-                  selectedValue={value}
-                  onValueChange={(itemValue) => {
-                    handleExerciseChange(itemValue.toString(), (val) => {
-                      const exercise = exerciseList.find(
-                        (e) => e.exercise_id.toString() === val
-                      );
-                      onChange(val);
-                    });
-                  }}
-                  accessibilityLabel="Exercise selection"
-                  accessibilityHint="Select an exercise from the list"
-                  style={[
-                    {
-                      height: 50,
-                      backgroundColor: theme.surface,
-                      color: theme.textPrimary,
-                    },
-                  ]}
-                >
-                  <Picker.Item label="Select exercise" value="NA" />
-                  {exerciseList.map((exercise) => (
-                    <Picker.Item
-                      key={exercise.exercise_id}
-                      label={exercise.exercise_name}
-                      value={exercise.exercise_id.toString()}
-                      style={[
-                        {
-                          backgroundColor: theme.surface,
-                          color: theme.textPrimary,
-                        },
-                      ]}
-                    />
-                  ))}
-                </Picker>
-              )}
-            />
+        <View style={{ flex: 1, gap: theme.spacing.lg }}>
+          <View>
+            <Text
+              style={[
+                styles.text,
+                {
+                  marginBottom: theme.spacing.label,
+                  color: theme.color.textPrimary,
+                },
+              ]}
+            >
+              Select exercise
+            </Text>
+            <View
+              style={[
+                styles.pickerContainer,
+                {
+                  height: theme.spacing.button_height,
+                  borderWidth: 1,
+                  borderColor: theme.color.border,
+                  borderRadius: 8,
+                  backgroundColor: theme.color.surface,
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Controller
+                name="exercise_id"
+                control={control}
+                rules={{
+                  required: "Exercise selection is required",
+                  validate: (value) =>
+                    value.toString() !== "" || "Please select an exercise",
+                }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Picker
+                    mode="dialog"
+                    selectedValue={value}
+                    onValueChange={(itemValue) => {
+                      handleExerciseChange(itemValue.toString(), (val) => {
+                        const exercise = exerciseList.find(
+                          (e) => e.exercise_id.toString() === val
+                        );
+                        onChange(val);
+                      });
+                    }}
+                    accessibilityLabel="Exercise selection"
+                    accessibilityHint="Select an exercise from the list"
+                    style={[
+                      {
+                        backgroundColor: theme.color.surface,
+                        color: theme.color.textPrimary,
+                        marginLeft: theme.spacing.md,
+                      },
+                    ]}
+                  >
+                    <Picker.Item label="Select exercise" value="NA" />
+                    {exerciseList.map((exercise) => (
+                      <Picker.Item
+                        key={exercise.exercise_id}
+                        label={exercise.exercise_name}
+                        value={exercise.exercise_id.toString()}
+                        style={[
+                          {
+                            backgroundColor: theme.color.surface,
+                            color: theme.color.textPrimary,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </Picker>
+                )}
+              />
+            </View>
           </View>
           {errors.exercise_id && (
-            <Text style={[styles.textError, { color: theme.danger }]}>
+            <Text style={[styles.textError, { color: theme.color.danger }]}>
               {errors.exercise_id.message}
             </Text>
           )}
-          {/* Exercise Information */}
+
           {chosenExercise && (
+            <View
+              style={[
+                styles.hr,
+                {
+                  marginVertical: theme.spacing.md,
+                  borderBottomColor: theme.color.hr,
+                },
+              ]}
+            />
+          )}
+
+          {/* Exercise Information */}
+          <ExerciseControl
+            chosenExercise={chosenExercise}
+            control={control}
+            watchSetsLen={watchSetsLen}
+            optionsChoice={optionsChoice}
+            onOptionChange={onOptionChange}
+          />
+          {/* {chosenExercise && (
             <View style={{}}>
-              <View style={[styles.hr, { borderBottomColor: theme.hr }]} />
               <View style={{}}>
                 <View
                   style={{
@@ -343,7 +379,7 @@ export function AddExercise({
                     <Text
                       style={[
                         styles.exerciseName,
-                        { color: theme.textPrimary },
+                        { color: theme.color.textPrimary },
                       ]}
                     >
                       {`${chosenExercise.exercise_name}`}
@@ -352,7 +388,7 @@ export function AddExercise({
                     <Text
                       style={[
                         styles.setDetailsHeader,
-                        { color: theme.textSecondary },
+                        { color: theme.color.textSecondary },
                       ]}
                     >
                       {chosenExercise.exercise_description}
@@ -368,9 +404,9 @@ export function AddExercise({
                         borderRadius: 20,
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: theme.surface,
+                        backgroundColor: theme.color.surface,
                         borderWidth: 1,
-                        borderColor: theme.accentStrong,
+                        borderColor: theme.color.accentStrong,
                       },
                     ]}
                   >
@@ -378,7 +414,7 @@ export function AddExercise({
                       style={({ pressed }) => [
                         {
                           backgroundColor: pressed
-                            ? theme.surface
+                            ? theme.color.surface
                             : "transparent",
                           transform: [{ scale: pressed ? 0.98 : 1 }],
                         },
@@ -389,7 +425,7 @@ export function AddExercise({
                         <Ionicons
                           name="add"
                           size={20}
-                          color={theme.accentStrong}
+                          color={theme.color.accentStrong}
                         />
                       </View>
                     </Pressable>
@@ -404,9 +440,9 @@ export function AddExercise({
                         borderRadius: 20,
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: theme.surface,
+                        backgroundColor: theme.color.surface,
                         borderWidth: 1,
-                        borderColor: theme.accentStrong,
+                        borderColor: theme.color.accentStrong,
                       },
                     ]}
                   >
@@ -414,7 +450,7 @@ export function AddExercise({
                       style={({ pressed }) => [
                         {
                           backgroundColor: pressed
-                            ? theme.surface
+                            ? theme.color.surface
                             : "transparent",
                           transform: [{ scale: pressed ? 0.98 : 1 }],
                         },
@@ -425,7 +461,7 @@ export function AddExercise({
                         <Entypo
                           name="minus"
                           size={24}
-                          color={theme.accentStrong}
+                          color={theme.color.accentStrong}
                         />
                       </View>
                     </Pressable>
@@ -433,14 +469,14 @@ export function AddExercise({
                 </View>
               </View>
 
-              {/* If the exercise has more than one option we need to give the user the options */}
+               If the exercise has more than one option we need to give the user the options 
               {chosenExercise.validUnits &&
                 chosenExercise.validUnits.length > 1 && (
                   <>
                     <Text
                       style={[
                         styles.optionsLabel,
-                        { color: theme.textPrimary },
+                        { color: theme.color.textPrimary },
                       ]}
                     >
                       Options
@@ -451,9 +487,9 @@ export function AddExercise({
                         {
                           margin: 0,
                           padding: 0,
-                          backgroundColor: theme.surface,
+                          backgroundColor: theme.color.surface,
                           borderWidth: 1,
-                          borderColor: theme.accentStrong,
+                          borderColor: theme.color.accentStrong,
                         },
                       ]}
                     >
@@ -465,8 +501,8 @@ export function AddExercise({
                         style={[
                           {
                             height: 50,
-                            backgroundColor: theme.surface,
-                            color: theme.textPrimary,
+                            backgroundColor: theme.color.surface,
+                            color: theme.color.textPrimary,
                           },
                         ]}
                       >
@@ -507,8 +543,8 @@ export function AddExercise({
                       style={{
                         padding: 10,
                         borderWidth: 1,
-                        borderColor: theme.border,
-                        backgroundColor: theme.surface,
+                        borderColor: theme.color.border,
+                        backgroundColor: theme.color.surface,
                         borderRadius: 20,
                       }}
                       onLongPress={() => {
@@ -523,7 +559,7 @@ export function AddExercise({
                             flexDirection: "column",
                           }}
                         >
-                          <Text style={{ color: theme.textPrimary }}>
+                          <Text style={{ color: theme.color.textPrimary }}>
                             Set {index + 1}
                           </Text>
                           <View
@@ -549,7 +585,7 @@ export function AddExercise({
                             flexDirection: "column",
                           }}
                         >
-                          <Text style={{ color: theme.textPrimary }}>
+                          <Text style={{ color: theme.color.textPrimary }}>
                             Set {index + 1}
                           </Text>
                           <View
@@ -575,15 +611,26 @@ export function AddExercise({
                 </View>
               )}
             </View>
-          )}
+          )} 
+          */}
 
-          <View style={[styles.hr, { borderBottomColor: theme.hr }]} />
+          {chosenExercise && (
+            <View
+              style={[
+                styles.hr,
+                {
+                  marginVertical: theme.spacing.md,
+                  borderBottomColor: theme.color.hr,
+                },
+              ]}
+            />
+          )}
           {chosenExercise && (
             <AppButton
               title="Add exercise"
               onPress={handleSubmit(onSubmit)}
-              style={styles.addExerciseButton}
-              textStyle={{ color: theme.textPrimary }}
+              style={{ backgroundColor: theme.color.accent, marginTop: 0 }}
+              textStyle={{ color: theme.color.textPrimary }}
             />
           )}
         </View>
@@ -620,7 +667,10 @@ export function Options({ options, index, control }: OptionsProps) {
             }}
           >
             <Text
-              style={[styles.setInputLabel, { color: theme.textSecondary }]}
+              style={[
+                styles.setInputLabel,
+                { color: theme.color.textSecondary },
+              ]}
             >
               {placeholder}
             </Text>
@@ -634,10 +684,10 @@ export function Options({ options, index, control }: OptionsProps) {
                   textAlign: "center",
                   textAlignVertical: "center",
                   fontSize: 18,
-                  color: theme.textPrimary,
-                  backgroundColor: theme.surface,
+                  color: theme.color.textPrimary,
+                  backgroundColor: theme.color.surface,
                   borderWidth: 1,
-                  borderColor: theme.accent,
+                  borderColor: theme.color.accent,
                   borderRadius: 8,
                 },
               ]}
@@ -704,10 +754,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     color: "#1F2937",
   },
-  addExerciseButton: {
-    backgroundColor: "#059669",
-    marginTop: 8,
-  },
+  addExerciseButton: {},
   addSetButton: {
     backgroundColor: "#2563EB",
     marginTop: 8,
@@ -743,13 +790,10 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     marginTop: 4,
   },
-  scrollViewContainer: {
-    padding: 10,
-  },
+  scrollViewContainer: {},
   headerContainer: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    padding: 10,
   },
   exerciseName: {
     marginTop: 4,
@@ -796,7 +840,6 @@ const styles = StyleSheet.create({
   hr: {
     borderBottomColor: "#D1D5DB",
     borderBottomWidth: 1,
-    marginVertical: 20,
     width: "100%",
   },
   inputError: {

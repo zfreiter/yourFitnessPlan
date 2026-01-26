@@ -41,34 +41,10 @@ export default function SetCard({
 
   const handleDeleteSet = async () => {
     const extraSet: boolean = size - set.set_order > 0;
-    try {
-      if (db) {
-        const response = await setService.deleteSetAndUpdateOrder(
-          db,
-          set.id,
-          exercise.id,
-          extraSet,
-          set.set_order!
-        );
 
-        if (response.success) {
-          deleteWorkoutExerciseSet(
-            exercise.workout_id,
-            exercise.id,
-            set.id,
-            set.set_order!
-          );
+    remove(setIndex);
 
-          remove(setIndex);
-        } else {
-          throw new Error("Set not deleted");
-        }
-      }
-    } catch (error) {
-      console.error("Error deleting set:", error);
-    } finally {
-      setIsModalVisible(false);
-    }
+    setIsModalVisible(false);
   };
 
   return (
@@ -80,8 +56,8 @@ export default function SetCard({
             ? "#FF686B"
             : isLongPressed
             ? "#FF686B"
-            : theme.surface2,
-          borderColor: theme.border,
+            : theme.color.surface2,
+          borderColor: theme.color.border,
         },
       ]}
     >
@@ -93,7 +69,7 @@ export default function SetCard({
               ? "#FF686B"
               : isLongPressed
               ? "#FF686B"
-              : theme.surface2,
+              : theme.color.surface2,
             transform: [{ scale: isLongPressed ? 0.98 : 1 }],
           },
         ]}
@@ -105,7 +81,9 @@ export default function SetCard({
           setIsLongPressed(false);
         }}
       >
-        <Text style={{ color: theme.textPrimary }}>Set {setIndex + 1}</Text>
+        <Text style={{ color: theme.color.textPrimary }}>
+          Set {setIndex + 1}
+        </Text>
 
         <SetInputs
           set={set}

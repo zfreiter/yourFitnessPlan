@@ -6,7 +6,7 @@ export default function ProgressCard() {
   const { theme } = useColorTheme();
   return (
     <View style={styles.container}>
-      <Text style={[styles.text, { color: theme.textPrimary }]}>
+      <Text style={[styles.text, { color: theme.color.textPrimary }]}>
         Progress Card
       </Text>
     </View>

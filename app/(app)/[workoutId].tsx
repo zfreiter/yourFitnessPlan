@@ -2,7 +2,6 @@ import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -11,9 +10,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Workout } from "@/types/type";
 import { useWorkout } from "@/context/workoutContext";
 import { useEffect, useState } from "react";
-
 import ActiveWorkoutSession from "@/features/workout-session/components/activeWorkoutSession";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 export default function WorkoutDetails() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
@@ -34,14 +31,18 @@ export default function WorkoutDetails() {
     }
   }, [workouts, workoutId]);
 
-  const handleBack = () => {
-    console.log("Back button pressed from page!");
-    router.replace("/main/calendar");
-  };
-
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <View
+        style={[
+          styles.container,
+          {
+            paddingTop: theme.spacing.xl,
+            paddingHorizontal: theme.spacing.md,
+            backgroundColor: theme.color.background,
+          },
+        ]}
+      >
         <Text style={styles.loadingText}>Getting your workout...</Text>
       </View>
     );
@@ -49,14 +50,34 @@ export default function WorkoutDetails() {
 
   if (!workout) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Workout not found</Text>
+      <View
+        style={[
+          styles.container,
+          {
+            paddingTop: theme.spacing.xl,
+            paddingHorizontal: theme.spacing.md,
+            backgroundColor: theme.color.background,
+          },
+        ]}
+      >
+        <Text style={[styles.errorText, { color: theme.color.danger }]}>
+          Workout not found
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: theme.spacing.xl,
+          paddingHorizontal: theme.spacing.md,
+          backgroundColor: theme.color.background,
+        },
+      ]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -71,7 +92,6 @@ export default function WorkoutDetails() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 8,
   },
   text: {
     fontSize: 20,
@@ -85,6 +105,5 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "red",
   },
 });

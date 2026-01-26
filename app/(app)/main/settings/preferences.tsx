@@ -14,36 +14,36 @@ export default function Preferences() {
         id: "light", // acts as primary key, should be unique and non-empty string
         label: "Light",
         value: "light",
-        color: theme.accentStrong,
-        labelStyle: { color: theme.textPrimary },
+        color: theme.color.accentStrong,
+        labelStyle: { color: theme.color.textPrimary },
       },
       {
         id: "dark", // acts as primary key, should be unique and non-empty string
         label: "Dark",
         value: "dark",
-        color: theme.accentStrong,
-        labelStyle: { color: theme.textPrimary },
+        color: theme.color.accentStrong,
+        labelStyle: { color: theme.color.textPrimary },
       },
       {
         id: "system", // acts as primary key, should be unique and non-empty string
         label: "System",
         value: "system",
-        color: theme.accentStrong,
-        labelStyle: { color: theme.textPrimary },
+        color: theme.color.accentStrong,
+        labelStyle: { color: theme.color.textPrimary },
       },
     ],
     [theme]
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: theme.color.background }}>
       <Text
         style={{
           fontSize: 20,
           fontWeight: "bold",
           textAlign: "center",
           marginTop: 50,
-          color: theme.textPrimary,
+          color: theme.color.textPrimary,
         }}
       >
         Preferences
@@ -51,7 +51,11 @@ export default function Preferences() {
 
       <View style={{ padding: 20 }}>
         <Text
-          style={{ fontSize: 16, fontWeight: "600", color: theme.textPrimary }}
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            color: theme.color.textPrimary,
+          }}
         >
           Theme
         </Text>

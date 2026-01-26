@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+
 export function convertDate(dateToConvert: Date): string {
   const yyyy = dateToConvert.getFullYear();
   const mm = String(dateToConvert.getMonth() + 1).padStart(2, "0");
@@ -10,4 +12,8 @@ export function convertDate(dateToConvert: Date): string {
 
 export function dateToUnixEpoch(date: Date): number {
   return Math.floor(date.getTime() / 1000);
+}
+
+export function formatDateForDatabase(date: Date): string {
+  return format(date, "yyyy-MM-dd HH:mm:ss");
 }

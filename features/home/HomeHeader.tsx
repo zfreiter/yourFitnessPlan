@@ -16,7 +16,7 @@ export default function HomeHeader() {
   return (
     <View style={styles.container}>
       <View style={styles.greetingContainer}>
-        <Text style={[styles.text, { color: theme.textPrimary }]}>
+        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
           {getCurrentGreetingForCurrentTime()}, {user?.full_name}!
         </Text>
       </View>
@@ -24,21 +24,23 @@ export default function HomeHeader() {
         style={[
           styles.streakContainer,
           {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            shadowColor: theme.shadow,
+            backgroundColor: theme.color.surface,
+            borderColor: theme.color.border,
+            shadowColor: theme.color.shadow,
           },
         ]}
       >
-        <Text style={[styles.text, { color: theme.textPrimary }]}>
+        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
           {weeklyTotal !== 0
-            ? `${weeklyTotal} workouts this week`
+            ? `${weeklyTotal} workout${monthlyTotal > 1 ? "'s" : ""} this week`
             : "Lets get started!"}
         </Text>
         {}
-        <Text style={[styles.text, { color: theme.textPrimary }]}>
+        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
           {monthlyTotal !== 0
-            ? `${monthlyTotal} workouts this month`
+            ? `${monthlyTotal} workout${
+                monthlyTotal > 1 ? "'s" : ""
+              } this month`
             : "Keep it up!"}
         </Text>
       </View>

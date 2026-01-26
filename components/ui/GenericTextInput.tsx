@@ -2,6 +2,7 @@ import React from "react";
 import { TextInput, Text, View, TextStyle } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { useWorkoutSession } from "@/context/WorkoutSessionContext";
 import { useState } from "react";
 
 interface GenericTextInputProps {
@@ -34,14 +35,20 @@ export function GenericTextInput({
     formState: { errors },
   } = useFormContext();
   const { theme } = useColorTheme();
+  const { markDirty } = useWorkoutSession();
+  useWorkoutSession();
   const [isFocused, setIsFocused] = useState<boolean>(false);
 
   return (
-    <View style={{ gap: title ? 4 : 0 }}>
+    <View style={{ gap: title ? theme.spacing.label : 0 }}>
       {title && (
         <Text
           style={[
-            { fontSize: 16, fontWeight: "bold", color: theme.textPrimary },
+            {
+              fontSize: 16,
+              fontWeight: "bold",
+              color: theme.color.textPrimary,
+            },
             textStyle,
           ]}
         >
@@ -54,7 +61,7 @@ export function GenericTextInput({
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
             placeholder={placeholder}
-            placeholderTextColor={theme.placeholderColor}
+            placeholderTextColor={theme.color.placeholderColor}
             keyboardType={keyboardType}
             ref={inputRef}
             value={String(value || "")}
@@ -74,15 +81,20 @@ export function GenericTextInput({
               } else {
                 onChange(text);
               }
+
+              // Mark form as needing update and add field to update list
+              markDirty(name);
             }}
             style={[
               {
                 padding: 10,
-                backgroundColor: theme.surface,
-                borderColor: isFocused ? theme.accent : theme.border,
+                backgroundColor: theme.color.surface,
+                borderColor: isFocused
+                  ? theme.color.accent
+                  : theme.color.border,
                 borderWidth: 1,
                 borderRadius: 8,
-                color: theme.textPrimary,
+                color: theme.color.textPrimary,
               },
               inputStyle,
             ]}
@@ -90,7 +102,7 @@ export function GenericTextInput({
         )}
       />
       {errors[name] && (
-        <Text style={{ color: "red", fontSize: 12, marginTop: 4 }}>
+        <Text style={{ color: theme.color.danger, fontSize: 12, marginTop: 4 }}>
           {String(errors[name]?.message)}
         </Text>
       )}

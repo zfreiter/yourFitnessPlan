@@ -5,8 +5,8 @@ import { Exercise, Workout } from "@/types/type";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { ExerciseSet } from "@/types/type";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useColorTheme } from "@/context/colorThemeContext";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 
 export default function AddSet({
   setIndex,
@@ -23,6 +23,7 @@ export default function AddSet({
     name: `exercises.${exerciseIndex}.sets`,
   });
   const exercise = watch(`exercises.${exerciseIndex}`);
+
   const { db } = useDatabase();
   const { theme } = useColorTheme();
   const handleAddSet = async () => {
@@ -72,7 +73,11 @@ export default function AddSet({
         onPress={handleAddSet}
       >
         <View style={styles.addIconContainer}>
-          <Ionicons name="add-circle-sharp" size={35} color={theme.accent} />
+          <FontAwesome6
+            name="circle-plus"
+            size={32}
+            color={theme.color.accent}
+          />
         </View>
       </Pressable>
     </View>

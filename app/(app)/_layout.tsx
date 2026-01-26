@@ -1,19 +1,36 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useAuth } from "@/context/authContext";
+import { ActivityIndicator, View } from "react-native";
 export default function RootLayout() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { theme } = useColorTheme();
+
+  //  if (isLoading) {
+  //     return (
+  //       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+  //         <ActivityIndicator size="large" />
+  //       </View>
+  //     );
+  //   }
+
+  //   if (!user) {
+  //     return <Redirect href="/login" />;
+  //   }
+
   return (
     <Stack
       screenOptions={{
         headerShown: true, // Ensure the header is visible
         headerStyle: {
-          backgroundColor: theme.accent, // Change the header background color
+          backgroundColor: theme.color.accent, // Change the header background color
         },
-        headerTintColor: "theme.textPrimary", // Change the header text color
+        headerTintColor: theme.color.textPrimary, // Change the header text color
         headerTitleStyle: {
           fontWeight: "bold", // Make the title bold
+        },
+        contentStyle: {
+          backgroundColor: theme.color.background,
         },
       }}
     >

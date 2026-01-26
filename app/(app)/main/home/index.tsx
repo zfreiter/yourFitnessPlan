@@ -16,8 +16,17 @@ export default function Index() {
   const { theme } = useColorTheme();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.content}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.color.background,
+          paddingHorizontal: theme.spacing.md,
+          paddingTop: theme.spacing.xl,
+        },
+      ]}
+    >
+      <View style={{ gap: theme.spacing.lg }}>
         <HomeHeader />
         <TodaysWorkout />
         <QuickActions />
@@ -30,16 +39,16 @@ export default function Index() {
               height={35}
               width="100%"
               borderRadius={8}
-              style={{ marginBottom: 12, color: theme.textPrimary }}
+              style={{ marginBottom: 12, color: theme.color.textPrimary }}
             />
             <SkeletonTextLines lines={3} lastLineWidth="40%" />
           </View>
         ) : (
           <>
             <Text
-              style={[styles.text, { color: theme.textPrimary }]}
+              style={[styles.text, { color: theme.color.textPrimary }]}
             >{`Home page, welcome back $`}</Text>
-            <Text style={[styles.text, { color: theme.textPrimary }]}>
+            <Text style={[styles.text, { color: theme.color.textPrimary }]}>
               CREATE AND FINISH ALL THE FUNCTIONS FOR WORKOUT CONTEXT, IMPLEMENT
               THESE ON WORKOUT-SESSION LAYOUT AND PAGE
             </Text>
@@ -56,11 +65,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 60,
   },
-  content: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    gap: 10,
-  },
+  content: {},
   text: {
     fontSize: 16,
     fontWeight: "bold",

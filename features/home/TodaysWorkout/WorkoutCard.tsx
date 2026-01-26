@@ -26,9 +26,9 @@ export default function WorkoutCard({
       style={[
         styles.cardContainer,
         {
-          backgroundColor: theme.surface,
-          borderColor: theme.border,
-          shadowColor: theme.shadow,
+          backgroundColor: theme.color.surface,
+          borderColor: theme.color.border,
+          shadowColor: theme.color.shadow,
         },
       ]}
       href={{
@@ -43,7 +43,7 @@ export default function WorkoutCard({
           alignItems: "center",
           gap: 10,
           borderWidth: 1,
-          borderColor: theme.accent,
+          borderColor: theme.color.accent,
           padding: 5,
           borderRadius: 8,
         }}
@@ -62,14 +62,14 @@ export default function WorkoutCard({
               flexWrap: "nowrap",
               fontWeight: "bold",
               maxWidth: "90%",
-              color: theme.textSecondary,
+              color: theme.color.textSecondary,
             }}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
             {workout.name}
           </Text>
-          <Text style={{ color: theme.textSecondary }}>
+          <Text style={{ color: theme.color.textSecondary }}>
             {detailed ? workoutDate : simpleDate}
           </Text>
         </View>

@@ -31,6 +31,8 @@ import {
  * - updateWorkoutNewExercise (Line 515) - Adds new exercise to existing workout
  * - updateExerciseOrder (Line 635) - Updates exercise ordering in workout
  * - updateWorkoutType (Line 645) - Updates workout type in workout
+ * - updateWorkoutDetails (Line 655) - Updates workout details (name, description, etc.)
+ *
  * ===================================
  */
 
@@ -703,6 +705,28 @@ export const workoutService = {
     } catch (error) {
       console.error("Error updating workout type:", error);
       return { success: false, error: "Failed to update workout type" };
+    }
+  },
+  updateWorkoutDetails: async (
+    db: SQLite.SQLiteDatabase,
+    workoutId: number,
+    details: {
+      name?: string;
+      description?: string;
+    }
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (details.name && details.description) {
+        await db.runAsync(
+          `UPDATE workouts SET name = ?, description = ? WHERE id = ?`,
+          [details.name, details.description, workoutId]
+        );
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating workout field:", error);
+      return { success: false, error: "Failed to update workout field" };
     }
   },
   updateWorkoutField: async (

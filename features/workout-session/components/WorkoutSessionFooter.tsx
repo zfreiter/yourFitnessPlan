@@ -1,19 +1,17 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { View, Text, Pressable, TextInput, Platform } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AntDesign from "@expo/vector-icons/AntDesign";
-import { GenericTextInput } from "../../../components/ui/GenericTextInput";
-import { useDebouncedFieldUpdate } from "@/hooks/useDebouncedFieldUpdate";
 import { useWorkout } from "@/context/workoutContext";
+import { Checkbox } from "expo-checkbox";
+import { useColorTheme } from "@/context/colorThemeContext";
+import DurationWheelPicker from "./durationWheelPicker";
 import { workoutService } from "@/services/workoutService";
 import { useDatabase } from "@/context/databaseContext";
-import { convertDate } from "@/utils/date";
-import { Checkbox } from "expo-checkbox";
-import { format } from "date-fns";
-import { useHome } from "@/context/HomeContext";
-import { useColorTheme } from "@/context/colorThemeContext";
-import { useBlurOnKeyboardClose } from "@/hooks/useBlurOnKeyboardClose";
+import { formatDateForDatabase } from "@/utils/date";
+import Toast from "react-native-toast-message";
+
 interface WorkoutSessionFooterProps {
   show: boolean;
   mode: "date" | "time";
@@ -29,74 +27,58 @@ export function WorkoutSessionFooter({
   setMode,
   setShow,
 }: WorkoutSessionFooterProps) {
-  const { control, getValues, setValue, watch } = useFormContext();
+  const [isDateFocused, setIsDateFocused] = useState<boolean>(false);
+  const { resetField, reset, control, getValues, setValue, watch } =
+    useFormContext();
   const [backupDate, setBackupDate] = useState(getValues("date"));
   const { updateContextWorkoutField, updateContextWorkoutCompleted } =
     useWorkout();
   const { theme } = useColorTheme();
-  const watchDuration = watch("duration");
-  const [duration, setDuration] = useState(watchDuration);
-  const workoutId = getValues("id");
-  const DurationInputRef = useRef<TextInput>(null);
   const { db } = useDatabase();
-  const { setResetFlag } = useHome();
-  const debouncedUpdateDuration = useDebouncedFieldUpdate({
-    fieldName: "duration",
-    workoutId,
-    onSuccess: (workoutId, field, value) => {
-      setValue("duration", value);
-      setDuration(value);
-      updateContextWorkoutField(workoutId, "duration", value);
-    },
-    onError: (field, error) => {
-      setValue("duration", watchDuration);
-      setDuration(watchDuration);
-      console.error("Error updating duration:", error);
-    },
-  });
-
-  useEffect(() => {
-    if (watchDuration !== duration) {
-      debouncedUpdateDuration(watchDuration);
-    }
-  }, [watchDuration]);
+  const DurationInputRef = useRef<TextInput>(null);
 
   return (
     <View
       style={{
         flexDirection: "column",
-        gap: 10,
-        marginVertical: 10,
-        marginBottom: 50,
+        gap: theme.spacing.lg,
+        marginTop: theme.spacing.lg,
+        marginBottom: theme.spacing.xl * 2,
         //paddingBottom: 100,
       }}
     >
-      <GenericTextInput
-        name="duration"
-        inputRef={DurationInputRef}
-        placeholder="Workout Duration(minutes)"
-        title="Workout Duration"
-        keyboardType="number-pad"
-      />
-      <View style={{ gap: 5 }}>
+      <DurationWheelPicker />
+
+      <View style={{ gap: theme.spacing.label }}>
         <Text
-          style={{ fontSize: 16, fontWeight: "bold", color: theme.textPrimary }}
+          style={{
+            fontSize: 16,
+            fontWeight: "bold",
+            color: theme.color.textPrimary,
+          }}
         >
           Date & Time
         </Text>
+
         <Pressable
           style={({ pressed }) => [
             {
-              backgroundColor: pressed ? "gray" : theme.surface,
+              backgroundColor: pressed ? "gray" : theme.color.surface,
             },
             {
               padding: 10,
-              borderColor: theme.accent,
+              borderColor: isDateFocused
+                ? theme.color.accentActive
+                : theme.color.border,
               borderWidth: 1,
               borderRadius: 8,
             },
           ]}
-          onPress={openDatePicker}
+          onPress={() => {
+            setIsDateFocused(true);
+            openDatePicker();
+          }}
+          onBlur={() => setIsDateFocused(false)}
         >
           <View
             style={{
@@ -109,20 +91,30 @@ export function WorkoutSessionFooter({
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
             >
-              <AntDesign name="calendar" size={24} color={theme.accent} />
-              <Text style={{ textAlign: "center", color: theme.textPrimary }}>
+              <AntDesign name="calendar" size={24} color={theme.color.accent} />
+              <Text
+                style={{ textAlign: "center", color: theme.color.textPrimary }}
+              >
                 {mode}
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 5 }}>
-              <Text style={{ margin: 5, color: theme.textPrimary }}>
+              <Text style={{ margin: 5, color: theme.color.textPrimary }}>
                 {getValues().date.toLocaleDateString()}
               </Text>
-              <Text style={{ margin: 5, color: theme.textPrimary }}>
+              <Text style={{ margin: 5, color: theme.color.textPrimary }}>
                 {getValues().date.toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
-                })}
+                }).length > 7
+                  ? getValues().date.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : `  ${getValues().date.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`}
               </Text>
             </View>
           </View>
@@ -138,95 +130,93 @@ export function WorkoutSessionFooter({
               mode={mode}
               is24Hour={false}
               display="default"
+              onTouchStart={() => {
+                setIsDateFocused(true);
+                console.log("picker tapped!");
+              }}
+              onBlur={() => {
+                setIsDateFocused(false);
+                onBlur();
+              }}
               onChange={async (event: any, selectedDate?: Date) => {
-                // On Android, the picker emits a 'dismissed' type when Cancel is pressed.
+                // Set focus state
+                setIsDateFocused(true);
 
-                if (
+                // Handle Android dismiss cases
+                const isAndroidDismiss =
                   Platform.OS === "android" &&
-                  event?.type &&
-                  event.type !== "set"
-                ) {
-                  onChange(backupDate);
+                  (event?.type === "dismissed" ||
+                    event?.type === "neutral" ||
+                    event?.type === undefined ||
+                    event?.type !== "set");
+
+                // Handle dismiss
+                if (isAndroidDismiss) {
+                  setValue("date", backupDate, { shouldDirty: false });
+                  setIsDateFocused(false);
                   setShow(false);
                   setMode("date");
-
                   return;
                 }
 
-                if (!selectedDate) {
-                  return;
-                }
-
-                onChange(selectedDate);
-
-                // Set to time picker
-                if (mode === "date") {
+                // user clicked SET on date step
+                // save selected date and move to time step
+                if (mode === "date" && selectedDate) {
                   setMode("time");
+                  setValue("date", selectedDate, { shouldDirty: false });
+                  return;
                 }
 
-                // We need to update the db and the context with the new date
-                if (mode === "time") {
-                  // update the date in the db and context
-                  // console.log(
-                  //   "updating date in the db and context toISOString, yyyy, month, day, hours, mins",
-                  //   selectedDate.toISOString(),
-                  //   selectedDate.getFullYear(),
-                  //   String(selectedDate.getMonth() + 1).padStart(2, "0"),
-                  //   String(selectedDate.getDate()).padStart(2, "0"),
-                  //   String(selectedDate.getHours()).padStart(2, "0"),
-                  //   String(selectedDate.getMinutes()).padStart(2, "0")
-                  // );
-                  // console.log(
-                  //   "formated date with library ",
-                  //   format(selectedDate, "yyyy-MM-d'T'HH':'mm")
-                  // );
-                  console.log(
-                    "date in workout footer ",
-                    format(selectedDate, "yyyy-MM-d' 'HH':'mm':'ss")
-                  );
-                  const convertedDate = convertDate(selectedDate);
-                  try {
-                    if (!db) {
-                      console.log("Database error. Can not connect");
-                      onChange(backupDate);
-                      setShow(false);
-                      setMode("date");
-                      return;
-                    }
-                    const convertedDate = format(
-                      selectedDate,
-                      "yyyy-MM-d' 'HH':'mm"
-                    );
-                    const result = await workoutService.updateWorkoutField(
-                      db,
-                      workoutId,
-                      "scheduled_datetime",
-                      convertedDate
-                    );
-
-                    if (result) {
-                      console.log(
-                        "new date to check ",
-                        selectedDate.toISOString()
-                      );
-                      updateContextWorkoutField(
-                        workoutId,
-                        "scheduled_datetime",
-                        convertedDate
-                      );
-                    }
-                  } catch (error) {
-                    onChange(backupDate);
-                    setShow(false);
-                    setMode("date");
-                    return;
-                  }
-
+                // user clicked SET on time step (final)
+                if (mode === "time" && selectedDate) {
+                  onChange(selectedDate);
                   setBackupDate(selectedDate);
-
-                  setMode("date");
                   setShow(false);
+                  setMode("date");
+                  const localDateString = formatDateForDatabase(selectedDate);
+
+                  // Update the workout session date in the context and database
+                  //
+                  if (db) {
+                    try {
+                      const response = await workoutService.updateWorkoutField(
+                        db,
+                        getValues().id,
+                        "scheduled_datetime",
+                        localDateString
+                      );
+
+                      // Update context if successful, otherwise revert to backup date
+                      if (response.success) {
+                        updateContextWorkoutField(
+                          getValues().id,
+                          "scheduled_datetime",
+                          localDateString
+                        );
+                      } else {
+                        // Revert on failure
+                        setValue("date", backupDate);
+                        console.error("Failed to update workout date");
+                        Toast.show({
+                          type: "error",
+                          text1: "Failed to update date",
+                          text2: "Please try again",
+                        });
+                      }
+                    } catch (error) {
+                      console.error("Error updating workout date:", error);
+                      setValue("date", backupDate);
+                      Toast.show({
+                        type: "error",
+                        text1: "Failed to update date",
+                        text2: "Please try again",
+                      });
+                    }
+                  }
                 }
+
+                // Clear focus state
+                setIsDateFocused(false);
               }}
             />
           )}
@@ -239,7 +229,7 @@ export function WorkoutSessionFooter({
             fontSize: 16,
             fontWeight: "bold",
             alignSelf: "baseline",
-            color: theme.textPrimary,
+            color: theme.color.textPrimary,
           }}
         >
           Workout completed
@@ -251,44 +241,28 @@ export function WorkoutSessionFooter({
           render={({ field: { onChange, onBlur, value } }) => (
             <Checkbox
               style={{
-                backgroundColor: theme.surface,
-                borderColor: theme.accent,
+                backgroundColor: theme.color.surface,
+                borderColor: theme.color.accent,
               }}
               value={value}
               onValueChange={async (newValue) => {
-                const workoutId = getValues().id;
-                const scheduledDate = getValues().date;
-                const completedDate = format(
-                  new Date(),
-                  "yyyy-MM-d' 'HH':'mm':'ss"
+                if (!db) return;
+                const response = await workoutService.updateCompleted(
+                  db,
+                  getValues().id,
+                  newValue,
+                  newValue ? new Date().toISOString() : null
                 );
-
-                if (db) {
-                  const result = await workoutService.updateCompleted(
-                    db,
-                    workoutId,
+                if (response.success) {
+                  onChange(newValue);
+                  updateContextWorkoutCompleted(
+                    getValues().id,
                     newValue,
-                    newValue ? completedDate : null
+                    newValue ? new Date().toISOString() : null
                   );
-                  if (result) {
-                    setResetFlag(true);
-                    updateContextWorkoutCompleted(
-                      workoutId,
-                      newValue,
-                      newValue ? completedDate : null
-                    );
-                    setValue("isCompleted", newValue);
-                    setValue("completed_at", newValue ? completedDate : null);
-                  } else {
-                    console.log("Could not update database");
-                  }
-                } else {
-                  console.log("Database error, unable to connect");
                 }
-
-                onChange(newValue);
               }}
-              color={value ? theme.accentActive : undefined}
+              color={value ? theme.color.accentActive : undefined}
             />
           )}
         />

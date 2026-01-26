@@ -20,23 +20,24 @@ export default function MainLayoutTabs() {
       <Tabs
         backBehavior="history"
         screenOptions={{
-          tabBarActiveTintColor: theme.accent,
+          tabBarActiveTintColor: theme.color.accent,
           headerShown: true,
           headerStyle: {
-            backgroundColor: theme.accent,
+            backgroundColor: theme.color.accent,
           },
-          headerTintColor: theme.textPrimary,
+          headerTintColor: theme.color.textPrimary,
           headerTitleStyle: {
             fontWeight: "bold",
           },
           headerRight: () => <></>,
           tabBarStyle: {
-            backgroundColor: theme.surface,
+            backgroundColor: theme.color.surface,
             borderTopWidth: 0,
             //height: 60,
             paddingBottom: 8,
             paddingTop: 8,
           },
+          sceneStyle: { backgroundColor: theme.color.background },
         }}
       >
         <Tabs.Protected guard={true}>

@@ -10,8 +10,8 @@ export default function Index() {
 
   const links = [
     { title: "Account", path: "./settings/account" },
-    { title: "Workout Data", path: "./settings/workout-data" },
     { title: "Profile", path: "./settings/profile" },
+    { title: "Training Stats", path: "./settings/trainingStats" },
     { title: "Preferences", path: "./settings/preferences" },
   ] as const;
 
@@ -22,7 +22,7 @@ export default function Index() {
         paddingHorizontal: 16,
         paddingVertical: 20,
         gap: 10,
-        backgroundColor: theme.background,
+        backgroundColor: theme.color.background,
       }}
     >
       {links.map((link, index) => (
@@ -30,13 +30,13 @@ export default function Index() {
           <Pressable
             style={{
               padding: 10,
-              backgroundColor: theme.surface,
+              backgroundColor: theme.color.surface,
               borderWidth: 1,
-              borderColor: theme.border,
+              borderColor: theme.color.border,
               borderRadius: 5,
             }}
           >
-            <Text style={{ color: theme.textPrimary }}>{link.title}</Text>
+            <Text style={{ color: theme.color.textPrimary }}>{link.title}</Text>
           </Pressable>
         </Link>
       ))}
@@ -49,18 +49,20 @@ export default function Index() {
             {
               height: 40,
               borderWidth: 1,
-              borderColor: theme.accent,
+              borderColor: theme.color.accent,
               borderRadius: 8,
               justifyContent: "center", // vertical alignment
               alignItems: "center",
-              backgroundColor: pressed ? theme.accentStrong : theme.surface,
+              backgroundColor: pressed
+                ? theme.color.accentStrong
+                : theme.color.surface,
             },
           ]}
           onPress={async () => {
             await signOut();
           }}
         >
-          <Text style={{ color: theme.textPrimary }}>Sign out</Text>
+          <Text style={{ color: theme.color.textPrimary }}>Sign out</Text>
         </Pressable>
       </View>
     </View>

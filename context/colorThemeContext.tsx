@@ -15,7 +15,7 @@ import { lightTheme, darkTheme, tokens } from "@/utils/colorTheme";
 export type ColorThemePreference = "light" | "dark" | "system";
 
 // Define the shape of your theme object
-type AppTheme = {
+type Color = {
   background: string;
   surface: string;
   surface2: string;
@@ -35,9 +35,25 @@ type AppTheme = {
   disabled: string;
 };
 
+type spacing = {
+  xs: number;
+  label: number;
+  sm: number;
+  md: number; // page margin for small screens
+  lg: number; // default page margin for phones
+  xl: number;
+  xxl: number;
+  button_height: number;
+  input_height: number;
+};
+
+type ThemeTokens = {
+  color: Color;
+  spacing: spacing;
+};
 // Define what the context provides
 interface ColorThemeContextType {
-  theme: AppTheme;
+  theme: ThemeTokens;
   userPreference: ColorThemePreference;
   toggleTheme: (value: ColorThemePreference) => Promise<void>;
 }
@@ -69,7 +85,6 @@ export function ColorThemeProvider({ children }: PropsWithChildren) {
           await AsyncStorage.setItem("theme", "system");
           setUserPreference("system");
         }
-        console.log("Loaded theme preference:", saved);
       } catch (error) {
         console.warn("Failed to load theme preference:", error);
       }
@@ -91,10 +106,14 @@ export function ColorThemeProvider({ children }: PropsWithChildren) {
     userPreference === "system" ? systemScheme : userPreference;
 
   // Choose the theme object
-  const theme = useMemo<AppTheme>(
-    () => (scheme === "dark" ? tokens.dark : tokens.light),
-    [scheme]
-  );
+  const theme = useMemo<ThemeTokens>(() => {
+    const colorSet = scheme === "dark" ? tokens.dark : tokens.light;
+
+    return {
+      color: colorSet,
+      spacing: tokens.spacing,
+    };
+  }, [scheme]);
 
   return (
     <ThemeContext.Provider value={{ theme, userPreference, toggleTheme }}>

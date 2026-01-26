@@ -29,12 +29,20 @@ export function AppButton({
       style={({ pressed }) => [
         styles.button,
         pressed && styles.pressed,
-        { backgroundColor: theme.surface, borderColor: theme.accent },
+        {
+          height: theme.spacing.button_height,
+          backgroundColor: theme.color.accent,
+          borderColor: theme.color.border,
+        },
         style,
       ]}
     >
       <Text
-        style={[styles.buttonText, { color: theme.textPrimary }, textStyle]}
+        style={[
+          styles.buttonText,
+          { color: theme.color.textPrimary },
+          textStyle,
+        ]}
       >
         {title}
       </Text>

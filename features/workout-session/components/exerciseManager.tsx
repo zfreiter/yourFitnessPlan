@@ -1,7 +1,7 @@
 import { Exercise, ExerciseSet, Workout } from "@/types/type";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, UseFieldArrayRemove } from "react-hook-form";
 import SetCard from "./setCard";
 import ExerciseControls from "./exerciseControls";
 import CustomModal from "@/components/ui/customModal";
@@ -12,6 +12,10 @@ import { exerciseService } from "@/services/exerciseService";
 import { useWorkout } from "@/context/workoutContext";
 import AddSet from "./addSet";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { DeleteSet } from "./DeleteSet";
+import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { Alert } from "react-native";
 
 export default function ExerciseManager({
   exercise,
@@ -33,127 +37,135 @@ export default function ExerciseManager({
   const sets = watch(`exercises.${exerciseIndex}.sets`);
   const size = sets?.length || 0;
 
-  const handleDeleteExercise = async () => {
-    setIsUpdating(true);
-    try {
-      if (size >= 1 && db) {
-        const response = await exerciseService.deleteExercise(db, exercise.id);
-        if (response.success) {
-          remove(exerciseIndex);
-          deleteWorkoutExercise(exercise.id);
-        }
-      }
-    } catch (error) {
-      console.error("Error deleting exercise:", error);
-    } finally {
-      setIsUpdating(false);
-    }
+  const handleDeleteExercise = () => {
+    Alert.alert(
+      `Delete ${exercise.exercise_name}?`,
+      `This will remove the exercise and all ${size} set${
+        size !== 1 ? "s" : ""
+      }.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setIsUpdating(true);
+            remove(exerciseIndex);
+            setIsUpdating(false);
+          },
+        },
+      ]
+    );
+  };
+
+  const renderRightActions = (progress: any, dragX: any) => {
+    const animatedStyle = useAnimatedStyle(() => {
+      return {
+        transform: [{ translateX: dragX.value + 90 }],
+      };
+    });
+
+    return (
+      <Animated.View style={animatedStyle}>
+        <Pressable
+          style={[
+            styles.deleteSwipeAction,
+            {
+              backgroundColor: theme.color.danger || "#FF3B30",
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              borderTopRightRadius: 10,
+              borderBottomRightRadius: 10,
+            },
+          ]}
+          onPress={handleDeleteExercise}
+        >
+          <IconButton
+            icon="trash-outline"
+            size={28}
+            color="white"
+            onPress={handleDeleteExercise}
+          />
+          <Text style={styles.deleteSwipeText}>Delete</Text>
+        </Pressable>
+      </Animated.View>
+    );
   };
 
   return (
-    <View
-      style={[
-        styles.ExerciseCardContainer,
-        { borderColor: theme.border, backgroundColor: theme.surface },
-      ]}
+    <Swipeable
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
     >
-      <Pressable
-        disabled={isUpdating}
-        delayLongPress={300}
+      <View
         style={[
-          styles.exerciseCardContent,
+          styles.ExerciseCardContainer,
           {
-            backgroundColor: isLongPressed ? "#E5E7EB" : "transparent",
-            transform: [{ scale: isLongPressed ? 0.98 : 1 }],
+            borderColor: theme.color.border,
+            backgroundColor: theme.color.surface,
+            marginTop: theme.spacing.lg,
           },
         ]}
-        onLongPress={() => {
-          setIsLongPressed(true);
-          setIsModalVisible(true);
-        }}
-        onPressOut={() => {
-          // setIsLongPressed(false);
-        }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <ExerciseControls exercise={exercise} exerciseIndex={exerciseIndex} />
-          <Text
+        <View style={styles.exerciseCardContent}>
+          <View
             style={{
-              fontSize: 16,
-              fontWeight: "700",
-              marginLeft: -40,
-              color: theme.textPrimary,
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            {exercise.exercise_name}
-          </Text>
-
-          <AddSet setIndex={size} size={size} exerciseIndex={exerciseIndex} />
-        </View>
-        <View style={[styles.SetCardContainer]}>
-          {(sets || []).map((set: ExerciseSet, setIndex: number) => (
-            <SetCard
-              key={`exercise-${exerciseIndex}-set-${setIndex}`}
-              set={set}
+            <ExerciseControls
+              exercise={exercise}
               exerciseIndex={exerciseIndex}
-              setIndex={setIndex}
-              options={{
-                track_reps: exercise.track_reps,
-                track_weight: exercise.track_weight,
-                track_time: exercise.track_time,
-                track_distance: exercise.track_distance,
-              }}
             />
-          ))}
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "700",
+                marginLeft: -40,
+                color: theme.color.textPrimary,
+              }}
+            >
+              {exercise.exercise_name}
+            </Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 15 }}
+            >
+              <AddSet
+                setIndex={size}
+                size={size}
+                exerciseIndex={exerciseIndex}
+              />
+              <DeleteSet exerciseIndex={exerciseIndex} />
+            </View>
+          </View>
+          <View style={[styles.SetCardContainer]}>
+            {(sets || []).map((set: ExerciseSet, setIndex: number) => (
+              <SetCard
+                key={`exercise-${exerciseIndex}-set-${setIndex}`}
+                set={set}
+                exerciseIndex={exerciseIndex}
+                setIndex={setIndex}
+                options={{
+                  track_reps: exercise.track_reps,
+                  track_weight: exercise.track_weight,
+                  track_time: exercise.track_time,
+                  track_distance: exercise.track_distance,
+                }}
+              />
+            ))}
+          </View>
         </View>
-      </Pressable>
-      <CustomModal
-        visible={isModalVisible}
-        onClose={() => {
-          setIsModalVisible(false);
-          setIsLongPressed(false);
-        }}
-        title={`Delete ${exercise.exercise_name} Exercise`}
-        closeButtonText="Cancel"
-      >
-        <DeleteExerciseModal handleDeleteExercise={handleDeleteExercise} />
-      </CustomModal>
-    </View>
-  );
-}
-
-function DeleteExerciseModal({
-  handleDeleteExercise,
-}: {
-  handleDeleteExercise: () => void;
-}) {
-  return (
-    <View style={{ alignItems: "center", paddingVertical: 20 }}>
-      <IconButton
-        icon="trash-outline"
-        style={[
-          styles.iconButton,
-          styles.deleteButton,
-          { width: 70, height: 70, borderRadius: 70 },
-        ]}
-        size={50}
-        color="white"
-        onPress={handleDeleteExercise}
-      />
-    </View>
+      </View>
+    </Swipeable>
   );
 }
 
 const styles = StyleSheet.create({
   ExerciseCardContainer: {
-    padding: 0,
-    marginBottom: 10,
     borderWidth: 1,
 
     borderRadius: 10,
@@ -207,5 +219,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "black",
+  },
+  deleteSwipeAction: {
+    justifyContent: "center",
+    alignItems: "center",
+    width: 90,
+    marginTop: 16, // Match the marginTop of ExerciseCardContainer
+  },
+  deleteSwipeText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 4,
   },
 });

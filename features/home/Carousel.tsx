@@ -6,7 +6,9 @@ export default function Carousel() {
   const { theme } = useColorTheme();
   return (
     <View style={styles.container}>
-      <Text style={[styles.text, { color: theme.textPrimary }]}>Carousel</Text>
+      <Text style={[styles.text, { color: theme.color.textPrimary }]}>
+        Carousel
+      </Text>
     </View>
   );
 }

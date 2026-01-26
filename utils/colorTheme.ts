@@ -71,4 +71,15 @@ export const tokens = {
     warning: "#FBBF24",
     disabled: "#54615A",
   },
+  spacing: {
+    xs: 4,
+    label: 6, // spacing for labels
+    sm: 8,
+    md: 12, // page margin for small screens
+    lg: 16, // default page margin for phones input -> inputs, buttons, etc.
+    xl: 24, // section -> sections, larger components
+    xxl: 32,
+    button_height: 48, // standard button height
+    input_height: 48, // standard input height
+  },
 };

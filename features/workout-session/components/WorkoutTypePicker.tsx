@@ -3,14 +3,14 @@ import { View, Text, TextStyle, ViewStyle } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import { Picker } from "@react-native-picker/picker";
 import { ExerciseType } from "../../../types/interfaces/types";
-import { debounce } from "@/utils/debounce";
-import { workoutService } from "@/services/workoutService";
+import { useColorTheme } from "@/context/colorThemeContext";
 import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
-import { useColorTheme } from "@/context/colorThemeContext";
+import { workoutService } from "@/services/workoutService";
 
 interface WorkoutTypePickerProps {
   workoutType: ExerciseType;
+  workoutId: number;
   items: string[];
   name: string;
   textStyle?: TextStyle;
@@ -19,6 +19,7 @@ interface WorkoutTypePickerProps {
 
 export function WorkoutTypePicker({
   workoutType,
+  workoutId,
   items,
   name,
   textStyle,
@@ -26,20 +27,25 @@ export function WorkoutTypePicker({
 }: WorkoutTypePickerProps) {
   const {
     control,
+    setValue,
     getValues,
+    resetField,
     formState: { errors },
   } = useFormContext();
-  const { db } = useDatabase();
+
   const [workoutTypeState, setWorkoutTypeState] = useState(workoutType);
-  const [oldWorkoutType, setOldWorkoutType] = useState(workoutType);
   const [isFocused, setIsFocused] = useState<boolean>(false);
+  const { db } = useDatabase();
+  //workoutId: number, workoutType: ExerciseType
   const { updateWorkoutType } = useWorkout();
   const { theme } = useColorTheme();
 
   return (
     <View style={{ gap: 4 }}>
       <Text
-        style={[{ fontSize: 16, fontWeight: "bold", color: theme.textPrimary }]}
+        style={[
+          { fontSize: 16, fontWeight: "bold", color: theme.color.textPrimary },
+        ]}
       >
         Select Workout Type:
       </Text>
@@ -49,7 +55,7 @@ export function WorkoutTypePicker({
           {
             width: "100%",
             borderWidth: 1,
-            borderColor: theme.accent,
+            borderColor: isFocused ? theme.color.accent : theme.color.border,
             borderRadius: 8,
             overflow: "hidden",
             padding: 0,
@@ -72,35 +78,30 @@ export function WorkoutTypePicker({
               key={workoutTypeState}
               style={{
                 width: "100%",
-                backgroundColor: theme.surface,
-                color: theme.textPrimary,
+                backgroundColor: theme.color.surface,
+                color: theme.color.textPrimary,
               }}
               onFocus={() => setIsFocused(true)}
+              onBlur={() => {
+                setIsFocused(false);
+              }}
               selectedValue={workoutTypeState}
-              onValueChange={(value) => {
-                const oldWorkoutType = workoutTypeState;
-                const updateWorkoutTypeDebounced = debounce(
-                  async (value: ExerciseType) => {
-                    try {
-                      const response = await workoutService.updateWorkoutType(
-                        db!,
-                        getValues().id,
-                        value
-                      );
-                      if (response.success) {
-                        setWorkoutTypeState(value);
-                        onChange(value);
-                        setOldWorkoutType(value);
-                        updateWorkoutType(getValues().id, value);
-                      }
-                    } catch (error) {
-                      console.error("Error updating workout type:", error);
-                    }
-                  },
-                  1000
+              onValueChange={async (value) => {
+                // Update form state and keep the form dirty state false
+                setValue("workoutType", value, { shouldDirty: false });
+                // update local database state
+                if (!db) return;
+                const response = await workoutService.updateWorkoutType(
+                  db,
+                  workoutId,
+                  value
                 );
-
-                updateWorkoutTypeDebounced(value);
+                // update context state
+                if (response.success) {
+                  updateWorkoutType(workoutId, value);
+                }
+                // update form to be clean
+                onBlur();
               }}
             >
               {items.map((item, index) => (
