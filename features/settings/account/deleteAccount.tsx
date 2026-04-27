@@ -1,146 +1,147 @@
 import { useState } from "react";
-import { Alert, View, Text, TextInput, Pressable, Modal } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Modal,
+  StyleSheet,
+} from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Checkbox } from "expo-checkbox";
 
 export default function DeleteAccount() {
   const [modalVisible, setModalVisible] = useState(false);
-  const [isFocused, setIsFocused] = useState<boolean>(false);
-  const [isDeleteChecked, setIsDeleteChecked] = useState<boolean>(false);
-  const [confirmationText, setConfirmationText] = useState<string>("");
-  const [confirmationError, setConfirmationError] = useState<string>("");
+  const [isFocused, setIsFocused] = useState(false);
+  const [isDeleteChecked, setIsDeleteChecked] = useState(false);
+  const [confirmationText, setConfirmationText] = useState("");
+  const [confirmationError, setConfirmationError] = useState("");
   const { theme } = useColorTheme();
+
+  const closeModal = () => setModalVisible(false);
 
   return (
     <View>
       <Pressable
         onPress={() => setModalVisible(true)}
         style={({ pressed }) => [
+          styles.triggerButton,
           {
-            height: theme.spacing.button_height,
             backgroundColor: pressed
-              ? theme.color.accentStrong
+              ? theme.color.surface2
               : theme.color.surface,
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: theme.color.accent,
-            borderRadius: 8,
+            borderColor: theme.color.border,
           },
         ]}
       >
-        {({ pressed }) => (
-          <Text style={{ color: theme.color.textPrimary }}>Delete Account</Text>
-        )}
+        <Text
+          style={[
+            styles.triggerText,
+            { color: theme.color.danger, fontFamily: theme.fonts.body },
+          ]}
+        >
+          Delete Account
+        </Text>
       </Pressable>
 
       <Modal
         animationType="slide"
-        transparent={true}
+        transparent
         visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(false);
-        }}
+        onRequestClose={closeModal}
       >
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center", // Vertical centering
-            alignItems: "center", // Horizontal centering
-          }}
-          onPress={() => {
-            setModalVisible(false);
-          }}
-        >
+        <Pressable style={styles.backdrop} onPress={closeModal}>
           <Pressable
-            style={{ width: "100%", padding: 20 }}
+            style={styles.sheetWrapper}
             onPress={(e) => e.stopPropagation()}
           >
             <View
-              style={{
-                flexDirection: "column",
-                gap: theme.spacing.lg,
-                backgroundColor: theme.color.surface,
-                borderColor: theme.color.border,
-                borderWidth: 1,
-                padding: theme.spacing.lg,
-                borderRadius: 10,
-                width: "100%",
-              }}
+              style={[
+                styles.sheet,
+                {
+                  backgroundColor: theme.color.surface,
+                  borderColor: theme.color.border,
+                },
+              ]}
             >
-              <Pressable
-                style={{}}
-                onPress={() => {
-                  setModalVisible(false);
-                }}
-              >
+              <Pressable onPress={closeModal} style={styles.closeButton}>
                 <MaterialIcons
                   name="cancel"
-                  size={30}
-                  style={{ alignSelf: "flex-end" }}
-                  color={theme.color.accent}
+                  size={24}
+                  color={theme.color.textSecondary}
                 />
               </Pressable>
+
               <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  textAlign: "center",
-                  color: theme.color.textPrimary,
-                }}
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.heading,
+                  },
+                ]}
               >
-                Account Deletion Form
+                Delete Account
               </Text>
+
               <Text
-                style={{
-                  fontSize: 14,
-                  color: theme.color.textPrimary,
-                }}
+                style={[
+                  styles.bodyText,
+                  {
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.body,
+                  },
+                ]}
               >
-                This will permanently delete your account and all your data.
-                This includes your profile, posts, comments, and uploaded files.
+                This will permanently delete your account and all your data,
+                including your profile, workouts, and uploaded files.
               </Text>
+
               <Text
-                style={{
-                  fontSize: 14,
-                  color: theme.color.textPrimary,
-                }}
+                style={[
+                  styles.bodyText,
+                  {
+                    color: theme.color.textSecondary,
+                    fontFamily: theme.fonts.body,
+                  },
+                ]}
               >
-                You will have access to your account for 30 days after deletion,
-                during which you can recover it by logging back in.
+                You will have 30 days to recover your account by logging back
+                in.
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
+
+              <Pressable
+                style={styles.checkRow}
+                onPress={() => setIsDeleteChecked((v) => !v)}
+              >
                 <Checkbox
-                  style={{ marginRight: 8, height: 20, width: 20 }}
+                  style={styles.checkbox}
                   value={isDeleteChecked}
                   onValueChange={setIsDeleteChecked}
-                  color={isDeleteChecked ? theme.color.accent : undefined}
+                  color={isDeleteChecked ? theme.color.danger : undefined}
                 />
                 <Text
-                  style={{
-                    fontSize: 14,
-                    color: theme.color.textPrimary,
-                  }}
+                  style={[
+                    styles.checkLabel,
+                    {
+                      color: theme.color.textPrimary,
+                      fontFamily: theme.fonts.body,
+                    },
+                  ]}
                 >
                   I understand this is permanent
                 </Text>
-              </View>
-              <View
-                style={{
-                  justifyContent: "space-between",
-                  alignContent: "center",
-                  gap: theme.spacing.label,
-                }}
-              >
+              </Pressable>
+
+              <View style={{ gap: theme.spacing.label }}>
                 <Text
-                  style={{
-                    fontSize: 14,
-                    color: theme.color.textPrimary,
-                  }}
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.color.textSecondary },
+                  ]}
                 >
-                  Type "DELETE" to confirm:
+                  TYPE "DELETE" TO CONFIRM
                 </Text>
                 <TextInput
                   placeholder="DELETE"
@@ -148,65 +149,66 @@ export default function DeleteAccount() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   onFocus={() => setIsFocused(true)}
-                  onBlur={() => {
-                    setIsFocused(false);
-                  }}
-                  style={{
-                    padding: 10,
-                    backgroundColor: theme.color.input,
-                    borderColor: confirmationError
-                      ? theme.color.danger
-                      : isFocused
-                        ? theme.color.accent
-                        : theme.color.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    color: theme.color.textPrimary,
-                  }}
-                />
-              </View>
-              <View style={{ flexDirection: "row", gap: theme.spacing.label }}>
-                <Pressable
-                  onPress={() => setModalVisible(false)}
-                  style={({ pressed }) => [
+                  onBlur={() => setIsFocused(false)}
+                  value={confirmationText}
+                  onChangeText={setConfirmationText}
+                  style={[
+                    styles.input,
                     {
-                      height: theme.spacing.button_height,
-                      width: "48%",
+                      backgroundColor: theme.color.input,
+                      borderColor: confirmationError
+                        ? theme.color.danger
+                        : isFocused
+                          ? theme.color.accentActive
+                          : theme.color.border,
+                      color: theme.color.textPrimary,
+                    },
+                  ]}
+                />
+                {confirmationError.length > 0 && (
+                  <Text
+                    style={[styles.errorText, { color: theme.color.danger }]}
+                  >
+                    {confirmationError}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.buttonRow}>
+                <Pressable
+                  onPress={closeModal}
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    {
                       backgroundColor: pressed
-                        ? theme.color.warning
-                        : theme.color.warning,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      borderRadius: 8,
+                        ? theme.color.surface2
+                        : theme.color.surface,
+                      borderColor: theme.color.border,
                     },
                   ]}
                 >
-                  {({ pressed }) => (
-                    <Text style={{ color: theme.color.textPrimary }}>
-                      Cancel
-                    </Text>
-                  )}
+                  <Text
+                    style={[
+                      styles.actionText,
+                      { color: theme.color.textPrimary },
+                    ]}
+                  >
+                    Cancel
+                  </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => {}}
                   style={({ pressed }) => [
+                    styles.actionButton,
                     {
-                      height: theme.spacing.button_height,
-                      width: "48%",
-                      backgroundColor: pressed
-                        ? theme.color.accentStrong
-                        : theme.color.accent,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      borderRadius: 8,
+                      backgroundColor: pressed ? "#cc0000" : theme.color.danger,
+                      borderColor: theme.color.danger,
                     },
                   ]}
                 >
-                  {({ pressed }) => (
-                    <Text style={{ color: theme.color.textPrimary }}>
-                      Delete Account
-                    </Text>
-                  )}
+                  <Text style={[styles.actionText, { color: "#fff" }]}>
+                    Delete Account
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -216,3 +218,41 @@ export default function DeleteAccount() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  triggerButton: {
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  triggerText: { fontSize: 15, fontWeight: "600" },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetWrapper: { width: "100%", padding: 20 },
+  sheet: { gap: 16, borderWidth: 1, padding: 20, borderRadius: 10 },
+  closeButton: { alignSelf: "flex-end" },
+  modalTitle: { fontSize: 18, textAlign: "center", fontWeight: "700" },
+  bodyText: { fontSize: 14, lineHeight: 20 },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  checkbox: { height: 20, width: 20 },
+  checkLabel: { fontSize: 14 },
+  fieldLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
+  input: { borderWidth: 1, padding: 10, borderRadius: 8, fontSize: 15 },
+  errorText: { fontSize: 12 },
+  buttonRow: { flexDirection: "row", gap: 12 },
+  actionButton: {
+    flex: 1,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  actionText: { fontSize: 15, fontWeight: "600" },
+});

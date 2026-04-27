@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppButton } from "../../../components/button";
 import { WorkoutTypePicker } from "./WorkoutTypePicker";
@@ -20,16 +20,14 @@ export function WorkoutSessionHeader({
   handleAddExercise,
   handleCloseExerciseModal,
 }: WorkoutSessionHeaderProps) {
-  const { getValues, setValue, control, watch } = useFormContext();
-  const { markDirty } = useWorkoutSession();
-
+  const { getValues, control } = useFormContext();
+  const { markDirty, trackWorkoutUpdate } = useWorkoutSession();
   const { theme } = useColorTheme();
 
   const NameInputRef = useRef<TextInput>(null);
   const descriptionInputRef = useRef<TextInput>(null);
 
-  const [isDescriptionFocused, setIsDescriptionFocused] =
-    useState<boolean>(false);
+  const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
   const workoutId = getValues("id");
 
   useBlurOnKeyboardClose(NameInputRef);
@@ -37,7 +35,6 @@ export function WorkoutSessionHeader({
 
   return (
     <View style={{ gap: theme.spacing.lg }}>
-      {/* Updates the current form but does not save to context or database */}
       <GenericTextInput
         name="name"
         inputRef={NameInputRef}
@@ -46,37 +43,29 @@ export function WorkoutSessionHeader({
         keyboardType="default"
       />
 
-      {/* Updates on change */}
       <WorkoutTypePicker
-        items={["Select workout", "strength", "cardio", "mobility", "circuit"]}
+        items={["strength", "cardio", "mobility", "circuit"]}
         name="type"
         workoutType={getValues().type}
         workoutId={workoutId}
       />
 
       <View style={{ gap: theme.spacing.label }}>
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "bold",
-            color: theme.color.textPrimary,
-          }}
-        >
-          Workout Description
+        <Text style={[styles.fieldLabel, { color: theme.color.textSecondary }]}>
+          DESCRIPTION
         </Text>
         <Controller
           name="description"
           control={control}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              placeholder="Workout Description..."
+              placeholder="Add a description..."
               value={value}
               ref={descriptionInputRef}
               placeholderTextColor={theme.color.placeholderColor}
               onChangeText={(text) => {
                 onChange(text);
-                // Mark form as needing update and add field to update list
-                markDirty("description");
+                trackWorkoutUpdate({ description: text });
               }}
               onFocus={() => setIsDescriptionFocused(true)}
               onBlur={() => {
@@ -86,36 +75,33 @@ export function WorkoutSessionHeader({
               editable
               multiline
               numberOfLines={4}
-              style={{
-                borderWidth: 1,
-                padding: 10,
-                borderColor: isDescriptionFocused
-                  ? theme.color.accent
-                  : theme.color.border,
-                minHeight: 80,
-                textAlignVertical: "top",
-                backgroundColor: theme.color.surface,
-                color: theme.color.textPrimary,
-                borderRadius: 8,
-              }}
+              style={[
+                styles.descriptionInput,
+                {
+                  borderColor: isDescriptionFocused
+                    ? theme.color.accentActive
+                    : theme.color.border,
+                  backgroundColor: theme.color.input,
+                  color: theme.color.textPrimary,
+                },
+              ]}
             />
           )}
         />
       </View>
 
       <AppButton
-        title="Add exercise"
-        style={{
-          marginBottom: 0,
-          marginTop: 0,
-        }}
+        title="Add Exercise"
+        style={styles.addButton}
         onPress={handleAddExercise}
       />
+
       <Modal
         animationType="slide"
         transparent={false}
         visible={showExerciseModal}
         onRequestClose={handleCloseExerciseModal}
+        statusBarTranslucent={true}
       >
         <AddExercise setShowExerciseModal={handleCloseExerciseModal} />
       </Modal>
@@ -124,5 +110,20 @@ export function WorkoutSessionHeader({
 }
 
 const styles = StyleSheet.create({
-  container: {},
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  descriptionInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  addButton: {
+    marginTop: 0,
+    marginBottom: 0,
+  },
 });

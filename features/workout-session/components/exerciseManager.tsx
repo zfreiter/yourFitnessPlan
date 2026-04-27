@@ -4,11 +4,8 @@ import { useState } from "react";
 import { useFormContext, UseFieldArrayRemove } from "react-hook-form";
 import SetCard from "./setCard";
 import ExerciseControls from "./exerciseControls";
-import CustomModal from "@/components/ui/customModal";
 import { IconButton } from "@/components/ui/iconButton";
 import { useFieldArray } from "react-hook-form";
-import { useDatabase } from "@/context/databaseContext";
-import { exerciseService } from "@/services/exerciseService";
 import { useWorkout } from "@/context/workoutContext";
 import AddSet from "./addSet";
 import { useColorTheme } from "@/context/colorThemeContext";
@@ -16,8 +13,11 @@ import { DeleteSet } from "./DeleteSet";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { Alert } from "react-native";
+import { useWorkoutSession } from "@/context/WorkoutSessionContext";
+import { useAuth } from "@/context/authContext";
+import React from "react";
 
-export default function ExerciseManager({
+function ExerciseManager({
   exercise,
   exerciseIndex,
 }: {
@@ -29,20 +29,19 @@ export default function ExerciseManager({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const { control, watch } = useFormContext();
   const { theme } = useColorTheme();
-  const { db } = useDatabase();
+  const { user } = useAuth();
   const { deleteWorkoutExercise, setWorkouts } = useWorkout();
   const { remove } = useFieldArray({
     name: "exercises",
   });
+
   const sets = watch(`exercises.${exerciseIndex}.sets`);
   const size = sets?.length || 0;
 
   const handleDeleteExercise = () => {
     Alert.alert(
       `Delete ${exercise.exercise_name}?`,
-      `This will remove the exercise and all ${size} set${
-        size !== 1 ? "s" : ""
-      }.`,
+      `This will remove the exercise and all ${size} set${size !== 1 ? "s" : ""}.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -50,11 +49,16 @@ export default function ExerciseManager({
           style: "destructive",
           onPress: () => {
             setIsUpdating(true);
+            // remove exercise from the form
             remove(exerciseIndex);
+
+            // Update local -> delete sets and exercise. Delete exercise in sync. Update context.
+            deleteWorkoutExercise(user?.id!, exercise.id);
+
             setIsUpdating(false);
           },
         },
-      ]
+      ],
     );
   };
 
@@ -110,30 +114,27 @@ export default function ExerciseManager({
         ]}
       >
         <View style={styles.exerciseCardContent}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          {/* Header row */}
+          <View style={[styles.exerciseHeader]}>
             <ExerciseControls
               exercise={exercise}
               exerciseIndex={exerciseIndex}
             />
             <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "700",
-                marginLeft: -40,
-                color: theme.color.textPrimary,
-              }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[
+                styles.exerciseName,
+                {
+                  textAlign: "center",
+                  width: 140,
+                  color: theme.color.textPrimary,
+                },
+              ]}
             >
               {exercise.exercise_name}
             </Text>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 15 }}
-            >
+            <View style={[styles.headerActions]}>
               <AddSet
                 setIndex={size}
                 size={size}
@@ -142,7 +143,25 @@ export default function ExerciseManager({
               <DeleteSet exerciseIndex={exerciseIndex} />
             </View>
           </View>
-          <View style={[styles.SetCardContainer]}>
+
+          {/* Column labels row — only show if there are sets */}
+          {size > 0 && (
+            <View style={styles.columnLabelsRow}>
+              <Text
+                style={[
+                  styles.columnLabelSet,
+                  { color: theme.color.textSecondary },
+                ]}
+              />
+              {/* Spacer to match SET label width */}
+              <View style={styles.columnLabelsRight}>
+                {/* These mirror the input columns in SetInputs */}
+              </View>
+            </View>
+          )}
+
+          {/* Sets list */}
+          <View style={styles.SetCardContainer}>
             {(sets || []).map((set: ExerciseSet, setIndex: number) => (
               <SetCard
                 key={`exercise-${exerciseIndex}-set-${setIndex}`}
@@ -164,67 +183,59 @@ export default function ExerciseManager({
   );
 }
 
+export default React.memo(ExerciseManager);
+
 const styles = StyleSheet.create({
   ExerciseCardContainer: {
     borderWidth: 1,
-
     borderRadius: 10,
-    minHeight: 60, // Ensure minimum height to prevent layout issues
+    minHeight: 60,
     width: "100%",
   },
   exerciseCardContent: {
     padding: 10,
     borderRadius: 10,
   },
-  SetCardContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 5,
-    paddingTop: 10,
-    alignItems: "flex-start", // Ensure proper alignment
-  },
-  activeItem: {
-    borderColor: "blue",
-  },
-  iconButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  closeButton: {
-    backgroundColor: "gray",
-  },
-  deleteButton: {
-    backgroundColor: "red",
-  },
-  addButton: {
-    backgroundColor: "green",
-  },
-  moveButton: {
-    backgroundColor: "#007AFF",
-  },
-  disabledButton: {
-    backgroundColor: "#8E8E93",
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalRow: {
+  exerciseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
   },
-  modalText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "black",
+  exerciseName: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginLeft: -40,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 15,
+  },
+  columnLabelsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    marginBottom: 2,
+  },
+  columnLabelSet: {
+    width: 44,
+    fontSize: 11,
+  },
+  columnLabelsRight: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  SetCardContainer: {
+    flexDirection: "column",
+    gap: 2,
+    paddingTop: 4,
   },
   deleteSwipeAction: {
     justifyContent: "center",
     alignItems: "center",
     width: 90,
-    marginTop: 16, // Match the marginTop of ExerciseCardContainer
+    marginTop: 16,
   },
   deleteSwipeText: {
     color: "white",

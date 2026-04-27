@@ -1,8 +1,11 @@
 import * as SQLite from "expo-sqlite";
+import * as Crypto from "expo-crypto";
+import { syncService } from "@/services/syncService";
+import { getDB } from "./database";
 
 export interface ExerciseSet {
-  id: number;
-  workout_exercise_id: number;
+  id: string;
+  workout_exercise_id: string;
   reps?: number;
   weight?: number;
   time?: number;
@@ -11,10 +14,8 @@ export interface ExerciseSet {
 }
 
 export const setService = {
-  getSetsByWorkout: async (
-    db: SQLite.SQLiteDatabase,
-    workoutId: number
-  ): Promise<ExerciseSet[]> => {
+  getSetsByWorkout: async (workoutId: string): Promise<ExerciseSet[]> => {
+    const db = await getDB();
     const sets = await db.getAllAsync(
       `
       SELECT es.*
@@ -23,15 +24,13 @@ export const setService = {
       WHERE we.workout_id = ?
       ORDER BY es.id
     `,
-      [workoutId]
+      [workoutId],
     );
     return sets as ExerciseSet[];
   },
 
-  getSetsByExercise: async (
-    db: SQLite.SQLiteDatabase,
-    exerciseId: number
-  ): Promise<ExerciseSet[]> => {
+  getSetsByExercise: async (exerciseId: string): Promise<ExerciseSet[]> => {
+    const db = await getDB();
     const sets = await db.getAllAsync(
       `
       SELECT es.*
@@ -40,15 +39,15 @@ export const setService = {
       WHERE we.exercise_id = ?
       ORDER BY es.id
     `,
-      [exerciseId]
+      [exerciseId],
     );
     return sets as ExerciseSet[];
   },
 
   getSetsByWorkoutExercise: async (
-    db: SQLite.SQLiteDatabase,
-    workoutExerciseId: number
+    workoutExerciseId: string,
   ): Promise<ExerciseSet[]> => {
+    const db = await getDB();
     const sets = await db.getAllAsync(
       `
       SELECT *
@@ -56,108 +55,174 @@ export const setService = {
       WHERE workout_exercise_id = ?
       ORDER BY id
     `,
-      [workoutExerciseId]
+      [workoutExerciseId],
     );
     return sets as ExerciseSet[];
   },
+
   addSet: async (
-    db: SQLite.SQLiteDatabase,
-    set: Omit<ExerciseSet, "id">
-  ): Promise<number> => {
-    const result = await db.runAsync(
+    userId: string,
+    set: Omit<ExerciseSet, "id">,
+  ): Promise<string> => {
+    const db = await getDB();
+    const id = Crypto.randomUUID();
+    await db.runAsync(
       `
-      INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO exercise_sets (id, workout_exercise_id, reps, weight, time, distance, set_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
       [
+        id,
         set.workout_exercise_id,
         set.reps ?? null,
         set.weight ?? null,
         set.time ?? null,
         set.distance ?? null,
         set.set_order ?? null,
-      ]
+      ],
     );
-    return result.lastInsertRowId;
+
+    await syncService.addToSyncQueue(userId, "exercise_sets", id, "insert", {
+      id,
+      workout_exercise_id: set.workout_exercise_id,
+      reps: set.reps ?? null,
+      weight: set.weight ?? null,
+      time: set.time ?? null,
+      distance: set.distance ?? null,
+      set_order: set.set_order ?? null,
+    });
+
+    return id;
   },
-  createSet: async (
-    db: SQLite.SQLiteDatabase,
-    set: Omit<ExerciseSet, "id">
-  ): Promise<{ success: boolean; rowId?: number; error?: string }> => {
+
+  insertSet: async (
+    userId: string,
+    set: ExerciseSet,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const db = await getDB();
     try {
-      const result = await db.runAsync(
-        `INSERT INTO exercise_sets (workout_exercise_id, reps, weight, time, distance, set_order) VALUES (?, ?, ?, ?, ?, ?)`,
+      await db.runAsync(
+        `INSERT INTO exercise_sets (id, workout_exercise_id, reps, weight, time, distance, set_order) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
+          set.id,
           set.workout_exercise_id,
           set.reps ?? null,
           set.weight ?? null,
           set.time ?? null,
           set.distance ?? null,
           set.set_order ?? null,
-        ]
+        ],
       );
-      return { success: true, rowId: result.lastInsertRowId };
-    } catch (error) {
-      console.error(error);
-      return { success: false, error: error as string };
-    }
-  },
-  deleteSet: async (
-    db: SQLite.SQLiteDatabase,
-    setId: number
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      await db.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
+
+      await syncService.addToSyncQueue(
+        userId,
+        "exercise_sets",
+        set.id,
+        "insert",
+        {
+          id: set.id,
+          workout_exercise_id: set.workout_exercise_id,
+          reps: set.reps ?? null,
+          weight: set.weight ?? null,
+          time: set.time ?? null,
+          distance: set.distance ?? null,
+          set_order: set.set_order ?? null,
+        },
+      );
+
       return { success: true };
     } catch (error) {
       console.error(error);
       return { success: false, error: error as string };
     }
   },
-  deleteSetAndUpdateOrder: async (
-    db: SQLite.SQLiteDatabase,
-    setId: number,
-    exerciseId: number,
-    extraSet: boolean,
-    setOrder: number
+
+  deleteSet: async (
+    userId: string,
+    setId: string,
   ): Promise<{ success: boolean; error?: string }> => {
+    const db = await getDB();
+    try {
+      await db.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
+
+      await syncService.addToSyncQueue(
+        userId,
+        "exercise_sets",
+        setId,
+        "delete",
+        {
+          id: setId,
+        },
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error(error);
+      return { success: false, error: error as string };
+    }
+  },
+
+  deleteSetAndUpdateOrder: async (
+    userId: string,
+    setId: string,
+    exerciseId: string,
+    extraSet: boolean,
+    setOrder: number,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const db = await getDB();
     try {
       await db.runAsync(`BEGIN TRANSACTION`);
-      const removedSet = await db.runAsync(
-        `DELETE FROM exercise_sets WHERE id = ?`,
-        [setId]
+      await db.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
+
+      await syncService.addToSyncQueue(
+        userId,
+        "exercise_sets",
+        setId,
+        "delete",
+        {
+          id: setId,
+        },
       );
 
       if (extraSet) {
         const setsToUpdate: ExerciseSet[] = await db.getAllAsync(
           `SELECT * FROM exercise_sets WHERE workout_exercise_id = ? AND set_order > ?`,
-          [exerciseId, setOrder]
+          [exerciseId, setOrder],
         );
         await Promise.all(
           setsToUpdate.map(async (set) => {
             await db.runAsync(
               `UPDATE exercise_sets SET set_order = ? WHERE id = ?`,
-              [set.set_order! - 1, set.id]
+              [set.set_order! - 1, set.id],
             );
-          })
+
+            await syncService.addToSyncQueue(
+              userId,
+              "exercise_sets",
+              set.id,
+              "update",
+              {
+                id: set.id,
+                set_order: set.set_order! - 1,
+              },
+            );
+          }),
         );
       }
       await db.runAsync(`COMMIT`);
-      // remove the set from the exercise
-      // update the order of the sets.
-      // await db.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
       return { success: true };
     } catch (error) {
       console.error(error);
       return { success: false, error: error as string };
     }
   },
+
   updateSet: async (
-    db: SQLite.SQLiteDatabase,
-    set: ExerciseSet
+    userId: string,
+    set: ExerciseSet,
   ): Promise<{ success: boolean; error?: string }> => {
+    const db = await getDB();
     try {
-      console.log("set", set);
       await db.runAsync(
         `UPDATE exercise_sets SET reps = ?, weight = ?, time = ?, distance = ? WHERE id = ?`,
         [
@@ -166,40 +231,82 @@ export const setService = {
           set.time ?? null,
           set.distance ?? null,
           set.id,
-        ]
+        ],
       );
+
+      await syncService.addToSyncQueue(
+        userId,
+        "exercise_sets",
+        set.id,
+        "update",
+        {
+          id: set.id,
+          workout_exercise_id: set.workout_exercise_id,
+          reps: set.reps ?? null,
+          weight: set.weight ?? null,
+          time: set.time ?? null,
+          distance: set.distance ?? null,
+          set_order: set.set_order ?? null,
+        },
+      );
+
       return { success: true };
     } catch (error) {
       console.error(error);
       return { success: false, error: error as string };
     }
   },
-  updateSets: async (
-    db: SQLite.SQLiteDatabase,
-    sets: ExerciseSet[]
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      await db.withTransactionAsync(async () => {
-        const statement = await db.prepareAsync(
-          `UPDATE exercise_sets 
-         SET reps = ?, weight = ?, time = ?, distance = ? 
-         WHERE id = ?`
-        );
 
-        try {
-          for (const set of sets) {
-            await statement.executeAsync([
-              set.reps ?? null,
-              set.weight ?? null,
-              set.time ?? null,
-              set.distance ?? null,
-              set.id,
-            ]);
-          }
-        } finally {
-          await statement.finalizeAsync();
+  updateSets: async (
+    userId: string,
+    sets: ExerciseSet[],
+  ): Promise<{ success: boolean; error?: string }> => {
+    console.log("userId in setService updateSets: ", userId);
+    console.log(
+      "Updating multiple sets with updateSets in setService updateSets: ",
+      sets,
+    );
+    const db = await getDB();
+    try {
+      const statement = await db.prepareAsync(
+        `UPDATE exercise_sets 
+           SET reps = ?, weight = ?, time = ?, distance = ?, set_order = ?
+           WHERE id = ?`,
+      );
+
+      try {
+        for (const set of sets) {
+          await statement.executeAsync([
+            set.reps ?? null,
+            set.weight ?? null,
+            set.time ?? null,
+            set.distance ?? null,
+            set.set_order ?? null,
+            set.id,
+          ]);
         }
-      });
+      } finally {
+        await statement.finalizeAsync();
+      }
+
+      // Add each set to sync queue after transaction completes
+      for (const set of sets) {
+        await syncService.addToSyncQueue(
+          userId,
+          "exercise_sets",
+          set.id,
+          "update",
+          {
+            id: set.id,
+            workout_exercise_id: set.workout_exercise_id,
+            reps: set.reps ?? null,
+            weight: set.weight ?? null,
+            time: set.time ?? null,
+            distance: set.distance ?? null,
+            set_order: set.set_order ?? null,
+          },
+        );
+      }
 
       return { success: true };
     } catch (error) {

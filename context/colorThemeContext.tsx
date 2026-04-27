@@ -4,15 +4,14 @@ import React, {
   useContext,
   useState,
   useMemo,
-  type PropsWithChildren,
   useEffect,
   ReactNode,
 } from "react";
 import { useColorScheme, ColorSchemeName } from "react-native";
-import { lightTheme, darkTheme, tokens } from "@/utils/colorTheme";
-
-// Define allowed theme modes
-export type ColorThemePreference = "light" | "dark" | "system";
+import { tokens } from "@/utils/colorTheme";
+import { useAppInit } from "./AppInitContext";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "./authContext";
 
 // Define the shape of your theme object
 type Color = {
@@ -43,90 +42,143 @@ type spacing = {
   lg: number; // default page margin for phones
   xl: number;
   xxl: number;
-  button_height: number;
-  input_height: number;
+  buttonHeight: number;
+  inputHeight: number;
+  screenPadding: number;
+  headerBottomMargin: number; // margin below headers
+  sectionGap: number; // gap between sections
 };
+
+type fonts = {
+  heading: string;
+  headerBody: string;
+  body: string;
+  stats: string;
+};
+
+// Theme types
+export type ColorThemePreference = "light" | "dark" | "system";
 
 type ThemeTokens = {
-  color: Color;
-  spacing: spacing;
+  color: typeof tokens.light | typeof tokens.dark;
+  spacing: typeof tokens.spacing;
+  fonts: typeof tokens.fonts;
 };
-// Define what the context provides
+
 interface ColorThemeContextType {
   theme: ThemeTokens;
-  userPreference: ColorThemePreference;
-  toggleTheme: (value: ColorThemePreference) => Promise<void>;
+  themePreference: ColorThemePreference;
+  updateThemePreference: (value: ColorThemePreference) => Promise<void>;
 }
 
-// Create the context with an undefined default
+// Context
 const ThemeContext = createContext<ColorThemeContextType | undefined>(
-  undefined
+  undefined,
 );
 
-interface ThemeProviderProps {
-  children: ReactNode;
-}
+export function ColorThemeProvider({ children }: { children: ReactNode }) {
+  const { isDbReady } = useAppInit();
+  const { user } = useAuth();
+  const systemScheme = useColorScheme();
 
-export function ColorThemeProvider({ children }: PropsWithChildren) {
-  const systemScheme = useColorScheme(); // 'light' | 'dark' | null
-
-  const [userPreference, setUserPreference] =
+  const [themePreference, setThemePreference] =
     useState<ColorThemePreference>("system");
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load saved preference from AsyncStorage
+  // 🔥 Load theme on startup
   useEffect(() => {
-    (async () => {
+    const loadTheme = async () => {
       try {
+        // 1. Check AsyncStorage first
         const saved = await AsyncStorage.getItem("theme");
+
         if (saved === "light" || saved === "dark" || saved === "system") {
-          setUserPreference(saved);
+          setThemePreference(saved);
+          setIsLoaded(true);
+          return;
         }
-        if (saved === null) {
-          await AsyncStorage.setItem("theme", "system");
-          setUserPreference("system");
+
+        // 2. Fallback to Supabase
+        if (isDbReady && user) {
+          const { data, error } = await supabase
+            .from("user_preferences")
+            .select("theme")
+            .eq("user_id", user.id)
+            .single();
+
+          if (error) throw error;
+
+          const theme = data?.theme ?? "system";
+
+          setThemePreference(theme);
+          await AsyncStorage.setItem("theme", theme);
+        } else {
+          setThemePreference("system");
         }
       } catch (error) {
-        console.warn("Failed to load theme preference:", error);
+        console.error("Error loading theme:", error);
+        setThemePreference("system");
+      } finally {
+        setIsLoaded(true);
       }
-    })();
-  }, []);
+    };
 
-  // Save and update theme
-  const toggleTheme = async (value: ColorThemePreference) => {
+    loadTheme();
+  }, [isDbReady, user]);
+
+  // 🔥 Public function to update theme (used anywhere)
+  const updateThemePreference = async (value: ColorThemePreference) => {
     try {
-      setUserPreference(value);
+      // 1. Update UI immediately
+      setThemePreference(value);
+
+      // 2. Save locally
       await AsyncStorage.setItem("theme", value);
+
+      // 3. Sync to Supabase
+      if (user) {
+        await supabase.from("user_preferences").upsert({
+          user_id: user.id,
+          theme: value,
+        });
+      }
     } catch (error) {
-      console.warn("Failed to save theme preference:", error);
+      console.warn("Failed to update theme:", error);
     }
   };
 
-  // Decide which scheme to use (system or manual override)
+  // Determine actual scheme
   const scheme: ColorSchemeName =
-    userPreference === "system" ? systemScheme : userPreference;
+    themePreference === "system" ? systemScheme : themePreference;
 
-  // Choose the theme object
+  // Build theme object
   const theme = useMemo<ThemeTokens>(() => {
     const colorSet = scheme === "dark" ? tokens.dark : tokens.light;
 
     return {
       color: colorSet,
       spacing: tokens.spacing,
+      fonts: tokens.fonts,
     };
   }, [scheme]);
 
+  // Prevent flicker
+  if (!isLoaded) return null;
+
   return (
-    <ThemeContext.Provider value={{ theme, userPreference, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{ theme, themePreference, updateThemePreference }}
+    >
       {children}
     </ThemeContext.Provider>
   );
 }
 
-// Custom hook for consuming the theme
+// Hook
 export const useColorTheme = (): ColorThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
+    throw new Error("useColorTheme must be used within a ThemeProvider");
   }
   return context;
 };

@@ -1,20 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
 import { Exercise } from "@/types/type";
 import { debounce } from "@/utils/debounce";
-import { workoutService } from "@/services/workoutService";
-import { useDatabase } from "@/context/databaseContext";
+
 import { useWorkout } from "@/context/workoutContext";
 // This hook is used to update the exercise order in the database when the user reorders the exercises
 // It uses a debounced function to update the database after a delay
 // It also updates the exercises state when the initial exercises change
 export default function useAutoUpdateExerciseOrder(exercises: Exercise[]) {
   const [updatedExercises, setUpdatedExercises] = useState<Exercise[]>(
-    exercises || []
+    exercises || [],
   );
   const [updatedExercisesIds, setUpdatedExercisesIds] = useState<
     { id: number; newOrder: number }[]
   >([]);
-  const { db } = useDatabase();
+
   const { workouts, setWorkouts } = useWorkout();
   // Debounced function to update database
   const debouncedUpdateDatabase = useCallback(
@@ -44,7 +43,7 @@ export default function useAutoUpdateExerciseOrder(exercises: Exercise[]) {
       // }
       // }
     }, 500),
-    []
+    [],
   );
 
   useEffect(() => {

@@ -6,13 +6,13 @@ import {
   startOfMonth,
   endOfMonth,
 } from "date-fns";
+import { getDB } from "./database";
 
-export const getCurrentStreak = async (
-  db: SQLite.SQLiteDatabase | null
-): Promise<{ workoutsMonth: number; workoutsWeek: number }> => {
-  if (!db) {
-    return { workoutsMonth: 0, workoutsWeek: 0 };
-  }
+export const getCurrentStreak = async (): Promise<{
+  workoutsMonth: number;
+  workoutsWeek: number;
+}> => {
+  const db = await getDB();
   const now = new Date();
   const todayStr = format(now, "yyyy-MM-dd");
   const startMonth = format(startOfMonth(now), "yyyy-MM-dd");
@@ -31,7 +31,7 @@ export const getCurrentStreak = async (
     BETWEEN DATE(?) AND DATE(?)
     ORDER BY DATE(scheduled_datetime) DESC
     `,
-    [`${startMonth}`, `${todayStr}`]
+    [`${startMonth}`, `${todayStr}`],
   );
 
   const work = await db.getAllAsync(
@@ -39,11 +39,11 @@ export const getCurrentStreak = async (
     SELECT *
     FROM workouts
     WHERE id = 30
-    `
+    `,
   );
 
   const workoutsInCurrentWeek = workoutsInCurrentMonth.filter(
-    (element) => element.scheduled_datetime >= startWeek
+    (element) => element.scheduled_datetime >= startWeek,
   );
 
   return {

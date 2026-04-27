@@ -1,49 +1,52 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Link } from "expo-router";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
-import { Controller, useFormContext } from "react-hook-form";
-import { useEffect, useState } from "react";
+import { useFormContext } from "react-hook-form";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useWorkoutSession } from "@/context/WorkoutSessionContext";
 
 export default function UpdateManagerFabButton() {
-  const {
-    formState: { isDirty, dirtyFields },
-    getValues,
-    reset,
-  } = useFormContext();
-  const [isActive, setIsActive] = useState<boolean>(false);
   const { theme } = useColorTheme();
-  const { saveWorkout, isUpdatedNeeeded } = useWorkoutSession();
-  const values = getValues();
+  const { saveWorkout, isUpdateNeeded, isSaving, saveError } =
+    useWorkoutSession();
+  const {
+    formState: { isDirty },
+  } = useFormContext();
 
-  useEffect(() => {
-    if (isUpdatedNeeeded) {
-      setIsActive(true);
+  const isActive = isUpdateNeeded;
+
+  const handlePress = async () => {
+    if (!isActive || isSaving) {
+      console.log("Update FAB not active");
+      return;
     }
-  }, [isUpdatedNeeeded]);
+    const result = await saveWorkout();
+    if (!result.success) {
+      console.error("Save failed", saveError);
+    }
+  };
 
   return (
-    <Pressable
-      style={StyleSheet.flatten([styles.fab, {}])}
-      onPress={() => {
-        if (!isActive) {
-          console.log("Update FAB not active");
-          return;
-        }
-
-        saveWorkout(values);
-        const updatedValues = getValues();
-        reset(updatedValues);
-        setIsActive(false);
-      }}
-    >
-      <MaterialIcons
-        name="change-circle"
-        style={{ zIndex: 5, elevation: 5 }}
-        size={64}
-        color={isActive ? theme.color.accentActive : theme.color.disabled}
-      />
+    <Pressable style={styles.fab} onPress={handlePress} disabled={isSaving}>
+      {isSaving ? (
+        <ActivityIndicator
+          size={64}
+          color={theme.color.accentActive}
+          style={{ zIndex: 5, elevation: 5 }}
+        />
+      ) : (
+        <MaterialIcons
+          name="change-circle"
+          style={{ zIndex: 5, elevation: 5 }}
+          size={64}
+          color={isActive ? theme.color.accentActive : theme.color.disabled}
+        />
+      )}
     </Pressable>
   );
 }
@@ -51,12 +54,7 @@ export default function UpdateManagerFabButton() {
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    bottom: 28,
+    bottom: 68,
     right: 20,
-  },
-  text: {
-    color: "white",
-    fontSize: 32,
-    lineHeight: 32,
   },
 });

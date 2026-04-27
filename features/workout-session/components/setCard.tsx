@@ -1,13 +1,8 @@
 import { ExerciseSet } from "@/types/type";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import SetInputs from "./setInputs";
 import { useState } from "react";
-import CustomModal from "@/components/ui/customModal";
-import { useDatabase } from "@/context/databaseContext";
-import { setService } from "@/services/setService";
-import { useWorkout } from "@/context/workoutContext";
-import { IconButton } from "@/components/ui/iconButton";
 import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function SetCard({
@@ -26,97 +21,35 @@ export default function SetCard({
     track_distance: number;
   };
 }) {
-  const { db } = useDatabase();
-  const { deleteWorkoutExerciseSet } = useWorkout();
   const { watch } = useFormContext();
   const { theme } = useColorTheme();
   const { remove } = useFieldArray({
     name: `exercises.${exerciseIndex}.sets`,
   });
-  const exercise = watch(`exercises.${exerciseIndex}`);
-  const [isLongPressed, setIsLongPressed] = useState(false);
+
   const [isModalVisible, setIsModalVisible] = useState(false);
   const sets = watch(`exercises.${exerciseIndex}.sets`);
   const size = sets?.length || 0;
-
-  const handleDeleteSet = async () => {
-    const extraSet: boolean = size - set.set_order > 0;
-
-    remove(setIndex);
-
-    setIsModalVisible(false);
-  };
 
   return (
     <View
       style={[
         styles.SetCardInputContainer,
         {
-          backgroundColor: isModalVisible
-            ? "#FF686B"
-            : isLongPressed
-            ? "#FF686B"
-            : theme.color.surface2,
-          borderColor: theme.color.border,
+          backgroundColor:
+            setIndex % 2 === 0 ? theme.color.surface2 : "transparent",
         },
       ]}
     >
-      <Pressable
-        delayLongPress={300}
-        style={[
-          {
-            backgroundColor: isModalVisible
-              ? "#FF686B"
-              : isLongPressed
-              ? "#FF686B"
-              : theme.color.surface2,
-            transform: [{ scale: isLongPressed ? 0.98 : 1 }],
-          },
-        ]}
-        onLongPress={() => {
-          setIsLongPressed(true);
-          setIsModalVisible(true);
-        }}
-        onPressOut={() => {
-          setIsLongPressed(false);
-        }}
-      >
-        <Text style={{ color: theme.color.textPrimary }}>
-          Set {setIndex + 1}
-        </Text>
+      <Text style={[styles.setLabel, { color: theme.color.textSecondary }]}>
+        SET {setIndex + 1}
+      </Text>
 
-        <SetInputs
-          set={set}
-          exerciseIndex={exerciseIndex}
-          setIndex={setIndex}
-          options={options}
-        />
-      </Pressable>
-      <CustomModal
-        visible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        title={`Delete Set`}
-        closeButtonText="Cancel"
-      >
-        <DeleteSetModal handleDeleteSet={handleDeleteSet} />
-      </CustomModal>
-    </View>
-  );
-}
-
-function DeleteSetModal({ handleDeleteSet }: { handleDeleteSet: () => void }) {
-  return (
-    <View style={{ alignItems: "center", paddingVertical: 20 }}>
-      <IconButton
-        icon="trash-outline"
-        style={[
-          styles.iconButton,
-          styles.deleteButton,
-          { width: 70, height: 70, borderRadius: 70 },
-        ]}
-        size={50}
-        color="white"
-        onPress={handleDeleteSet}
+      <SetInputs
+        set={set}
+        exerciseIndex={exerciseIndex}
+        setIndex={setIndex}
+        options={options}
       />
     </View>
   );
@@ -124,21 +57,17 @@ function DeleteSetModal({ handleDeleteSet }: { handleDeleteSet: () => void }) {
 
 const styles = StyleSheet.create({
   SetCardInputContainer: {
-    padding: 5,
-    borderWidth: 1,
-    borderColor: "black",
-    backgroundColor: "white",
-    borderRadius: 5,
-    minWidth: 50, // Ensure minimum width for proper layout
-  },
-  iconButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 20,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
-  deleteButton: {
-    backgroundColor: "red",
+  setLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    width: 44,
   },
 });

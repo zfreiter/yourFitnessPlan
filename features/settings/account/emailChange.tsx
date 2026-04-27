@@ -1,7 +1,13 @@
-import { Alert, View, Text, TextInput, Pressable, Modal } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Modal,
+  StyleSheet,
+} from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import Toast from "react-native-toast-message";
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { supabase } from "@/lib/supabaseClient";
@@ -11,42 +17,37 @@ export default function EmailChange() {
   const [newEmail, setNewEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFocused, setIsFocused] = useState<boolean>(false);
+  const [isFocused, setIsFocused] = useState(false);
   const { theme } = useColorTheme();
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return emailRegex.test(email.trim());
-  };
+  const validateEmail = (email: string) =>
+    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim());
 
-  const handleEmailChange = (text: string) => {
-    setNewEmail(text);
+  const closeModal = () => {
+    setNewEmail("");
+    setEmailError("");
+    setModalVisible(false);
   };
 
   const handleSubmit = async () => {
     if (!newEmail || !validateEmail(newEmail)) {
       setEmailError("Please enter a valid email");
-      console.log("Invalid email:", newEmail.length, validateEmail(newEmail));
       return;
     }
     setEmailError("");
     setIsSubmitting(true);
-    console.log("Submitting email change to:", newEmail);
     try {
-      const { error, data } = await supabase.auth.updateUser({
+      const { error } = await supabase.auth.updateUser({
         email: newEmail.trim(),
       });
       if (error) throw error;
-      // Success - show message then log out
-      console.log("Email update data:", data);
       Toast.show({
         type: "success",
         text1: "Email update requested",
-        text2: "Please check your email to confirm the change.",
+        text2: "Check your email to confirm the change.",
       });
-
       await supabase.auth.signOut();
-    } catch (error) {
+    } catch {
       setEmailError("Failed to update email");
     } finally {
       setIsSubmitting(false);
@@ -58,105 +59,87 @@ export default function EmailChange() {
       <Pressable
         onPress={() => setModalVisible(true)}
         style={({ pressed }) => [
+          styles.triggerButton,
           {
-            height: theme.spacing.button_height,
             backgroundColor: pressed
-              ? theme.color.accentStrong
+              ? theme.color.surface2
               : theme.color.surface,
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: theme.color.accent,
-            borderRadius: 8,
+            borderColor: theme.color.border,
           },
         ]}
       >
-        {({ pressed }) => (
-          <Text style={{ color: theme.color.textPrimary }}>Update Email</Text>
-        )}
+        <Text
+          style={[
+            styles.triggerText,
+            { color: theme.color.textPrimary, fontFamily: theme.fonts.body },
+          ]}
+        >
+          Update Email
+        </Text>
       </Pressable>
 
       <Modal
         animationType="slide"
-        transparent={true}
+        transparent
         visible={modalVisible}
-        onRequestClose={() => {
-          setNewEmail("");
-          setEmailError("");
-          setModalVisible(false);
-        }}
+        onRequestClose={closeModal}
       >
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center", // Vertical centering
-            alignItems: "center", // Horizontal centering
-          }}
-          onPress={() => {
-            setNewEmail("");
-            setEmailError("");
-            setModalVisible(false);
-          }}
-        >
+        <Pressable style={styles.backdrop} onPress={closeModal}>
           <Pressable
-            style={{ width: "100%", padding: 20 }}
+            style={styles.sheetWrapper}
             onPress={(e) => e.stopPropagation()}
           >
             <View
-              style={{
-                flexDirection: "column",
-                gap: theme.spacing.lg,
-                backgroundColor: theme.color.surface,
-                borderColor: theme.color.border,
-                borderWidth: 1,
-                padding: theme.spacing.lg,
-                borderRadius: 10,
-                width: "100%",
-              }}
+              style={[
+                styles.sheet,
+                {
+                  backgroundColor: theme.color.surface,
+                  borderColor: theme.color.border,
+                },
+              ]}
             >
-              <Pressable
-                style={{}}
-                onPress={() => {
-                  setNewEmail("");
-                  setEmailError("");
-                  setModalVisible(false);
-                }}
-              >
+              <Pressable onPress={closeModal} style={styles.closeButton}>
                 <MaterialIcons
                   name="cancel"
-                  size={30}
-                  style={{ alignSelf: "flex-end" }}
-                  color={theme.color.accent}
+                  size={24}
+                  color={theme.color.textSecondary}
                 />
               </Pressable>
+
               <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  textAlign: "center",
-                  color: theme.color.textPrimary,
-                }}
+                style={[
+                  styles.modalTitle,
+                  {
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.heading,
+                  },
+                ]}
               >
-                Email change form
+                Email Change
               </Text>
+
               <View style={{ gap: theme.spacing.label }}>
-                <Text style={{ color: theme.color.textSecondary }}>
-                  New Email:
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.color.textSecondary },
+                  ]}
+                >
+                  NEW EMAIL
                 </Text>
                 <TextInput
-                  style={{
-                    padding: 10,
-                    backgroundColor: theme.color.input,
-                    borderColor: emailError
-                      ? theme.color.danger
-                      : isFocused
-                        ? theme.color.accent
-                        : theme.color.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    color: theme.color.textPrimary,
-                  }}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.color.input,
+                      borderColor: emailError
+                        ? theme.color.danger
+                        : isFocused
+                          ? theme.color.accentActive
+                          : theme.color.border,
+                      color: theme.color.textPrimary,
+                    },
+                  ]}
                   placeholder="Enter new email"
                   placeholderTextColor={theme.color.placeholderColor}
                   keyboardType="email-address"
@@ -164,37 +147,35 @@ export default function EmailChange() {
                   autoCorrect={false}
                   autoComplete="email"
                   onFocus={() => setIsFocused(true)}
-                  onBlur={() => {
-                    setIsFocused(false);
-                  }}
+                  onBlur={() => setIsFocused(false)}
                   value={newEmail}
-                  onChangeText={handleEmailChange}
+                  onChangeText={setNewEmail}
                 />
-                {emailError.length > 0 ? (
-                  <Text style={{ color: theme.color.danger }}>
+                {emailError.length > 0 && (
+                  <Text
+                    style={[styles.errorText, { color: theme.color.danger }]}
+                  >
                     {emailError}
                   </Text>
-                ) : null}
+                )}
               </View>
+
               <Pressable
                 onPress={handleSubmit}
                 style={({ pressed }) => [
+                  styles.submitButton,
                   {
-                    height: theme.spacing.button_height,
                     backgroundColor: pressed
                       ? theme.color.accentStrong
                       : theme.color.accent,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    borderRadius: 8,
                   },
                 ]}
               >
-                {({ pressed }) => (
-                  <Text style={{ color: theme.color.textPrimary }}>
-                    Submit Email Change
-                  </Text>
-                )}
+                <Text
+                  style={[styles.submitText, { fontFamily: theme.fonts.body }]}
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Email Change"}
+                </Text>
               </Pressable>
             </View>
           </Pressable>
@@ -203,3 +184,34 @@ export default function EmailChange() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  triggerButton: {
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  triggerText: { fontSize: 15 },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetWrapper: { width: "100%", padding: 20 },
+  sheet: { gap: 16, borderWidth: 1, padding: 20, borderRadius: 10 },
+  closeButton: { alignSelf: "flex-end" },
+  modalTitle: { fontSize: 18, textAlign: "center" },
+  fieldLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
+  input: { borderWidth: 1, padding: 10, borderRadius: 8, fontSize: 15 },
+  errorText: { fontSize: 12 },
+  submitButton: {
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  submitText: { fontSize: 15, color: "#fff", fontWeight: "600" },
+});

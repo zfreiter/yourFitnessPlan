@@ -3,6 +3,7 @@ export const colors = {
   cardio: "#0066cc",
   circuit: "#00cc44",
   mobility: "#9933ff",
+  field: "#D97706",
 };
 
 export const colorsGradiant = {

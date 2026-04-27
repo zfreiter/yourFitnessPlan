@@ -1,13 +1,14 @@
-import { Ionicons } from "@expo/vector-icons";
-import Entypo from "@expo/vector-icons/Entypo";
-import { useDatabase } from "@/context/databaseContext";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Crypto from "expo-crypto";
+import {
+  useSafeAreaInsets,
+  SafeAreaView,
+} from "react-native-safe-area-context";
 import {
   Controller,
   useForm,
   useFieldArray,
   useFormContext,
-  Control,
 } from "react-hook-form";
 import {
   View,
@@ -16,71 +17,17 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Alert,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useWorkout } from "@/context/workoutContext";
 import { AppButton } from "@/components/button";
-import { ExerciseFormData } from "@/types/common/workoutInterface";
-import {
-  Exercise,
-  SetDetails,
-  ValidUnit,
-  WorkoutExercise,
-} from "@/types/interfaces/types";
-import { Workout } from "@/types/type";
+import { Exercise } from "@/types/common/workoutInterface";
+import { ValidUnit } from "@/types/interfaces/types";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { Dropdown } from "react-native-element-dropdown";
+import { ExerciseControl } from "@/features/create-workout/components/exerciseControl";
 import { workoutService } from "@/services/workoutService";
-
-// Utility functions for set initialization
-const createEmptySet = (): SetDetails => ({
-  reps: undefined,
-  weight: undefined,
-  time: undefined,
-  distance: undefined,
-});
-
-const createSetFromUnits = (units: ValidUnit[]): SetDetails => ({
-  reps: units.includes("reps") ? 0 : undefined,
-  weight: units.includes("weight") ? 0 : undefined,
-  time: units.includes("time") ? 0 : undefined,
-  distance: units.includes("distance") ? 0 : undefined,
-});
-
-// Type guard to safely validate ValidUnit arrays
-const isValidUnitArray = (units: string[]): units is ValidUnit[] => {
-  const validUnits: readonly string[] = ["reps", "weight", "time", "distance"];
-  return units.every((unit) => validUnits.includes(unit));
-};
-
-// Constants for picker default values
-const DEFAULT_PICKER_VALUE = "NA" as const;
-const SELECT_EXERCISE_LABEL = "Select exercise" as const;
-const SELECT_OPTION_LABEL = "Please select an option" as const;
-
-// Validation rules and messages
-const VALIDATION_MESSAGES = {
-  EXERCISE_REQUIRED: "Exercise selection is required",
-  EXERCISE_UNDEFINED: "Please select an exercise",
-  OPTION_REQUIRED: "Please select an option",
-} as const;
-
-const validationRules = {
-  exercise: {
-    required: VALIDATION_MESSAGES.EXERCISE_REQUIRED,
-    validate: (value: Exercise | undefined) =>
-      value !== undefined || VALIDATION_MESSAGES.EXERCISE_UNDEFINED,
-  },
-  chosenUnitCombination: {
-    validate: (value: ValidUnit[] | undefined) => {
-      if (!value || value.length === 0) {
-        return VALIDATION_MESSAGES.OPTION_REQUIRED;
-      }
-      return true;
-    },
-  },
-} as const;
+import { useAuth } from "@/context/authContext";
 
 export default function AddExercise({
   setShowExerciseModal,
@@ -90,758 +37,338 @@ export default function AddExercise({
   const [chosenExercise, setChosenExercise] = useState<Exercise | null>(null);
   const [optionsChoice, setOptionsChoice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { bottom } = useSafeAreaInsets();
   const methods = useFormContext();
   const { theme } = useColorTheme();
-  const { db } = useDatabase();
+  const { exercises, addWorkoutExercise } = useWorkout();
+  const { user } = useAuth();
+  const searchRef = useRef<TextInput>(null);
+
   const {
     control,
     handleSubmit,
     reset,
+    setError,
     getValues,
     setValue,
     watch,
     formState: { errors },
-  } = useForm<WorkoutExercise>({
+  } = useForm<Exercise>({
     defaultValues: {
-      exercise: undefined,
-      chosenUnitCombination: [],
-      sets: [createEmptySet()],
+      id: "",
+      exercise_id: "",
+      workout_id: "",
+      exercise_name: "",
+      exercise_description: "",
+      exercise_difficulty: "",
+      track_reps: 0,
+      track_weight: 0,
+      track_time: 0,
+      track_distance: 0,
+      sets: [],
     },
     mode: "onChange",
   });
-  const { fields, append, remove } = useFieldArray({
+
+  const { fields, append, remove, replace } = useFieldArray({
     control,
     name: "sets",
   });
-  const {
-    exercises: rawExercises,
-    workouts,
-    setWorkouts,
-    addWorkoutExercise,
-  } = useWorkout();
-
-  // Map exercises to the expected format for WorkoutExercise
-  const exercises = useMemo(() => {
-    return rawExercises.map((ex: any) => ({
-      id: ex.exercise_id?.toString?.() ?? ex.id?.toString?.() ?? "",
-      name: ex.exercise_name ?? ex.name ?? "",
-      description: ex.exercise_description ?? ex.description ?? "",
-      types: ex.types ?? [],
-      validUnits: ex.validUnits ?? [],
-      musclesTargeted: ex.musclesTargeted ?? [],
-      equipment: ex.equipment ?? [],
-      difficulty: ex.exercise_difficulty ?? ex.difficulty ?? "beginner",
-      noWeight: ex.noWeight ?? false,
-    }));
-  }, [rawExercises]);
 
   const watchSetsLen = watch("sets").length;
-
-  // Standardized reset functions for consistent form reset behavior
-  const resetToInitialState = useCallback(() => {
-    reset({
-      exercise: undefined,
-      chosenUnitCombination: [],
-      sets: [createEmptySet()],
-    });
-    setChosenExercise(null);
-    setOptionsChoice(null);
-    setShowExerciseModal(false);
-  }, [reset, setShowExerciseModal]);
-
-  const resetFormForNewExercise = useCallback(() => {
-    reset({
-      exercise: undefined,
-      chosenUnitCombination: [],
-      sets: [createEmptySet()],
-    });
-    setOptionsChoice(null);
-    // Note: chosenExercise and modal state remain unchanged
-  }, [reset]);
-
-  const resetOptionsOnly = useCallback(
-    (onChange?: (value: ValidUnit[]) => void) => {
-      setValue("chosenUnitCombination", []);
-      setOptionsChoice(null);
-      setValue("sets", [createEmptySet()]);
-      onChange?.([]);
-    },
-    [setValue],
-  );
 
   // onSubmit logic from workout-session (we need to update the exercise list in the context)
 
   const onSubmit = useCallback(
-    async (data: WorkoutExercise) => {
+    async (data: Exercise) => {
       // Validate that an exercise is selected
-      if (!chosenExercise) {
-        console.error("No exercise selected");
+      if (data.exercise_id === "") {
+        setError("exercise_id", { message: "Please select an exercise" });
         return;
       }
 
-      setIsSubmitting(true);
-      try {
-        const newExercise: ExerciseFormData = {
-          exercise_id: parseInt(chosenExercise.id),
-          exercise_name: chosenExercise.name,
-          exercise_description: chosenExercise.description,
-          exercise_difficulty: chosenExercise.difficulty,
-          track_reps: data.chosenUnitCombination.includes("reps") ? 1 : 0,
-          track_weight: data.chosenUnitCombination.includes("weight") ? 1 : 0,
-          track_time: data.chosenUnitCombination.includes("time") ? 1 : 0,
-          track_distance: data.chosenUnitCombination.includes("distance")
-            ? 1
-            : 0,
-          validUnits: chosenExercise.validUnits,
-          musclesTargeted: chosenExercise.musclesTargeted,
-          equipment: chosenExercise.equipment,
-          sets: data.sets.map((set, index) => ({
-            reps: set.reps ?? undefined,
-            weight: set.weight ?? undefined,
-            time: set.time ?? undefined,
-            distance: set.distance ?? undefined,
-            set_order: index,
-          })),
-          exercise_order: methods.getValues("exercises").length + 1,
-        };
-        const workoutId = methods.getValues("id");
+      const currentExerciseList = methods.getValues("exercises");
+      const workoutId = methods.getValues("id");
 
-        if (!db) {
-          console.error("Database not found");
-          throw new Error("Database not found");
-        }
+      const exerciseId = Crypto.randomUUID();
 
-        const {
-          success,
-          data: newExerciseData,
-          error,
-        } = await workoutService.updateWorkoutNewExercise(
-          db,
-          workoutId,
-          newExercise,
-        );
-        if (error) {
-          console.error("Failed to add exercise:", error);
-          throw new Error(error);
-        }
+      const submitExercise: Exercise = {
+        id: exerciseId,
+        workout_id: workoutId,
+        exercise_id: data.exercise_id,
+        exercise_name: data.exercise_name,
+        exercise_description: data.exercise_description,
+        exercise_difficulty: data.exercise_difficulty,
+        track_reps: data.track_reps,
+        track_weight: data.track_weight,
+        track_time: data.track_time,
+        track_distance: data.track_distance,
+        validUnits: chosenExercise!.validUnits,
+        musclesTargeted: [],
+        equipment: [],
+        sets: data.sets.map((set) => ({
+          ...set,
+          workout_exercise_id: exerciseId,
+        })),
+        exercise_order: methods.getValues("exercises").length + 1,
+      };
 
-        const currentExerciseList = methods.getValues("exercises");
+      // workout service
+      const response = await workoutService.updateWorkoutNewExercise(
+        user?.id!,
+        workoutId,
+        submitExercise,
+      );
 
-        methods.setValue("exercises", [
-          ...currentExerciseList,
-          newExerciseData,
-        ]);
-        const currentWorkoutList = methods.getValues("id");
+      if (!response.success) return;
 
-        if (newExerciseData) {
-          addWorkoutExercise(newExerciseData, currentWorkoutList);
-        }
+      methods.setValue("exercises", [...currentExerciseList, submitExercise]);
+      addWorkoutExercise(submitExercise, workoutId);
 
-        resetToInitialState();
-      } catch (error) {
-        console.error("Unexpected error adding exercise:", error);
-      } finally {
-        setIsSubmitting(false);
-      }
+      reset({
+        exercise_id: "",
+        track_reps: 0,
+        track_weight: 0,
+        track_time: 0,
+        track_distance: 0,
+        sets: [],
+      });
+      setChosenExercise(null);
+      setOptionsChoice(null);
+      setShowExerciseModal(false);
+      setValue("exercise_id", "");
     },
-    [methods, chosenExercise, resetToInitialState, db],
+    [getValues, methods, reset, chosenExercise, setShowExerciseModal],
   );
 
   const handleExerciseChange = useCallback(
     (itemValue: string, onChange: (value: string) => void) => {
-      // Setting to selected exercise id
       onChange(itemValue);
-      // console.log("AddExercise - itemValue:", itemValue);
-      // Resetting the form to default values (exercise, chosenUnitCombination, sets)
-      resetFormForNewExercise();
-      // If the user selects "Select exercise" we set the chosen exercise to null
-      if (itemValue === DEFAULT_PICKER_VALUE) {
+
+      if (itemValue === "NA") {
         setChosenExercise(null);
+        setOptionsChoice(null);
         return;
       }
-      // Finding the exercise in the exercises list
+
       const foundExercise =
-        exercises.find((exercise) => exercise.id.toString() === itemValue) ||
-        null;
-      // If the exercise is not found we throw an error
-      if (foundExercise === null) {
-        throw new Error("Exercise not found");
-      }
-      // Setting the exercise to the found exercise
-      setValue("exercise", foundExercise);
+        exercises.find(
+          (exercise) => exercise.exercise_id.toString() === itemValue,
+        ) || null;
 
-      // If the exercise has only one valid unit we set the chosen unit combination to the valid unit
-      if (
-        foundExercise.validUnits?.length === 1 &&
-        foundExercise.validUnits[0]
-      ) {
-        const defaultUnit = foundExercise.validUnits[0];
-        setValue("chosenUnitCombination", defaultUnit);
-        setOptionsChoice(defaultUnit.join("-"));
-        setValue("sets", [createSetFromUnits(defaultUnit)]);
-      }
-      // Setting the chosen exercise to the found exercise
+      if (!foundExercise) throw new Error("Exercise not found");
+
+      const autoUnit =
+        foundExercise.validUnits?.length === 1
+          ? foundExercise.validUnits[0]
+          : null;
+
+      // Single reset instead of 8 setValue calls
+      reset({
+        exercise_id: foundExercise.exercise_id,
+        exercise_name: foundExercise.exercise_name,
+        exercise_description: foundExercise.exercise_description,
+        exercise_difficulty: foundExercise.exercise_difficulty,
+        track_reps: autoUnit?.includes("reps") ? 1 : 0,
+        track_weight: autoUnit?.includes("weight") ? 1 : 0,
+        track_time: autoUnit?.includes("time") ? 1 : 0,
+        track_distance: autoUnit?.includes("distance") ? 1 : 0,
+        sets: [],
+      });
+
       setChosenExercise(foundExercise);
+      setOptionsChoice(autoUnit ? autoUnit.join("-") : null);
     },
-    [
-      exercises,
-      resetFormForNewExercise,
-      setValue,
-      setChosenExercise,
-      getValues,
-    ],
+    [exercises, reset],
   );
 
-  // handleOptionChange is used to handle the change of the option in the picker
-  // it is used to set the chosen unit combination and the sets based on the selected option
-  // it is also used to reset the form to default values when the user selects "Select exercise"
-  const handleOptionChange = useCallback(
-    (itemValue: string, onChange: (value: ValidUnit[]) => void) => {
-      if (itemValue === DEFAULT_PICKER_VALUE) {
-        // Reset to empty state
-        resetOptionsOnly(onChange);
-      } else {
-        // Parse and validate the new option
-        const splitUnits = itemValue.split("-");
-        if (!isValidUnitArray(splitUnits)) {
-          console.error("Invalid unit combination:", itemValue);
-          return;
-        }
-
-        const optionValue: ValidUnit[] = splitUnits;
-        setValue("chosenUnitCombination", optionValue);
-        setOptionsChoice(itemValue);
-        onChange(optionValue);
-
-        // Initialize sets based on selected units
-        setValue("sets", [createSetFromUnits(optionValue)]);
-      }
+  const onOptionChange = useCallback(
+    (option: string) => {
+      const optionValue: ValidUnit[] = option.split("-") as ValidUnit[];
+      console.log("optionValue: ", optionValue);
+      setValue("track_reps", optionValue.includes("reps") ? 1 : 0);
+      setValue("track_weight", optionValue.includes("weight") ? 1 : 0);
+      setValue("track_time", optionValue.includes("time") ? 1 : 0);
+      setValue("track_distance", optionValue.includes("distance") ? 1 : 0);
+      setOptionsChoice(option);
+      reset({
+        ...getValues(),
+        sets: [],
+      });
     },
-    [resetOptionsOnly, setValue, setOptionsChoice],
-  );
-
-  const handleAddSet = useCallback(
-    (foundExercise: Exercise) => {
-      // Use the currently selected unit combination, fallback to first valid unit if none selected
-      const currentUnits = getValues("chosenUnitCombination");
-      const unitsToUse =
-        currentUnits && currentUnits.length > 0
-          ? currentUnits
-          : foundExercise.validUnits?.[0];
-
-      if (!unitsToUse) {
-        console.error("No valid units found for exercise");
-        return;
-      }
-      console.log("test ", createSetFromUnits(unitsToUse));
-      append(createSetFromUnits(unitsToUse));
-    },
-    [append, getValues],
-  );
-
-  //   const handleAddSet = useCallback(() => {
-  //   append({
-  //     reps: 0,
-  //     weight: 0,
-  //     duration: 0,
-  //     distance: 0,
-  //     set_order: 0,
-  //   });
-  // }, [append]);
-
-  const handleRemoveSet = useCallback(
-    (index: number) => {
-      remove(index);
-    },
-    [remove],
+    [setValue, replace],
   );
 
   const handleCloseModal = useCallback(() => {
     setShowExerciseModal(false);
   }, [setShowExerciseModal]);
 
-  const showAddSetButton = watch("chosenUnitCombination")?.length > 0;
-
-  const handleSubmitPress = useCallback(() => {
-    if (!isSubmitting) {
-      handleSubmit(onSubmit)();
-    }
-  }, [isSubmitting, handleSubmit, onSubmit]);
-
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.color.accent }}
+      edges={["top", "bottom"]}
+    >
       <View
-        style={[
-          styles.modalContainer,
-          { backgroundColor: theme.color.background },
-        ]}
+        style={{
+          flex: 1,
+          backgroundColor: theme.color.background,
+          padding: theme.spacing.screenPadding,
+        }}
       >
-        <View
-          style={[
-            styles.headerContainer,
-            { backgroundColor: theme.color.background },
-          ]}
-        >
-          <Pressable
-            style={{ alignSelf: "flex-end", margin: 5 }}
-            onPress={handleCloseModal}
-            accessibilityLabel="Close exercise modal"
-            accessibilityHint="Double tap to close the exercise selection modal"
-            accessibilityRole="button"
-          >
-            {({ pressed }) => (
-              <AppButton
-                title="Cancel"
-                style={{
-                  backgroundColor: pressed
-                    ? theme.color.surface
-                    : theme.color.accent,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                }}
-                onPress={handleCloseModal}
-                textStyle={{ color: "white" }}
-              />
-            )}
+        <View style={{ marginTop: 20, marginRight: 0 }}>
+          <Pressable onPress={handleCloseModal}>
+            <MaterialIcons
+              name="cancel"
+              size={30}
+              style={{ alignSelf: "flex-end" }}
+              color={theme.color.accent}
+            />
           </Pressable>
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollViewContainer}
+          contentContainerStyle={{ paddingTop: theme.spacing.xl }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
         >
-          <Text style={[styles.text, { color: theme.color.textPrimary }]}>
+          <Text
+            style={[
+              styles.text,
+              {
+                fontFamily: theme.fonts.headerBody,
+                fontSize: 18,
+                color: theme.color.textPrimary,
+              },
+            ]}
+          >
             Select exercise
           </Text>
+
           <View
             style={[
               styles.pickerContainer,
               {
+                height: theme.spacing.buttonHeight,
+                borderWidth: 1,
+                borderColor: theme.color.border,
+                borderRadius: 8,
                 backgroundColor: theme.color.surface,
-                borderColor: theme.color.accent,
+                justifyContent: "center",
               },
             ]}
           >
             <Controller
-              name="exercise"
+              name="exercise_id"
               control={control}
-              rules={validationRules.exercise}
-              render={({ field: { onChange, value } }) => (
-                <Picker
-                  mode="dialog"
-                  selectedValue={value?.id?.toString() || DEFAULT_PICKER_VALUE}
-                  onValueChange={(itemValue) => {
-                    handleExerciseChange(itemValue.toString(), onChange);
+              rules={{
+                required: "Exercise selection is required",
+                validate: (value) =>
+                  value.toString() !== "" || "Please select an exercise",
+              }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Dropdown
+                  flatListProps={{
+                    initialNumToRender: 10,
+                    maxToRenderPerBatch: 10,
+                    windowSize: 5,
                   }}
-                  style={{
-                    width: "100%",
-                    backgroundColor: theme.color.surface,
-                    color: theme.color.textPrimary,
+                  renderInputSearch={(onSearch) => (
+                    <TextInput
+                      ref={searchRef}
+                      onChangeText={onSearch}
+                      placeholder="Search..."
+                      autoFocus // 💥 THIS works
+                      style={{
+                        backgroundColor: theme.color.surface,
+                        paddingHorizontal: theme.spacing.md,
+                        paddingVertical: theme.spacing.sm,
+                        borderBottomWidth: 1,
+                        borderColor: theme.color.border,
+                        color: theme.color.textPrimary,
+                        fontFamily: theme.fonts.body,
+                      }}
+                      placeholderTextColor={theme.color.placeholderColor}
+                    />
+                  )}
+                  data={exercises.map((e) => ({
+                    label: e.exercise_name,
+                    value: e.id.toString(),
+                  }))}
+                  fontFamily={theme.fonts.body}
+                  iconColor={theme.color.accent}
+                  search
+                  searchPlaceholder="Search exercise..."
+                  labelField="label"
+                  valueField="value"
+                  placeholder="Select exercise"
+                  value={value === "NA" ? null : value}
+                  onBlur={onBlur}
+                  onChange={(item) => {
+                    handleExerciseChange(item.value, (val) => {
+                      onChange(val);
+                    });
                   }}
                   accessibilityLabel="Exercise selection"
-                  accessibilityHint="Select an exercise from the list"
-                  enabled={!isSubmitting}
-                >
-                  <Picker.Item
-                    label={SELECT_EXERCISE_LABEL}
-                    value={DEFAULT_PICKER_VALUE}
-                  />
-                  {exercises.map((exercise) => (
-                    <Picker.Item
-                      key={exercise.id}
-                      label={exercise.name}
-                      value={exercise.id.toString()}
-                    />
-                  ))}
-                </Picker>
+                  style={{
+                    backgroundColor: theme.color.surface,
+                    marginLeft: theme.spacing.md,
+                    paddingHorizontal: theme.spacing.md,
+                    borderRadius: 8,
+                  }}
+                  containerStyle={{
+                    backgroundColor: theme.color.surface,
+                  }}
+                  itemTextStyle={{
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.body,
+                  }}
+                  selectedTextStyle={{
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.body,
+                  }}
+                  placeholderStyle={{
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.body,
+                  }}
+                  inputSearchStyle={{
+                    color: theme.color.textPrimary,
+                    fontFamily: theme.fonts.body,
+                  }}
+                />
               )}
             />
           </View>
-          {errors.exercise && (
+          {errors.exercise_id && (
             <Text style={[styles.textError, { color: theme.color.danger }]}>
-              {errors.exercise.message}
+              {errors.exercise_id.message}
             </Text>
           )}
-          {/* Exercise Information */}
-          {chosenExercise && (
-            <View style={{}}>
-              <View
-                style={[styles.hr, { borderBottomColor: theme.color.hr }]}
-              />
-              <View></View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  gap: 10,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.exerciseName,
-                      { color: theme.color.textPrimary },
-                    ]}
-                  >
-                    {`${chosenExercise.name}`}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.setDetailsHeader,
-                      { color: theme.color.textSecondary },
-                    ]}
-                  >
-                    {chosenExercise.description}
-                  </Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.SetCardInputContainer,
-                    {
-                      height: 40,
-                      width: 40,
-                      borderRadius: 20,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: theme.color.surface,
-                      borderWidth: 1,
-                      borderColor: theme.color.accentStrong,
-                    },
-                  ]}
-                >
-                  <Pressable
-                    style={({ pressed }) => [
-                      {
-                        backgroundColor: pressed
-                          ? theme.color.surface
-                          : "transparent",
-                        transform: [{ scale: pressed ? 0.98 : 1 }],
-                      },
-                    ]}
-                    onPress={() =>
-                      !isSubmitting && handleAddSet(chosenExercise)
-                    }
-                  >
-                    <View style={[styles.addIconContainer]}>
-                      <Ionicons
-                        name="add"
-                        size={20}
-                        color={theme.color.accentStrong}
-                      />
-                    </View>
-                  </Pressable>
-                </View>
-
-                <View
-                  style={[
-                    styles.SetCardInputContainer,
-                    {
-                      height: 40,
-                      width: 40,
-                      borderRadius: 20,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: theme.color.surface,
-                      borderWidth: 1,
-                      borderColor: theme.color.accentStrong,
-                    },
-                  ]}
-                >
-                  <Pressable
-                    disabled={watchSetsLen === 0}
-                    style={({ pressed }) => [
-                      {
-                        backgroundColor: pressed
-                          ? theme.color.surface
-                          : "transparent",
-                        transform: [{ scale: pressed ? 0.98 : 1 }],
-                      },
-                    ]}
-                    onPress={() => handleRemoveSet(watchSetsLen - 1)}
-                  >
-                    <View style={[styles.addIconContainer]}>
-                      <Entypo
-                        name="minus"
-                        size={24}
-                        color={theme.color.accentStrong}
-                      />
-                    </View>
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* If the exercise has more than one option we need to give the user the options */}
-              {chosenExercise.validUnits &&
-                chosenExercise.validUnits.length > 1 && (
-                  <>
-                    <Text
-                      style={[
-                        styles.optionsLabel,
-                        { color: theme.color.textPrimary },
-                      ]}
-                    >
-                      Options
-                    </Text>
-                    <View
-                      style={[
-                        styles.pickerContainer,
-                        {
-                          backgroundColor: theme.color.surface,
-                          borderColor: theme.color.accent,
-                        },
-                      ]}
-                    >
-                      <Controller
-                        name="chosenUnitCombination"
-                        control={control}
-                        rules={validationRules.chosenUnitCombination}
-                        render={({ field: { onChange, value } }) => (
-                          <Picker
-                            mode="dialog"
-                            style={{ color: theme.color.textPrimary }}
-                            selectedValue={
-                              value?.join("-") || DEFAULT_PICKER_VALUE
-                            }
-                            onValueChange={(itemValue) => {
-                              handleOptionChange(itemValue, onChange);
-                            }}
-                            accessibilityLabel="Exercise options"
-                            accessibilityHint="Select the type of measurement for this exercise"
-                            enabled={!isSubmitting}
-                          >
-                            <Picker.Item
-                              label={SELECT_OPTION_LABEL}
-                              value={DEFAULT_PICKER_VALUE}
-                            />
-                            {chosenExercise.validUnits.map((unit, index) => (
-                              <Picker.Item
-                                key={index}
-                                label={
-                                  Array.isArray(unit)
-                                    ? unit.join(" and ")
-                                    : String(unit)
-                                }
-                                value={
-                                  Array.isArray(unit)
-                                    ? unit.join("-")
-                                    : String(unit)
-                                }
-                              />
-                            ))}
-                          </Picker>
-                        )}
-                      />
-                    </View>
-                    {errors.chosenUnitCombination && (
-                      <Text
-                        style={[
-                          styles.textError,
-                          { color: theme.color.danger },
-                        ]}
-                      >
-                        {errors.chosenUnitCombination.message}
-                      </Text>
-                    )}
-                  </>
-                )}
-
-              {optionsChoice && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    marginTop: 20,
-                  }}
-                >
-                  {fields.map((field, index) => (
-                    <Pressable
-                      key={index}
-                      accessibilityLabel={`Set ${index + 1}`}
-                      accessibilityHint="Long-press to remove this set"
-                      accessibilityRole="button"
-                      style={{
-                        padding: 10,
-                        borderWidth: 1,
-                        borderColor: theme.color.border,
-                        backgroundColor: theme.color.surface,
-                        borderRadius: 20,
-                      }}
-                      onLongPress={() => {
-                        Alert.alert("Remove set", `Set ${index + 1} `);
-                        handleRemoveSet(index);
-                      }}
-                    >
-                      {chosenExercise.validUnits &&
-                      chosenExercise.validUnits.length > 1 ? (
-                        <View
-                          style={{
-                            flexDirection: "column",
-                          }}
-                        >
-                          <Text style={{ color: theme.color.textPrimary }}>
-                            Set {index + 1}
-                          </Text>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 10,
-                            }}
-                          >
-                            {optionsChoice && (
-                              <Options
-                                options={optionsChoice}
-                                index={index}
-                                control={control}
-                              />
-                            )}
-                          </View>
-                        </View>
-                      ) : (
-                        <View
-                          style={{
-                            flexDirection: "column",
-                          }}
-                        >
-                          <Text style={{ color: theme.color.textPrimary }}>
-                            Set {index + 1}
-                          </Text>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 10,
-                            }}
-                          >
-                            <Options
-                              options={
-                                chosenExercise.validUnits?.[0].join("-") || ""
-                              }
-                              index={index}
-                              control={control}
-                            />
-                          </View>
-                        </View>
-                      )}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={[styles.hr, { borderBottomColor: theme.color.hr }]} />
-          {chosenExercise && (
-            <AppButton
-              title={isSubmitting ? "Adding exercise..." : "Add exercise"}
-              onPress={handleSubmitPress}
-              style={[
-                styles.addExerciseButton,
-                ...(isSubmitting ? [styles.buttonDisabled] : []),
-              ]}
-            />
-          )}
+          {/* Exercise Information 
+          Handles everything to do with the exercise options*/}
+          <ExerciseControl
+            chosenExercise={chosenExercise}
+            control={control}
+            watchSetsLen={watchSetsLen}
+            optionsChoice={optionsChoice}
+            onOptionChange={onOptionChange}
+            fields={fields}
+            append={append}
+            remove={remove}
+            replace={replace}
+          />
         </ScrollView>
+
+        <AppButton
+          title={isSubmitting ? "Adding exercise..." : "Add exercise"}
+          onPress={handleSubmit(onSubmit)}
+          style={{ marginBottom: bottom + 16 }}
+          textStyle={{ color: theme.color.textPrimary }}
+          disabled={chosenExercise === null}
+        />
       </View>
     </SafeAreaView>
   );
-}
-
-interface OptionsProps {
-  options: string;
-  index: number;
-  control: Control<WorkoutExercise>;
-}
-
-export function Options({ options, index, control }: OptionsProps) {
-  const renderInput = (
-    name: keyof SetDetails,
-    placeholder: string,
-    accessibilityLabel: string,
-  ) => {
-    const { theme } = useColorTheme();
-    return (
-      <Controller
-        key={`${index}-${name}`}
-        name={`sets.${index}.${name}` as const}
-        control={control}
-        render={({ field: { onChange, value } }) => (
-          <View
-            style={{
-              gap: 2,
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <Text
-              style={[
-                styles.setInputLabel,
-                { color: theme.color.textSecondary },
-              ]}
-            >
-              {placeholder}
-            </Text>
-            <TextInput
-              style={[
-                styles.setInput,
-                {
-                  height: 50,
-                  width: 70,
-                  paddingHorizontal: 10,
-                  textAlign: "center",
-                  textAlignVertical: "center",
-                  fontSize: 18,
-                  color: theme.color.textPrimary,
-                  backgroundColor: theme.color.surface,
-                  borderWidth: 1,
-                  borderColor: theme.color.accent,
-                  borderRadius: 8,
-                },
-              ]}
-              keyboardType="numeric"
-              onChangeText={(text) =>
-                onChange(text ? parseFloat(text) : undefined)
-              }
-              value={value?.toString()}
-              accessibilityLabel={accessibilityLabel}
-            />
-          </View>
-        )}
-      />
-    );
-  };
-  let content: JSX.Element | JSX.Element[] | null = null;
-  switch (options) {
-    case "reps":
-      return renderInput("reps", "Reps", `Set ${index + 1} reps`);
-      break;
-    case "weight":
-      return renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`);
-      break;
-    case "time":
-      return renderInput("time", "Time (seconds)", `Set ${index + 1} time`);
-      break;
-    case "time-distance":
-      return [
-        renderInput("time", "Time (seconds)", `Set ${index + 1} time`),
-        renderInput("distance", "Distance (m)", `Set ${index + 1} distance`),
-      ];
-      break;
-    case "reps-weight":
-      return [
-        renderInput("reps", "Reps", `Set ${index + 1} reps`),
-        renderInput("weight", "Weight (kg)", `Set ${index + 1} weight`),
-      ];
-      break;
-    default:
-      return null;
-  }
 }
 
 const styles = StyleSheet.create({

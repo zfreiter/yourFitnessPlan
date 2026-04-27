@@ -16,7 +16,7 @@ export interface BaseExerciseSet {
 }
 
 export interface BaseWorkoutExercise {
-  exercise_id: number;
+  exercise_id: string;
   exercise_name: string;
   exercise_description?: string;
   exercise_difficulty?: Difficulty;
@@ -43,19 +43,20 @@ export interface BaseWorkout {
 }
 
 export interface ExerciseSet extends BaseExerciseSet {
-  id: number;
-  workout_exercise_id: number;
+  id: string;
+  workout_exercise_id: string;
 }
 
 export interface Exercise extends BaseWorkoutExercise {
-  id: number;
-  exercise_id: number;
-  workout_id: number; // Add this field to link exercise to workout
+  id: string;
+  exercise_id: string;
+  workout_id: string; // Add this field to link exercise to workout
   sets: ExerciseSet[];
 }
 
 export interface Workout extends BaseWorkout {
-  id: number;
+  id: string;
+  user_id: string;
   exercises: Exercise[];
 }
 

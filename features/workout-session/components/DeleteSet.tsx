@@ -1,21 +1,27 @@
 import { useColorTheme } from "@/context/colorThemeContext";
-import { Pressable, Text, View, StyleSheet } from "react-native";
-import { useDatabase } from "@/context/databaseContext";
+import { Pressable, View, StyleSheet } from "react-native";
 import { useFieldArray, useFormContext } from "react-hook-form";
-import { setService } from "@/services/setService";
+import { ExerciseSet } from "@/services/setService";
 import { useWorkout } from "@/context/workoutContext";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import { Exercise } from "@/types/type";
+import { useAuth } from "@/context/authContext";
 
 export function DeleteSet({ exerciseIndex }: { exerciseIndex: number }) {
-  const { db } = useDatabase();
   const { theme } = useColorTheme();
-  const { setWorkouts } = useWorkout();
-  const { watch } = useFormContext();
-  const { remove } = useFieldArray({
+  const { user } = useAuth();
+  const { deleteSet } = useWorkout();
+  const {
+    watch,
+    reset,
+    getValues,
+    formState: { dirtyFields },
+  } = useFormContext();
+  const { fields, remove } = useFieldArray({
     name: `exercises.${exerciseIndex}.sets`,
   });
 
-  const exercise = watch(`exercises.${exerciseIndex}`);
+  const exercise: Exercise = watch(`exercises.${exerciseIndex}`);
   const sets = watch(`exercises.${exerciseIndex}.sets`);
   const size = sets?.length || 0;
 
@@ -28,38 +34,19 @@ export function DeleteSet({ exerciseIndex }: { exerciseIndex: number }) {
       ]}
       onPress={async () => {
         if (size > 0) {
-          const lastSet = sets[size - 1];
+          const lastSet: ExerciseSet = sets[size - 1];
           const setId = lastSet.id;
-          const setWorkoutId = lastSet.workout_id;
+          const setWorkoutId = exercise.workout_id;
           const setExerciseId = lastSet.workout_exercise_id;
 
-          try {
-            const response = await setService.deleteSet(db!, lastSet.id);
-
-            if (response.success) {
-              setWorkouts((prevWorkouts) =>
-                prevWorkouts.map((workout) =>
-                  workout.id === exercise.workout_id
-                    ? {
-                        ...workout,
-                        exercises: workout.exercises.map((exercise) =>
-                          exercise.id === lastSet.workout_exercise_id
-                            ? {
-                                ...exercise,
-                                sets: exercise.sets.filter(
-                                  (set) => set.id !== setId
-                                ),
-                              }
-                            : exercise
-                        ),
-                      }
-                    : workout
-                )
-              );
-              remove(size - 1);
-            }
-          } catch (error) {
-            console.error("Error deleting set:", error);
+          const result = await deleteSet(
+            user?.id!,
+            setId,
+            setExerciseId,
+            setWorkoutId,
+          );
+          if (result.success) {
+            remove(size - 1);
           }
         }
       }}

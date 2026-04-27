@@ -1,9 +1,8 @@
-import React from "react";
-import { TextInput, Text, View, TextStyle } from "react-native";
+import React, { useState } from "react";
+import { TextInput, Text, View, TextStyle, StyleSheet } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useWorkoutSession } from "@/context/WorkoutSessionContext";
-import { useState } from "react";
 
 interface GenericTextInputProps {
   name: string;
@@ -35,24 +34,20 @@ export function GenericTextInput({
     formState: { errors },
   } = useFormContext();
   const { theme } = useColorTheme();
-  const { markDirty } = useWorkoutSession();
-  useWorkoutSession();
-  const [isFocused, setIsFocused] = useState<boolean>(false);
+  const { markDirty, trackWorkoutUpdate } = useWorkoutSession();
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={{ gap: title ? theme.spacing.label : 0 }}>
       {title && (
         <Text
           style={[
-            {
-              fontSize: 16,
-              fontWeight: "bold",
-              color: theme.color.textPrimary,
-            },
+            styles.fieldLabel,
+            { color: theme.color.textSecondary },
             textStyle,
           ]}
         >
-          {title}
+          {title.toUpperCase()}
         </Text>
       )}
       <Controller
@@ -71,29 +66,23 @@ export function GenericTextInput({
               onBlur();
             }}
             onChangeText={(text) => {
-              // Only apply numeric filtering for number-pad keyboard type
               if (
                 keyboardType === "number-pad" ||
                 keyboardType === "decimal-pad"
               ) {
-                const numericValue = text.replace(/[^0-9]/g, "");
-                onChange(numericValue);
+                onChange(text.replace(/[^0-9]/g, ""));
               } else {
-                onChange(text);
+                onChange(text.trim());
+                trackWorkoutUpdate({ name: text });
               }
-
-              // Mark form as needing update and add field to update list
-              markDirty(name);
             }}
             style={[
+              styles.input,
               {
-                padding: 10,
-                backgroundColor: theme.color.surface,
+                backgroundColor: theme.color.input,
                 borderColor: isFocused
-                  ? theme.color.accent
+                  ? theme.color.accentActive
                   : theme.color.border,
-                borderWidth: 1,
-                borderRadius: 8,
                 color: theme.color.textPrimary,
               },
               inputStyle,
@@ -102,10 +91,27 @@ export function GenericTextInput({
         )}
       />
       {errors[name] && (
-        <Text style={{ color: theme.color.danger, fontSize: 12, marginTop: 4 }}>
+        <Text style={[styles.errorText, { color: theme.color.danger }]}>
           {String(errors[name]?.message)}
         </Text>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  input: {
+    padding: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+});

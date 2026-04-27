@@ -27,49 +27,53 @@ export default function SetInputs({
   const [isWeightFocused, setIsWeightFocused] = useState<boolean>(false);
   const [isDurationFocused, setIsDurationFocused] = useState<boolean>(false);
   const [isDistanceFocused, setIsDistanceFocused] = useState<boolean>(false);
-  const { markDirty } = useWorkoutSession();
+  const { markDirty, trackSetUpdate } = useWorkoutSession();
   const { watch, control } = useFormContext();
   const { theme } = useColorTheme();
-  const exercise = watch(`exercises.${exerciseIndex}`);
   const [isFocusedOldValue, setIsFocusedOldValue] = useState<number | null>(
-    null
+    null,
   );
-  // In your keyboard listener:
+
   useEffect(() => {
     const keyboardDidHideListener = Keyboard.addListener(
       "keyboardDidHide",
       () => {
-        // This will blur whatever input is currently focused
         const currentlyFocused = TextInput.State.currentlyFocusedInput();
         if (currentlyFocused) {
           TextInput.State.blurTextInput(currentlyFocused);
         }
-      }
+      },
     );
-
     return () => {
       keyboardDidHideListener?.remove();
     };
   }, []);
 
+  const handleFieldChange = (field: keyof ExerciseSet, text: string) => {
+    const parsed = parseInt(text) || 0;
+    const currentSet = watch(`exercises.${exerciseIndex}.sets.${setIndex}`);
+    // merge new value in manually since watch hasnt updated yet
+    trackSetUpdate({ ...currentSet, [field]: parsed });
+    markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
+  };
+
+  const handleSetBlur = () => {
+    const currentSet = watch(`exercises.${exerciseIndex}.sets.${setIndex}`);
+    trackSetUpdate(currentSet);
+  };
+
   return (
-    <View
-      style={[
-        styles.SetCardInputOptionsContainer,
-        { backgroundColor: theme.color.surface2 },
-      ]}
-    >
+    <View style={styles.SetCardInputOptionsContainer}>
       {options.track_reps === 1 && (
         <View style={styles.inputContainer}>
           <Text
             style={[
               styles.SetCardInputLabel,
-              { color: theme.color.textPrimary },
+              { color: theme.color.textSecondary },
             ]}
           >
             Reps
           </Text>
-
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.reps`}
             control={control}
@@ -94,13 +98,12 @@ export default function SetInputs({
                 onBlur={() => {
                   onBlur();
                   setIsSetFocused(false);
-                  if (value === null) {
-                    onChange(isFocusedOldValue || 0);
-                  }
+                  if (value === null) onChange(isFocusedOldValue || 0);
+                  handleSetBlur();
                 }}
                 onChangeText={(text) => {
                   onChange(parseInt(text) || 0);
-                  markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
+                  handleFieldChange("reps", text);
                 }}
               />
             )}
@@ -109,14 +112,8 @@ export default function SetInputs({
       )}
 
       {options.track_reps === 1 && options.track_weight === 1 && (
-        <Text
-          style={{
-            bottom: -10,
-            fontSize: 20,
-            color: theme.color.textSecondary,
-          }}
-        >
-          x
+        <Text style={[styles.separator, { color: theme.color.textSecondary }]}>
+          ×
         </Text>
       )}
 
@@ -125,47 +122,44 @@ export default function SetInputs({
           <Text
             style={[
               styles.SetCardInputLabel,
-              { color: theme.color.textPrimary },
+              { color: theme.color.textSecondary },
             ]}
           >
-            wt.
+            Wt.
           </Text>
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.weight`}
             control={control}
-            render={({ field: { onChange, value, onBlur } }) => {
-              return (
-                <TextInput
-                  keyboardType="numeric"
-                  style={[
-                    styles.SetCardInput,
-                    {
-                      backgroundColor: theme.color.input,
-                      borderColor: isWeightFocused
-                        ? theme.color.accentActive
-                        : theme.color.border,
-                      color: theme.color.textPrimary,
-                    },
-                  ]}
-                  value={value?.toString() || ""}
-                  onFocus={() => {
-                    setIsWeightFocused(true);
-                    setIsFocusedOldValue(value || 0);
-                  }}
-                  onBlur={() => {
-                    setIsWeightFocused(false);
-                    onBlur();
-                    if (value === null) {
-                      onChange(isFocusedOldValue || 0);
-                    }
-                  }}
-                  onChangeText={(text) => {
-                    onChange(parseInt(text) || 0);
-                    markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
-                  }}
-                />
-              );
-            }}
+            render={({ field: { onChange, value, onBlur } }) => (
+              <TextInput
+                keyboardType="numeric"
+                style={[
+                  styles.SetCardInput,
+                  {
+                    backgroundColor: theme.color.input,
+                    borderColor: isWeightFocused
+                      ? theme.color.accentActive
+                      : theme.color.border,
+                    color: theme.color.textPrimary,
+                  },
+                ]}
+                value={value?.toString() || ""}
+                onFocus={() => {
+                  setIsWeightFocused(true);
+                  setIsFocusedOldValue(value || 0);
+                }}
+                onBlur={() => {
+                  setIsWeightFocused(false);
+                  onBlur();
+                  if (value === null) onChange(isFocusedOldValue || 0);
+                  handleSetBlur();
+                }}
+                onChangeText={(text) => {
+                  onChange(parseInt(text) || 0);
+                  handleFieldChange("weight", text);
+                }}
+              />
+            )}
           />
         </View>
       )}
@@ -175,7 +169,7 @@ export default function SetInputs({
           <Text
             style={[
               styles.SetCardInputLabel,
-              { color: theme.color.textPrimary },
+              { color: theme.color.textSecondary },
             ]}
           >
             Time
@@ -183,49 +177,46 @@ export default function SetInputs({
           <Controller
             name={`exercises.${exerciseIndex}.sets.${setIndex}.duration`}
             control={control}
-            render={({ field: { onChange, value, onBlur } }) => {
-              return (
-                <TextInput
-                  style={[
-                    styles.SetCardInput,
-                    {
-                      backgroundColor: theme.color.input,
-                      borderColor: isDurationFocused
-                        ? theme.color.accentActive
-                        : theme.color.border,
-                      color: theme.color.textPrimary,
-                    },
-                  ]}
-                  keyboardType="numeric"
-                  value={value?.toString() || ""}
-                  onFocus={() => {
-                    setIsDurationFocused(true);
-                    setIsFocusedOldValue(value || 0);
-                  }}
-                  onBlur={() => {
-                    setIsDurationFocused(false);
-                    onBlur();
-                    if (value === null) {
-                      onChange(isFocusedOldValue || 0);
-                    }
-                  }}
-                  onChangeText={(text) => {
-                    onChange(parseInt(text) || 0);
-                    markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
-                  }}
-                />
-              );
-            }}
+            render={({ field: { onChange, value, onBlur } }) => (
+              <TextInput
+                style={[
+                  styles.SetCardInput,
+                  {
+                    backgroundColor: theme.color.input,
+                    borderColor: isDurationFocused
+                      ? theme.color.accentActive
+                      : theme.color.border,
+                    color: theme.color.textPrimary,
+                  },
+                ]}
+                keyboardType="numeric"
+                value={value?.toString() || ""}
+                onFocus={() => {
+                  setIsDurationFocused(true);
+                  setIsFocusedOldValue(value || 0);
+                }}
+                onBlur={() => {
+                  setIsDurationFocused(false);
+                  onBlur();
+                  if (value === null) onChange(isFocusedOldValue || 0);
+                  handleSetBlur();
+                }}
+                onChangeText={(text) => {
+                  onChange(parseInt(text) || 0);
+                  handleFieldChange("duration", text);
+                }}
+              />
+            )}
           />
         </View>
       )}
 
       {options.track_distance === 1 && (
-        <View style={[styles.inputContainer, {}]}>
+        <View style={styles.inputContainer}>
           <Text
             style={[
               styles.SetCardInputLabel,
-              { color: theme.color.textPrimary },
+              { color: theme.color.textSecondary },
             ]}
           >
             Dist.
@@ -254,13 +245,12 @@ export default function SetInputs({
                 onBlur={() => {
                   setIsDistanceFocused(false);
                   onBlur();
-                  if (value === null) {
-                    onChange(isFocusedOldValue || 0);
-                  }
+                  if (value === null) onChange(isFocusedOldValue || 0);
+                  handleSetBlur();
                 }}
                 onChangeText={(text) => {
                   onChange(parseInt(text) || 0);
-                  markDirty(`exercises.${exerciseIndex}.sets.${setIndex}`);
+                  handleFieldChange("distance", text);
                 }}
               />
             )}
@@ -274,26 +264,30 @@ export default function SetInputs({
 const styles = StyleSheet.create({
   SetCardInputOptionsContainer: {
     flexDirection: "row",
-    flexWrap: "nowrap",
-    gap: 3,
-    paddingTop: 0,
-    alignItems: "center", // Ensure proper alignment
-  },
-  SetCardInput: {
-    width: 45,
-    textAlign: "right",
-    borderWidth: 1,
-    borderColor: "black",
-    borderRadius: 5,
-    padding: 5,
-    backgroundColor: "white",
-  },
-  SetCardInputLabel: {
-    width: 45,
-    textAlign: "left",
+    alignItems: "center",
+    gap: 8,
   },
   inputContainer: {
     flexDirection: "column",
-    paddingTop: 0,
+    alignItems: "center",
+    gap: 2,
+  },
+  SetCardInput: {
+    width: 60,
+    textAlign: "center",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+  },
+  SetCardInputLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  separator: {
+    fontSize: 16,
+    fontWeight: "300",
+    marginTop: 14, // nudge down to align with inputs, not labels
   },
 });

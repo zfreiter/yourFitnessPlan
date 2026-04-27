@@ -92,3 +92,18 @@ export interface SubmitNewWorkout {
   exercises: WorkoutExercise[];
   isCompleted: boolean;
 }
+
+export interface ExerciseMax {
+  id: number;
+  user_id: string | null;
+  exercise_name: string;
+  one_rep_max: number;
+  tested_date: string | null;
+  created_at: string;
+}
+export interface ExerciseMaxInsert {
+  user_id?: string | null;
+  exercise_name: string;
+  one_rep_max: number;
+  tested_date?: string | null;
+}

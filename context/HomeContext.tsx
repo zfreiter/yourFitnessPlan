@@ -6,7 +6,6 @@ import React, {
   useEffect,
 } from "react";
 import { getCurrentStreak } from "@/services/generic";
-import { useDatabase } from "@/context/databaseContext";
 
 interface HomeContextType {
   resetFlag: boolean;
@@ -33,18 +32,17 @@ export function HomeProvider({ children }: PropsWithChildren) {
   const [weeklyTotal, setWeeklyTotal] = useState(0);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [resetFlag, setResetFlag] = useState(false);
-  const { db } = useDatabase();
 
   useEffect(() => {
     const fetchCurrentStreak = async () => {
-      const { workoutsMonth, workoutsWeek } = await getCurrentStreak(db);
+      const { workoutsMonth, workoutsWeek } = await getCurrentStreak();
       setWeeklyTotal(workoutsWeek);
       setMonthlyTotal(workoutsMonth);
       setResetFlag(false);
     };
 
     fetchCurrentStreak();
-  }, [db, resetFlag]);
+  }, [resetFlag]);
 
   return (
     <HomeContext.Provider

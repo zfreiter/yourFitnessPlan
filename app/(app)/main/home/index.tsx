@@ -21,40 +21,35 @@ export default function Index() {
         styles.container,
         {
           backgroundColor: theme.color.background,
-          paddingHorizontal: theme.spacing.md,
-          paddingTop: theme.spacing.xl,
+          padding: theme.spacing.screenPadding,
+          gap: theme.spacing.lg,
         },
       ]}
     >
-      <View style={{ gap: theme.spacing.lg }}>
-        <HomeHeader />
-        <TodaysWorkout />
-        <QuickActions />
-        <ProgressCard />
-        <LastWorkoutCard />
-        <Carousel />
-        {isLoading || !isAuthInitialized ? (
-          <View style={{ width: "100%" }}>
-            <ShimmerSkeleton
-              height={35}
-              width="100%"
-              borderRadius={8}
-              style={{ marginBottom: 12, color: theme.color.textPrimary }}
-            />
-            <SkeletonTextLines lines={3} lastLineWidth="40%" />
-          </View>
-        ) : (
-          <>
-            <Text
-              style={[styles.text, { color: theme.color.textPrimary }]}
-            >{`Home page, welcome back $`}</Text>
-            <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-              CREATE AND FINISH ALL THE FUNCTIONS FOR WORKOUT CONTEXT, IMPLEMENT
-              THESE ON WORKOUT-SESSION LAYOUT AND PAGE
-            </Text>
-          </>
-        )}
-      </View>
+      <HomeHeader />
+      <TodaysWorkout />
+      {/* <QuickActions />
+      <ProgressCard />
+      <LastWorkoutCard />
+      <Carousel /> */}
+      {isLoading || !isAuthInitialized ? (
+        <View style={{ width: "100%" }}>
+          <ShimmerSkeleton
+            height={35}
+            width="100%"
+            borderRadius={8}
+            style={{ marginBottom: 12, color: theme.color.textPrimary }}
+          />
+          <SkeletonTextLines lines={3} lastLineWidth="40%" />
+        </View>
+      ) : (
+        <>
+          <Text
+            style={[styles.text, { color: theme.color.textPrimary }]}
+          >{`Home page, welcome back ${user?.full_name || "User"}`}</Text>
+        </>
+      )}
+
       <FabButton />
     </View>
   );
@@ -63,12 +58,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingBottom: 60,
   },
   content: {},
-  text: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "black",
-  },
+  text: {},
 });

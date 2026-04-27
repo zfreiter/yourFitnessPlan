@@ -1,18 +1,29 @@
 import { WorkoutUpdateFormValues } from "@/features/create-workout/types/type";
-import { FieldValues } from "react-hook-form";
-import { createContext, useState, ReactNode, useContext } from "react";
-import { ExerciseSet } from "@/types/common/workoutInterface";
-import { workoutService } from "@/services/workoutService";
-import { useDatabase } from "@/context/databaseContext";
-import { setService } from "@/services/setService";
+import {
+  createContext,
+  useState,
+  ReactNode,
+  useContext,
+  useEffect,
+} from "react";
+import {
+  Exercise,
+  ExerciseSet,
+  Workout,
+} from "@/types/common/workoutInterface";
 import { useWorkout } from "./workoutContext";
+import { useFormContext } from "react-hook-form";
 
 export interface WorkoutSessionContextType {
   markDirty: (field: string) => void;
-  saveWorkout: (workout: FieldValues) => Promise<void>;
+  saveWorkout: () => Promise<{ success: boolean }>;
   saveError: Error | null;
-  isUpdatedNeeeded: boolean;
+  isUpdateNeeded: boolean;
   isSaving: boolean;
+  trackWorkoutUpdate: (fields: Partial<Workout>) => void;
+  trackExerciseUpdate: (exercise: Partial<Exercise>) => void;
+  trackSetUpdate: (set: ExerciseSet) => void;
+  clearAllUpdates: () => void;
 }
 
 export const WorkoutSessionContext = createContext<
@@ -23,7 +34,9 @@ export function useWorkoutSession(): WorkoutSessionContextType {
   const value = useContext(WorkoutSessionContext);
   if (process.env.NODE_ENV !== "production") {
     if (!value) {
-      throw new Error("useAuth must be wrapped in a <AuthProvider />");
+      throw new Error(
+        "useWorkoutSession must be wrapped in a <WorkoutSessionProvider />",
+      );
     }
     return value;
   }
@@ -36,94 +49,109 @@ export const WorkoutSessionProvider = ({
   children: ReactNode;
 }) => {
   const [updatedNeeded, setUpdatedNeeded] = useState<Set<string>>(new Set());
+  const [workoutUpdates, setWorkoutUpdates] = useState<Partial<Workout> | null>(
+    null,
+  );
+  const [exerciseUpdates, setExerciseUpdates] = useState<
+    Partial<Exercise>[] | null
+  >(null);
+  const [setUpdates, setSetUpdates] = useState<ExerciseSet[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<Error | null>(null);
-  const { db } = useDatabase();
-  const { updateContextWorkoutFields, updateWorkoutSets } = useWorkout();
+
+  // only form and tracking concerns here — no db, no service calls
+  const { saveWorkoutToDb } = useWorkout();
+  const { reset, getValues } = useFormContext();
+
   const markDirty = (field: string) => {
     setUpdatedNeeded((prev) => new Set([...prev, field]));
   };
 
-  const saveWorkout = async (workout: FieldValues) => {
+  const saveWorkout = async (): Promise<{ success: boolean }> => {
+    if (!isUpdateNeeded) return { success: true };
+
+    const id = getValues("id");
+    const userId = getValues("user_id");
+
     setIsSaving(true);
     setSaveError(null);
 
-    const exercisesSetsMap: Map<number, ExerciseSet[]> = new Map<
-      number,
-      ExerciseSet[]
-    >();
-    const sets: ExerciseSet[] = [];
-    const details: { name: string; description: string } = {
-      name: "",
-      description: "",
-    };
-    updatedNeeded.forEach((field: string) => {
-      if (field.startsWith("exercises")) {
-        const exerciseIndex = Number(field.split(".")[1]);
-        const setIndex = Number(field.split(".")[3]);
-        const set = workout.exercises[exerciseIndex].sets[setIndex];
-        const exerciseId = workout.exercises[exerciseIndex].id;
-        if (set) {
-          if (!exercisesSetsMap.has(exerciseId)) {
-            exercisesSetsMap.set(exerciseId, [set]);
-          } else {
-            const oldSets = exercisesSetsMap.get(exerciseId) || [];
-            exercisesSetsMap.set(exerciseId, [...oldSets, set]);
-          }
-
-          sets.push(set);
-        }
-      }
-      if (field === "name") {
-        details.name = workout.name;
-      }
-      if (field === "description") {
-        details.description = workout.description;
-      }
-    });
-
     try {
-      // Simulate API call to save workout
-      if (db) {
-        if (details.name || details.description) {
-          const response = await workoutService.updateWorkoutDetails(
-            db,
-            workout.id,
-            details
-          );
-          if (response.success) {
-            console.log("Workout details updated successfully");
-            updateContextWorkoutFields(workout.id, [
-              { fieldName: "name", value: details.name },
-              { fieldName: "description", value: details.description },
-            ]);
-          }
-          if (!response.success) {
-            throw new Error(
-              response.error || "Failed to update workout details"
-            );
-          }
-        }
-        if (sets.length > 0) {
-          const response = await setService.updateSets(db, sets);
-          if (response.success) {
-            updateWorkoutSets(workout.id, exercisesSetsMap);
-            console.log("Sets updated successfully");
-          }
-          if (!response.success) {
-            throw new Error(response.error || "Failed to update sets");
-          }
-        }
+      //   // delegate all db + context updates to workoutContext
+      // if there are base level workout fields we will pass all
+      const baseWorkoutValues = { name: "", description: "", duration: 0 };
+      if (workoutUpdates) {
+        baseWorkoutValues.name = getValues("name").trim();
+        baseWorkoutValues.description = getValues("description").trim();
+        baseWorkoutValues.duration = getValues("duration");
       }
+
+      const result = await saveWorkoutToDb(
+        userId,
+        workoutUpdates ? baseWorkoutValues : undefined,
+        setUpdates ?? [],
+        id,
+      );
+
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to save workout");
+      }
+
+      //   // reset form baseline so nothing looks dirty
+      reset(getValues());
+      clearAllUpdates();
+
+      return { success: true };
     } catch (error) {
-      setSaveError(error as Error);
+      const err =
+        error instanceof Error ? error : new Error("Failed to save workout");
+      setSaveError(err);
+      return { success: false };
     } finally {
       setIsSaving(false);
     }
-    // setUpdatedNeeded(new Set());
   };
 
-  const isUpdatedNeeeded: boolean = updatedNeeded.size > 0;
+  function trackWorkoutUpdate(fields: Partial<Workout>) {
+    setWorkoutUpdates((prev) => {
+      if (!prev) return fields;
+      return { ...prev, ...fields };
+    });
+  }
+
+  function trackExerciseUpdate(exercise: Partial<Exercise>) {
+    setExerciseUpdates((prev) => {
+      if (!prev) return [exercise];
+      const exists = prev.some((e) => e.id === exercise.id);
+      if (exists) {
+        return prev.map((e) =>
+          e.id === exercise.id ? { ...e, ...exercise } : e,
+        );
+      }
+      return [...prev, exercise];
+    });
+  }
+
+  function trackSetUpdate(set: ExerciseSet) {
+    setSetUpdates((prev) => {
+      if (!prev) return [set];
+      const exists = prev.some((s) => s.id === set.id);
+      if (exists) {
+        return prev.map((s) => (s.id === set.id ? { ...s, ...set } : s));
+      }
+      return [...prev, set];
+    });
+  }
+
+  function clearAllUpdates() {
+    setWorkoutUpdates(null);
+    setExerciseUpdates(null);
+    setSetUpdates(null);
+    setUpdatedNeeded(new Set());
+  }
+
+  const isUpdateNeeded: boolean =
+    workoutUpdates !== null || exerciseUpdates !== null || setUpdates !== null;
 
   return (
     <WorkoutSessionContext.Provider
@@ -131,8 +159,12 @@ export const WorkoutSessionProvider = ({
         markDirty,
         saveWorkout,
         saveError,
-        isUpdatedNeeeded,
+        isUpdateNeeded,
         isSaving,
+        trackWorkoutUpdate,
+        trackExerciseUpdate,
+        trackSetUpdate,
+        clearAllUpdates,
       }}
     >
       {children}

@@ -3,11 +3,7 @@ import { useHome } from "@/context/HomeContext";
 import { useAuth } from "@/context/authContext";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { getCurrentGreetingForCurrentTime } from "@/utils/Welcome";
-// TODO: Implement the Home Header Greeting + streak
-// Greeting time of day
-// Streak - should be dynamic based on the current date
-// db calls to get the streak
-// skeleton loading
+
 export default function HomeHeader() {
   const { theme } = useColorTheme();
   const { weeklyTotal, monthlyTotal } = useHome();
@@ -15,14 +11,16 @@ export default function HomeHeader() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.greetingContainer}>
-        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-          {getCurrentGreetingForCurrentTime()}, {user?.full_name}!
-        </Text>
-      </View>
+      {/* Greeting */}
+      <Text style={[styles.greeting, { color: theme.color.textPrimary }]}>
+        {getCurrentGreetingForCurrentTime()},{"\n"}
+        {user?.full_name.split(" ")[0]}!
+      </Text>
+
+      {/* Stats card */}
       <View
         style={[
-          styles.streakContainer,
+          styles.statsCard,
           {
             backgroundColor: theme.color.surface,
             borderColor: theme.color.border,
@@ -30,17 +28,25 @@ export default function HomeHeader() {
           },
         ]}
       >
-        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-          {weeklyTotal !== 0
-            ? `${weeklyTotal} workout${monthlyTotal > 1 ? "'s" : ""} this week`
-            : "Lets get started!"}
+        <Text style={[styles.statLabel, { color: theme.color.textSecondary }]}>
+          THIS WEEK
         </Text>
-        {}
-        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
+        <Text style={[styles.statValue, { color: theme.color.textPrimary }]}>
+          {weeklyTotal !== 0
+            ? `${weeklyTotal} workout${weeklyTotal > 1 ? "s" : ""}`
+            : "Let's go!"}
+        </Text>
+
+        <View
+          style={[styles.divider, { backgroundColor: theme.color.border }]}
+        />
+
+        <Text style={[styles.statLabel, { color: theme.color.textSecondary }]}>
+          THIS MONTH
+        </Text>
+        <Text style={[styles.statValue, { color: theme.color.textPrimary }]}>
           {monthlyTotal !== 0
-            ? `${monthlyTotal} workout${
-                monthlyTotal > 1 ? "'s" : ""
-              } this month`
+            ? `${monthlyTotal} workout${monthlyTotal > 1 ? "s" : ""}`
             : "Keep it up!"}
         </Text>
       </View>
@@ -52,24 +58,36 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
-  greetingContainer: { flexDirection: "row", alignItems: "center" },
-  streakContainer: {
+  greeting: {
+    fontFamily: "RussoOne",
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  statsCard: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 10,
     borderRadius: 10,
-    backgroundColor: "white",
-    shadowColor: "#000",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 2,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  text: {
-    fontSize: 14,
-    fontWeight: "normal",
-    color: "black",
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  statValue: {
+    fontFamily: "Inter-Regular",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  divider: {
+    height: 1,
+    marginVertical: 6,
   },
 });

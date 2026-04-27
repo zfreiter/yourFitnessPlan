@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: "yourFitnessPlan",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/images/icon.png",
+  icon: "./assets/images/playstore.png",
   scheme: "myapp",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: "./assets/images/adaptive-icon.png",
+      foregroundImage: "./assets/images/ic_launcher.png",
       backgroundColor: "#ffffff",
     },
     softwareKeyboardLayoutMode: "pan",
@@ -31,12 +31,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    "@react-native-community/datetimepicker",
     "expo-router",
     [
       "expo-splash-screen",
       {
-        image: "./assets/images/splash-icon.png",
-        imageWidth: 200,
+        image: "./assets/images/ic_launcher.png",
+        imageWidth: 150,
         resizeMode: "contain",
         backgroundColor: "#ffffff",
       },

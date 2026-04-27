@@ -18,6 +18,24 @@ export default function DailyWorkoutSchedule({
     day: "numeric", // Day of the month
   });
 
+  if (currentDay === "") {
+    return (
+      <View style={{ flex: 1, padding: 0 }}>
+        <Text style={{ color: theme.color.textPrimary }}></Text>
+        <View
+          style={{
+            height: 1,
+            backgroundColor: theme.color.hr,
+            marginVertical: 10,
+          }}
+        />
+        <Text style={{ color: theme.color.textPrimary }}>
+          No day selected. Please select a day to view workouts.
+        </Text>
+      </View>
+    );
+  }
+
   if (workoutList.length === 0) {
     return (
       <View style={{ flex: 1, padding: 0 }}>

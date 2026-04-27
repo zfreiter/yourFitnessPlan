@@ -14,6 +14,7 @@ type AppButtonProps = {
   onPress: (event: GestureResponderEvent) => void;
   style?: ViewStyle | ViewStyle[];
   textStyle?: TextStyle | TextStyle[];
+  disabled?: boolean;
 };
 
 export function AppButton({
@@ -21,17 +22,19 @@ export function AppButton({
   onPress,
   style,
   textStyle,
+  disabled,
 }: AppButtonProps) {
   const { theme } = useColorTheme();
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.button,
         pressed && styles.pressed,
         {
-          height: theme.spacing.button_height,
-          backgroundColor: theme.color.accent,
+          height: theme.spacing.buttonHeight,
+          backgroundColor: disabled ? theme.color.disabled : theme.color.accent,
           borderColor: theme.color.border,
         },
         style,

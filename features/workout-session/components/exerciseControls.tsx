@@ -1,14 +1,11 @@
-import { useDatabase } from "@/context/databaseContext";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { View, Pressable, StyleSheet } from "react-native";
 import { Exercise, ExerciseDirection } from "@/types/type";
 import { useWorkout } from "@/context/workoutContext";
-import { workoutService } from "@/services/workoutService";
 import { useColorTheme } from "@/context/colorThemeContext";
-import Entypo from "@expo/vector-icons/Entypo";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import { useAuth } from "@/context/authContext";
 
 export default function ExerciseControls({
   exerciseIndex,
@@ -19,9 +16,9 @@ export default function ExerciseControls({
 }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const { updateWorkoutExerciseOrder } = useWorkout();
+  const { user } = useAuth();
   const { watch, setValue, resetField } = useFormContext();
   const { theme } = useColorTheme();
-  const { db } = useDatabase();
   const { move } = useFieldArray({
     name: "exercises",
   });
@@ -29,31 +26,21 @@ export default function ExerciseControls({
   const exercises = watch("exercises");
   const size = exercises.length;
 
+  const handleExerciseReorder = async (direction: ExerciseDirection) => {
+    updateWorkoutExerciseOrder(
+      user?.id!,
+      exercise.workout_id,
+      exercises,
+      exerciseIndex,
+      direction,
+    );
+  };
+
   const handleMoveUp = async () => {
     setIsUpdating(true);
     try {
-      if (exerciseIndex !== 0) {
-        // update the exercise order in the database
-        const result = await workoutService.updateExerciseOrder(
-          db!,
-          exercises[exerciseIndex].id,
-          exercises[exerciseIndex - 1].id,
-          exercises[exerciseIndex].exercise_order,
-          exercises[exerciseIndex - 1].exercise_order
-        );
-        if (result.success) {
-          // update the form state
-          move(exerciseIndex, exerciseIndex - 1);
-
-          // update the context state
-          updateWorkoutExerciseOrder(
-            exercise.workout_id,
-            exerciseIndex,
-            exerciseIndex - 1,
-            ExerciseDirection.UP
-          );
-        }
-      }
+      handleExerciseReorder("up" as ExerciseDirection);
+      move(exerciseIndex, exerciseIndex - 1);
     } catch (error) {
       console.error("Error moving exercise:", error);
     } finally {
@@ -66,22 +53,8 @@ export default function ExerciseControls({
     try {
       if (exerciseIndex !== (size || 0) - 1) {
         // add service to update the exercise order
-        const result = await workoutService.updateExerciseOrder(
-          db!,
-          exercises[exerciseIndex].id,
-          exercises[exerciseIndex + 1].id,
-          exercises[exerciseIndex].exercise_order,
-          exercises[exerciseIndex + 1].exercise_order
-        );
-        if (result.success) {
-          move(exerciseIndex, exerciseIndex + 1);
-          updateWorkoutExerciseOrder(
-            exercise.workout_id,
-            exerciseIndex,
-            exerciseIndex + 1,
-            ExerciseDirection.DOWN
-          );
-        }
+        handleExerciseReorder("down" as ExerciseDirection);
+        move(exerciseIndex, exerciseIndex + 1);
       }
     } catch (error) {
       console.error("Error moving exercise:", error);
@@ -106,7 +79,9 @@ export default function ExerciseControls({
         <FontAwesome6
           name="circle-chevron-up"
           size={32}
-          color={theme.color.accent}
+          color={
+            exerciseIndex === 0 ? theme.color.disabled : theme.color.accent
+          }
         />
       </Pressable>
 
@@ -118,7 +93,11 @@ export default function ExerciseControls({
         <FontAwesome6
           name="circle-chevron-down"
           size={32}
-          color={theme.color.accent}
+          color={
+            size && exerciseIndex === size - 1
+              ? theme.color.disabled
+              : theme.color.accent
+          }
         />
       </Pressable>
     </View>

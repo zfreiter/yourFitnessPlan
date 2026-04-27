@@ -1,237 +1,252 @@
-import { Alert, View, Text, TextInput, Pressable, Modal } from "react-native";
-import { useColorTheme } from "@/context/colorThemeContext";
-import Toast from "react-native-toast-message";
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/context/authContext";
+// import {
+//   View,
+//   Text,
+//   TextInput,
+//   Pressable,
+//   Modal,
+//   StyleSheet,
+// } from "react-native";
+// import { useColorTheme } from "@/context/colorThemeContext";
+// import Toast from "react-native-toast-message";
+// import { useState } from "react";
+// import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+// import { supabase } from "@/lib/supabaseClient";
+// import { useAuth } from "@/context/authContext";
+// import { useProfile } from "@/context/profileContext";
+// import { syncService } from "@/services/syncService";
 
-export default function NameChange() {
-  const { user, setUser } = useAuth();
-  const firstName = user?.full_name?.split(" ")[0] || "";
-  const lastName = user?.full_name?.split(" ")[1] || "";
-  const [modalVisible, setModalVisible] = useState(false);
-  const [updateFirstName, setUpdateFirstName] = useState(firstName);
-  const [updateLastName, setUpdateLastName] = useState(lastName);
-  const [emailError, setEmailError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFirstNameFocused, setIsFirstNameFocused] = useState<boolean>(false);
-  const [isLastNameFocused, setIsLastNameFocused] = useState<boolean>(false);
+// export default function NameChange() {
+//   const { user, setUser } = useAuth();
+//   const {} = useProfile();
+//   const firstName = user?.full_name?.split(" ")[0] || "";
+//   const lastName = user?.full_name?.split(" ")[1] || "";
+//   const [modalVisible, setModalVisible] = useState(false);
+//   const [updateFirstName, setUpdateFirstName] = useState(firstName);
+//   const [updateLastName, setUpdateLastName] = useState(lastName);
+//   const [nameError, setNameError] = useState("");
+//   const [isSubmitting, setIsSubmitting] = useState(false);
+//   const [focusedField, setFocusedField] = useState<string | null>(null);
+//   const { theme } = useColorTheme();
 
-  const { theme } = useColorTheme();
+//   const closeModal = () => {
+//     setNameError("");
+//     setModalVisible(false);
+//   };
 
-  const updateFirstNameHandler = (text: string) => {
-    setUpdateFirstName(text.trim());
-  };
+//   const handleSubmit = async () => {
+//     if (!updateFirstName || !updateLastName) {
+//       setNameError("Please enter both first and last name");
+//       return;
+//     }
+//     setIsSubmitting(true);
+//     try {
+//       const fullName = `${updateFirstName} ${updateLastName}`.trim();
+//       const { error } = await supabase
+//         .from("profiles")
+//         .update({ full_name: fullName })
+//         .eq("id", user?.id)
+//         .select();
+//       if (error) throw error;
+//       setUser((prev) => (prev ? { ...prev, full_name: fullName } : prev));
+//       Toast.show({ type: "success", text1: "Name updated successfully" });
+//       setModalVisible(false);
+//     } catch {
+//       setNameError("Failed to update name");
+//     } finally {
+//       setIsSubmitting(false);
+//     }
+//   };
 
-  const updateLastNameHandler = (text: string) => {
-    setUpdateLastName(text.trim());
-  };
+//   return (
+//     <View>
+//       <Pressable
+//         onPress={() => setModalVisible(true)}
+//         style={({ pressed }) => [
+//           styles.triggerButton,
+//           {
+//             backgroundColor: pressed
+//               ? theme.color.surface2
+//               : theme.color.surface,
+//             borderColor: theme.color.border,
+//           },
+//         ]}
+//       >
+//         <Text
+//           style={[
+//             styles.triggerText,
+//             { color: theme.color.textPrimary, fontFamily: theme.fonts.body },
+//           ]}
+//         >
+//           Update Name
+//         </Text>
+//       </Pressable>
 
-  const handleSubmit = async () => {
-    if (updateFirstName !== firstName && updateLastName !== lastName) {
-      return;
-    }
+//       <Modal
+//         animationType="slide"
+//         transparent
+//         visible={modalVisible}
+//         onRequestClose={closeModal}
+//       >
+//         <Pressable style={styles.backdrop} onPress={closeModal}>
+//           <Pressable
+//             style={styles.sheetWrapper}
+//             onPress={(e) => e.stopPropagation()}
+//           >
+//             <View
+//               style={[
+//                 styles.sheet,
+//                 {
+//                   backgroundColor: theme.color.surface,
+//                   borderColor: theme.color.border,
+//                 },
+//               ]}
+//             >
+//               <Pressable onPress={closeModal} style={styles.closeButton}>
+//                 <MaterialIcons
+//                   name="cancel"
+//                   size={24}
+//                   color={theme.color.textSecondary}
+//                 />
+//               </Pressable>
 
-    setIsSubmitting(true);
+//               <Text
+//                 style={[
+//                   styles.modalTitle,
+//                   {
+//                     color: theme.color.textPrimary,
+//                     fontFamily: theme.fonts.heading,
+//                   },
+//                 ]}
+//               >
+//                 Update Name
+//               </Text>
 
-    try {
-      const fullName = `${updateFirstName} ${updateLastName}`.trim();
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({ full_name: fullName })
-        .eq("id", user?.id)
-        .select();
-      if (error) throw error;
+//               <View style={{ gap: theme.spacing.label }}>
+//                 <Text
+//                   style={[
+//                     styles.fieldLabel,
+//                     { color: theme.color.textSecondary },
+//                   ]}
+//                 >
+//                   FIRST NAME
+//                 </Text>
+//                 <TextInput
+//                   style={[
+//                     styles.input,
+//                     {
+//                       backgroundColor: theme.color.input,
+//                       borderColor: nameError
+//                         ? theme.color.danger
+//                         : focusedField === "first"
+//                           ? theme.color.accentActive
+//                           : theme.color.border,
+//                       color: theme.color.textPrimary,
+//                     },
+//                   ]}
+//                   placeholder="Enter first name"
+//                   placeholderTextColor={theme.color.placeholderColor}
+//                   autoCapitalize="words"
+//                   autoCorrect={false}
+//                   returnKeyType="next"
+//                   onFocus={() => setFocusedField("first")}
+//                   onBlur={() => setFocusedField(null)}
+//                   value={updateFirstName}
+//                   onChangeText={(t) => setUpdateFirstName(t.trim())}
+//                 />
+//               </View>
 
-      console.log("Name update data:", data);
-      setUser((prevUser) =>
-        prevUser ? { ...prevUser, full_name: fullName } : prevUser,
-      );
-      Toast.show({
-        type: "success",
-        text1: "Name updated successfully",
-      });
-      setModalVisible(false);
-    } catch (error) {
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+//               <View style={{ gap: theme.spacing.label }}>
+//                 <Text
+//                   style={[
+//                     styles.fieldLabel,
+//                     { color: theme.color.textSecondary },
+//                   ]}
+//                 >
+//                   LAST NAME
+//                 </Text>
+//                 <TextInput
+//                   style={[
+//                     styles.input,
+//                     {
+//                       backgroundColor: theme.color.input,
+//                       borderColor: nameError
+//                         ? theme.color.danger
+//                         : focusedField === "last"
+//                           ? theme.color.accentActive
+//                           : theme.color.border,
+//                       color: theme.color.textPrimary,
+//                     },
+//                   ]}
+//                   placeholder="Enter last name"
+//                   placeholderTextColor={theme.color.placeholderColor}
+//                   autoCapitalize="words"
+//                   autoCorrect={false}
+//                   returnKeyType="done"
+//                   onFocus={() => setFocusedField("last")}
+//                   onBlur={() => setFocusedField(null)}
+//                   value={updateLastName}
+//                   onChangeText={(t) => setUpdateLastName(t.trim())}
+//                 />
+//               </View>
 
-  return (
-    <View>
-      <Pressable
-        onPress={() => setModalVisible(true)}
-        style={({ pressed }) => [
-          {
-            height: theme.spacing.button_height,
-            backgroundColor: pressed
-              ? theme.color.accentStrong
-              : theme.color.surface,
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: theme.color.accent,
-            borderRadius: 8,
-          },
-        ]}
-      >
-        {({ pressed }) => (
-          <Text style={{ color: theme.color.textPrimary }}>Update Name</Text>
-        )}
-      </Pressable>
+//               {nameError.length > 0 && (
+//                 <Text style={[styles.errorText, { color: theme.color.danger }]}>
+//                   {nameError}
+//                 </Text>
+//               )}
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center", // Vertical centering
-            alignItems: "center", // Horizontal centering
-          }}
-          onPress={() => setModalVisible(false)}
-        >
-          <Pressable
-            style={{ width: "100%", padding: 20 }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View
-              style={{
-                flexDirection: "column",
-                gap: theme.spacing.lg,
-                backgroundColor: theme.color.surface,
-                borderColor: theme.color.border,
-                borderWidth: 1,
-                padding: theme.spacing.lg,
-                borderRadius: 10,
-                width: "100%",
-              }}
-            >
-              <Pressable style={{}} onPress={() => setModalVisible(false)}>
-                <MaterialIcons
-                  name="cancel"
-                  size={30}
-                  style={{ alignSelf: "flex-end" }}
-                  color={theme.color.accent}
-                />
-              </Pressable>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  textAlign: "center",
-                  color: theme.color.textPrimary,
-                }}
-              >
-                Name update
-              </Text>
-              <View style={{ gap: theme.spacing.label }}>
-                <Text style={{ color: theme.color.textSecondary }}>
-                  First Name:
-                </Text>
-                <TextInput
-                  style={{
-                    padding: 10,
-                    backgroundColor: theme.color.input,
-                    borderColor: emailError
-                      ? theme.color.danger
-                      : isFirstNameFocused
-                        ? theme.color.accent
-                        : theme.color.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    color: theme.color.textPrimary,
-                  }}
-                  placeholder="Enter new first name"
-                  placeholderTextColor={theme.color.placeholderColor}
-                  keyboardType="default"
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  textContentType="name"
-                  returnKeyType="next"
-                  onFocus={() => setIsFirstNameFocused(true)}
-                  onBlur={() => {
-                    setIsFirstNameFocused(false);
-                  }}
-                  value={updateFirstName}
-                  onChangeText={updateFirstNameHandler}
-                />
-                {emailError.length > 0 ? (
-                  <Text style={{ color: theme.color.danger }}>
-                    {emailError}
-                  </Text>
-                ) : null}
-              </View>
+//               <Pressable
+//                 onPress={handleSubmit}
+//                 style={({ pressed }) => [
+//                   styles.submitButton,
+//                   {
+//                     backgroundColor: pressed
+//                       ? theme.color.accentStrong
+//                       : theme.color.accent,
+//                   },
+//                 ]}
+//               >
+//                 <Text
+//                   style={[styles.submitText, { fontFamily: theme.fonts.body }]}
+//                 >
+//                   {isSubmitting ? "Submitting..." : "Submit Name Change"}
+//                 </Text>
+//               </Pressable>
+//             </View>
+//           </Pressable>
+//         </Pressable>
+//       </Modal>
+//     </View>
+//   );
+// }
 
-              <View style={{ gap: theme.spacing.label }}>
-                <Text style={{ color: theme.color.textSecondary }}>
-                  First Name:
-                </Text>
-                <TextInput
-                  style={{
-                    padding: 10,
-                    backgroundColor: theme.color.input,
-                    borderColor: emailError
-                      ? theme.color.danger
-                      : isLastNameFocused
-                        ? theme.color.accent
-                        : theme.color.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    color: theme.color.textPrimary,
-                  }}
-                  placeholder="Enter new last name"
-                  placeholderTextColor={theme.color.placeholderColor}
-                  keyboardType="default"
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  textContentType="name"
-                  returnKeyType="next"
-                  onFocus={() => setIsLastNameFocused(true)}
-                  onBlur={() => {
-                    setIsLastNameFocused(false);
-                  }}
-                  value={updateLastName}
-                  onChangeText={updateLastNameHandler}
-                />
-                {emailError.length > 0 ? (
-                  <Text style={{ color: theme.color.danger }}>
-                    {emailError}
-                  </Text>
-                ) : null}
-              </View>
-
-              <Pressable
-                onPress={handleSubmit}
-                style={({ pressed }) => [
-                  {
-                    height: theme.spacing.button_height,
-                    backgroundColor: pressed
-                      ? theme.color.accentStrong
-                      : theme.color.accent,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    borderRadius: 8,
-                  },
-                ]}
-              >
-                {({ pressed }) => (
-                  <Text style={{ color: theme.color.textPrimary }}>
-                    Submit name change
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
-  );
-}
+// const styles = StyleSheet.create({
+//   triggerButton: {
+//     height: 48,
+//     justifyContent: "center",
+//     alignItems: "center",
+//     borderWidth: 1,
+//     borderRadius: 8,
+//   },
+//   triggerText: { fontSize: 15 },
+//   backdrop: {
+//     flex: 1,
+//     backgroundColor: "rgba(0,0,0,0.5)",
+//     justifyContent: "center",
+//     alignItems: "center",
+//   },
+//   sheetWrapper: { width: "100%", padding: 20 },
+//   sheet: { gap: 16, borderWidth: 1, padding: 20, borderRadius: 10 },
+//   closeButton: { alignSelf: "flex-end" },
+//   modalTitle: { fontSize: 18, textAlign: "center", fontWeight: "700" },
+//   fieldLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
+//   input: { borderWidth: 1, padding: 10, borderRadius: 8, fontSize: 15 },
+//   errorText: { fontSize: 12 },
+//   submitButton: {
+//     height: 48,
+//     justifyContent: "center",
+//     alignItems: "center",
+//     borderRadius: 8,
+//   },
+//   submitText: { fontSize: 15, color: "#fff", fontWeight: "600" },
+// });

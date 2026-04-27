@@ -1,16 +1,16 @@
 import React, { useState } from "react";
-import { View, Text, TextStyle, ViewStyle } from "react-native";
+import { View, Text, TextStyle, ViewStyle, StyleSheet } from "react-native";
 import { Controller, useFormContext } from "react-hook-form";
 import { Picker } from "@react-native-picker/picker";
 import { ExerciseType } from "../../../types/interfaces/types";
 import { useColorTheme } from "@/context/colorThemeContext";
-import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
 import { workoutService } from "@/services/workoutService";
+import { useAuth } from "@/context/authContext";
 
 interface WorkoutTypePickerProps {
   workoutType: ExerciseType;
-  workoutId: number;
+  workoutId: string;
   items: string[];
   name: string;
   textStyle?: TextStyle;
@@ -28,39 +28,29 @@ export function WorkoutTypePicker({
   const {
     control,
     setValue,
-    getValues,
-    resetField,
     formState: { errors },
   } = useFormContext();
 
   const [workoutTypeState, setWorkoutTypeState] = useState(workoutType);
-  const [isFocused, setIsFocused] = useState<boolean>(false);
-  const { db } = useDatabase();
-  //workoutId: number, workoutType: ExerciseType
+  const [isFocused, setIsFocused] = useState(false);
   const { updateWorkoutType } = useWorkout();
+  const { user } = useAuth();
   const { theme } = useColorTheme();
 
   return (
-    <View style={{ gap: 4 }}>
-      <Text
-        style={[
-          { fontSize: 16, fontWeight: "bold", color: theme.color.textPrimary },
-        ]}
-      >
-        Select Workout Type:
+    <View style={{ gap: theme.spacing.label }}>
+      <Text style={[styles.fieldLabel, { color: theme.color.textSecondary }]}>
+        WORKOUT TYPE
       </Text>
 
       <View
         style={[
+          styles.pickerWrapper,
           {
-            width: "100%",
-            borderWidth: 1,
-            borderColor: isFocused ? theme.color.accent : theme.color.border,
-            borderRadius: 8,
-            overflow: "hidden",
-            padding: 0,
-            height: 40,
-            justifyContent: "center",
+            borderColor: isFocused
+              ? theme.color.accentActive
+              : theme.color.border,
+            backgroundColor: theme.color.input,
           },
           viewStyle,
         ]}
@@ -76,51 +66,64 @@ export function WorkoutTypePicker({
             <Picker
               mode="dialog"
               key={workoutTypeState}
-              style={{
-                width: "100%",
-                backgroundColor: theme.color.surface,
-                color: theme.color.textPrimary,
-              }}
+              style={[styles.picker, { color: theme.color.textPrimary }]}
               onFocus={() => setIsFocused(true)}
-              onBlur={() => {
-                setIsFocused(false);
-              }}
+              onBlur={() => setIsFocused(false)}
               selectedValue={workoutTypeState}
               onValueChange={async (value) => {
-                // Update form state and keep the form dirty state false
                 setValue("workoutType", value, { shouldDirty: false });
-                // update local database state
-                if (!db) return;
+
                 const response = await workoutService.updateWorkoutType(
-                  db,
+                  user?.id!,
                   workoutId,
-                  value
+                  value,
                 );
-                // update context state
                 if (response.success) {
                   updateWorkoutType(workoutId, value);
                 }
-                // update form to be clean
                 onBlur();
               }}
             >
               {items.map((item, index) => (
                 <Picker.Item
                   key={`workout-type-${index}`}
-                  label={item}
+                  label={item.charAt(0).toUpperCase() + item.slice(1)}
                   value={item}
-                  style={{ width: "100%" }}
                 />
               ))}
             </Picker>
           )}
         />
       </View>
+
       {errors.type && (
-        <Text style={{ fontSize: 16, fontWeight: "semibold", color: "red" }}>
-          Select workout
+        <Text style={[styles.errorText, { color: theme.color.danger }]}>
+          Select a workout type
         </Text>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  pickerWrapper: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: "hidden",
+    height: 40,
+    justifyContent: "center",
+  },
+  picker: {
+    width: "100%",
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+});

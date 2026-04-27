@@ -1,10 +1,10 @@
 import {
-  SafeAreaView,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function WorkoutSessionContainer({
   children,

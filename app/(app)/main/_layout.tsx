@@ -10,41 +10,45 @@ import { HomeProvider } from "@/context/HomeContext";
 import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function MainLayoutTabs() {
-  const { isAuthInitialized, isLoading } = useAuth();
+  const { isAuthInitialized, isLoading, user } = useAuth();
   const { theme } = useColorTheme();
 
   return (
-    <SafeAreaProvider>
-      <StatusBar />
-      {/* <HomeProvider> */}
+    <HomeProvider>
       <Tabs
         backBehavior="history"
         screenOptions={{
           tabBarActiveTintColor: theme.color.accent,
           headerShown: true,
           headerStyle: {
-            backgroundColor: theme.color.accent,
+            backgroundColor: theme.color.background,
+            //height: 100,
           },
           headerTintColor: theme.color.textPrimary,
           headerTitleStyle: {
-            fontWeight: "bold",
+            fontFamily: theme.fonts.heading,
           },
-          headerRight: () => <></>,
           tabBarStyle: {
             backgroundColor: theme.color.surface,
             borderTopWidth: 0,
-            //height: 60,
             paddingBottom: 8,
             paddingTop: 8,
           },
+          tabBarLabelStyle: {
+            fontFamily: theme.fonts.heading,
+            fontSize: 12,
+          },
+          headerShadowVisible: false,
+
           sceneStyle: { backgroundColor: theme.color.background },
         }}
       >
-        <Tabs.Protected guard={true}>
+        <Tabs.Protected guard={!!user}>
           <Tabs.Screen
             name="home/index"
             options={{
               title: "Home", // Set the header title
+              headerTitleAlign: "center",
               tabBarLabel: "Home",
               tabBarIcon: ({ color }) => (
                 <AntDesign name="home" size={24} color={color} />
@@ -56,6 +60,7 @@ export default function MainLayoutTabs() {
             name="calendar/index"
             options={{
               title: "Calendar",
+              headerTitleAlign: "center",
               tabBarLabel: "Calendar",
               popToTopOnBlur: true,
               tabBarIcon: ({ color }) => (
@@ -68,9 +73,10 @@ export default function MainLayoutTabs() {
             name="settings"
             options={{
               headerShown: false,
+              title: "Settings",
+              headerTitleAlign: "center",
               tabBarLabel: "Settings",
               popToTopOnBlur: true,
-
               tabBarIcon: ({ color }) => (
                 <Ionicons name="settings-sharp" size={24} color={color} />
               ),
@@ -78,7 +84,6 @@ export default function MainLayoutTabs() {
           />
         </Tabs.Protected>
       </Tabs>
-      {/* </HomeProvider> */}
-    </SafeAreaProvider>
+    </HomeProvider>
   );
 }

@@ -7,64 +7,59 @@ export default function TodaysWorkout() {
   const { theme } = useColorTheme();
   const { currentWorkouts } = useWorkout();
 
-  if (!currentWorkouts || currentWorkouts.length === 0)
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: theme.color.surface,
-            borderColor: theme.color.border,
-            shadowColor: theme.color.shadow,
-          },
-        ]}
-      >
-        <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-          No workouts schedule
-        </Text>
-      </View>
-    );
-
   return (
     <View
       style={[
-        styles.container,
+        styles.card,
         {
-          backgroundColor: theme.color.surface,
+          backgroundColor: theme.color.background,
           borderColor: theme.color.border,
           shadowColor: theme.color.shadow,
         },
       ]}
     >
-      <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-        Today's Workout
+      <Text style={[styles.sectionLabel, { color: theme.color.textSecondary }]}>
+        TODAY'S WORKOUT
       </Text>
-      <View style={{ gap: 10 }}>
-        {currentWorkouts.map((workout) => (
-          <WorkoutCard key={workout.id} workout={workout} />
-        ))}
-      </View>
+
+      {!currentWorkouts || currentWorkouts.length === 0 ? (
+        <Text style={[styles.emptyText, { color: theme.color.textPrimary }]}>
+          No workouts scheduled
+        </Text>
+      ) : (
+        <View style={styles.list}>
+          {currentWorkouts.map((workout) => (
+            <WorkoutCard key={workout.id} workout={workout} />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 10,
     borderRadius: 10,
-    backgroundColor: "white",
-    shadowColor: "#000",
+    padding: 12,
+    gap: 10,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  text: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "black",
-    marginBottom: 5,
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  emptyText: {
+    fontFamily: "Inter-Regular",
+    fontSize: 14,
+  },
+  list: {
+    flexDirection: "column",
+    gap: 8,
+    flexShrink: 0, // prevents the list from compressing its children
   },
 });

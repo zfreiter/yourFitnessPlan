@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text } from "react-native";
 import { Calendar, CalendarList, Agenda } from "react-native-calendars";
 import { StyleSheet } from "react-native";
-import { useRouter, useNavigation, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import DailyWorkoutSchedule from "@/features/calendar/components/DailyWorkoutSchedule";
-import { CreateWorkoutButton } from "./calendarButtons";
 import { Workout } from "@/types/type";
 import { colors } from "@/utils/colors";
 import FabButton from "@/components/fabButton";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { format, set } from "date-fns";
+import { useWorkout } from "@/context/workoutContext";
+import { toLocalDateString } from "@/utils/date";
+import { useAuth } from "@/context/authContext";
 
 interface CalendarDay {
   dateString: string;
@@ -52,52 +55,49 @@ const convertType = (type: string, index: number) => {
   }
 };
 
-export default function CalendarIndex({
-  workouts,
-  today,
-}: {
-  workouts: Workout[];
-  today: string;
-}) {
+export default function CalendarIndex({}) {
+  const today = format(new Date(), "yyyy-MM-dd");
   const [currentDayList, setCurrentDayList] = useState<Workout[]>([]);
   const [currentDay, setCurrentDay] = useState<string>(today);
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
-  const router = useRouter();
+  const { workouts, updateCachedMonths } = useWorkout();
   const { theme } = useColorTheme();
+  const { user } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
       return () => {
-        setCurrentDay(today);
+        //setCurrentDay(today);
       };
-    }, [today])
+    }, [today]),
   );
 
   useEffect(() => {
     const formatWorkoutDate: MarkedDates = {};
 
     workouts.forEach((workout, index) => {
-      if (!(workout.scheduled_datetime in formatWorkoutDate)) {
-        formatWorkoutDate[workout.scheduled_datetime.split(" ")[0]] = {
-          dots: [],
-        };
+      const localDate = toLocalDateString(workout.scheduled_datetime);
+      if (!(localDate in formatWorkoutDate)) {
+        formatWorkoutDate[localDate] = { dots: [] };
       }
-      formatWorkoutDate[workout.scheduled_datetime.split(" ")[0]].dots.push(
-        convertType(workout.workoutType, index)
+      formatWorkoutDate[localDate].dots.push(
+        convertType(workout.workoutType, index),
       );
     });
 
     setMarkedDates(formatWorkoutDate);
   }, [workouts]);
 
-  // Add effect to update currentDayList when workouts or currentDay changes
   useEffect(() => {
     if (currentDay) {
       setCurrentDayList(
         workouts.filter(
-          (workout) => workout.scheduled_datetime.split(" ")[0] === currentDay
-        )
+          (workout) =>
+            toLocalDateString(workout.scheduled_datetime) === currentDay,
+        ),
       );
+    } else {
+      setCurrentDayList([]);
     }
   }, [workouts, currentDay]);
 
@@ -108,23 +108,30 @@ export default function CalendarIndex({
           key={theme.color.background}
           markingType={"multi-dot"}
           markedDates={markedDates}
-          style={
-            {
-              //backgroundColor: theme.surface,
-              //borderColor: theme.border,
-              //borderBottomWidth: 1,
-            }
-          }
+          enableSwipeMonths={true}
+          style={{}}
           theme={{
             backgroundColor: theme.color.surface,
             calendarBackground: theme.color.surface,
             arrowColor: theme.color.accent,
-            //textSectionTitleColor: "#b6c1cd",
-            //selectedDayBackgroundColor: "#00adf5",
-            //selectedDayTextColor: "#ffffff",
             todayTextColor: theme.color.accent,
             dayTextColor: theme.color.textPrimary,
             textDisabledColor: theme.color.textSecondary,
+          }}
+          onPressArrowLeft={(subtractMonth, month) => {
+            subtractMonth();
+            setCurrentDay("");
+          }}
+          onPressArrowRight={(addMonth, currentDate) => {
+            addMonth();
+            setCurrentDay("");
+          }}
+          onMonthChange={(date) => {
+            // console.log("month change ", date);
+            const month = String(date.month).padStart(2, "0");
+            const year = String(date.year);
+            // console.log("month year ", month, year);
+            if (user) updateCachedMonths(user.id, { month, year });
           }}
           renderHeader={(date: Date) => {
             return (
@@ -151,7 +158,10 @@ export default function CalendarIndex({
       <View
         style={[
           styles.scheduleContainer,
-          { backgroundColor: theme.color.background },
+          {
+            backgroundColor: theme.color.background,
+            padding: theme.spacing.screenPadding,
+          },
         ]}
       >
         <DailyWorkoutSchedule
@@ -167,7 +177,5 @@ export default function CalendarIndex({
 const styles = StyleSheet.create({
   scheduleContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
   },
 });

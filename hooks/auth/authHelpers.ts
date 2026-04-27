@@ -6,13 +6,20 @@ export const signUpSupabase = async (
   fullName: string,
   age: number,
   height: number,
-  weight: number
+  weight: number,
+  gender: string,
 ) => {
   const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
+    email: email,
+    password: password,
     options: {
-      data: { full_name: fullName, age, height, weight },
+      data: {
+        full_name: fullName,
+        age: Number(age), // Ensure it's a number
+        height: Number(height),
+        weight: Number(weight),
+        gender: gender !== "NULL" ? gender : null,
+      },
     },
   });
   return { data, error };

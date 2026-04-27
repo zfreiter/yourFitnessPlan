@@ -18,10 +18,13 @@ export default function ActiveWorkoutSession({
   const methods = useForm<WorkoutUpdateFormValues>({
     defaultValues: {
       id: workout.id,
+      user_id: workout.user_id,
       name: workout.name,
       description: workout.description,
       type: workout.workoutType,
-      date: new Date(workout.scheduled_datetime),
+      date: workout.scheduled_datetime
+        ? new Date(workout.scheduled_datetime) // works for both UTC and offset strings
+        : new Date(),
       duration: workout.duration,
       exercises: workout.exercises,
       isCompleted: workout.isCompleted,
@@ -50,19 +53,19 @@ export default function ActiveWorkoutSession({
 
         setValue(
           `exercises.${exerciseIndex}.sets.${setIndex}.reps`,
-          set.reps || 0
+          set.reps || 0,
         );
         setValue(
           `exercises.${exerciseIndex}.sets.${setIndex}.weight`,
-          set.weight || 0
+          set.weight || 0,
         );
         setValue(
           `exercises.${exerciseIndex}.sets.${setIndex}.duration`,
-          set.duration || 0
+          set.duration || 0,
         );
         setValue(
           `exercises.${exerciseIndex}.sets.${setIndex}.distance`,
-          set.distance || 0
+          set.distance || 0,
         );
 
         isInitializedRef.current[key] = true;
@@ -96,7 +99,7 @@ export default function ActiveWorkoutSession({
         handleCloseExerciseModal={handleCloseExerciseModal}
       />
     ),
-    [showExerciseModal, handleAddExercise, handleCloseExerciseModal]
+    [showExerciseModal, handleAddExercise, handleCloseExerciseModal],
   );
 
   const footer = useMemo(
@@ -109,21 +112,25 @@ export default function ActiveWorkoutSession({
         setShow={setShow}
       />
     ),
-    [show, mode, openDatePicker, setMode, setShow]
+    [show, mode, openDatePicker, setMode, setShow],
   );
 
   return (
     <FormProvider {...methods}>
       <WorkoutSessionProvider>
         <FlatList
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
           data={exercises || []}
           renderItem={useCallback(
             ({ item, index }: { item: any; index: number }) => (
               <ExerciseManager exercise={item} exerciseIndex={index} />
             ),
-            []
+            [],
           )}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item.id}
           ListHeaderComponent={header}
           ListFooterComponent={footer}
         />

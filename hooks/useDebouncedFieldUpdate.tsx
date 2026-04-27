@@ -1,16 +1,16 @@
 import { debounce } from "@/utils/debounce";
 import { workoutService } from "@/services/workoutService";
-import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
 import { useRef } from "react";
+import { useAuth } from "@/context/authContext";
 
 interface Props {
   fieldName: string;
-  workoutId: number;
+  workoutId: string;
   onSuccess?: (
-    workoutId: number,
+    workoutId: string,
     field: string | number,
-    value: string
+    value: string,
   ) => void;
   onError?: (field: string, error: string) => void;
 }
@@ -21,23 +21,18 @@ export function useDebouncedFieldUpdate({
   onSuccess,
   onError,
 }: Props): ReturnType<typeof debounce> {
-  const { db } = useDatabase();
   const { workouts, setWorkouts } = useWorkout();
+  const { user } = useAuth();
   const debouncedUpdateRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   if (!debouncedUpdateRef.current) {
     debouncedUpdateRef.current = debounce(async (value: string) => {
-      if (!db) {
-        onError?.(fieldName, "Database not available");
-        return;
-      }
-
       try {
         const result = await workoutService.updateWorkoutField(
-          db,
+          user?.id!,
           workoutId,
           fieldName,
-          value
+          value,
         );
         console.log("result", result);
         if (result.success) {

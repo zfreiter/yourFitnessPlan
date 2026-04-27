@@ -1,24 +1,23 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Keyboard,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import * as Crypto from "expo-crypto";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Controller, FormProvider, useForm, useWatch } from "react-hook-form";
-
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import DurationWheelPicker from "./durationWheelPicker";
-
+import { useAuth } from "@/context/authContext";
 import { useColorTheme } from "@/context/colorThemeContext";
-import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
 
 import * as Localization from "expo-localization";
@@ -29,10 +28,9 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import { AppButton } from "@/components/button";
 import { AddExercise } from "./addExercise";
 import ExerciseListItem from "./exerciseListItem";
-
 import { workoutService } from "@/services/workoutService";
 import { ExerciseType } from "@/types/interfaces/types";
-import { CreateWorkoutForm, Exercise } from "@/types/type";
+import { CreateWorkoutForm, Exercise, Workout } from "@/types/type";
 
 import { useBlurOnKeyboardHide } from "@/hooks/useBlurOnKeyboardClose";
 
@@ -45,62 +43,48 @@ const getCurrentDateInLocalTimezone = () => {
   return `${year}-${month}-${day}`;
 };
 
-// Date/time helpers to ensure consistent combined value: YYYY-MM-DDTHH:MM
 const DEFAULT_TIME = "12:00";
 const getDatePart = (dateTime: string) =>
   dateTime && dateTime.includes(" ") ? dateTime.split(" ")[0] : dateTime;
 const getTimePart = (dateTime: string) => {
   if (!dateTime) return DEFAULT_TIME;
   if (dateTime.includes(" ")) return dateTime.split(" ")[1].slice(0, 5);
-  // If only time is present (e.g., "08:30"), normalize to HH:MM
   const candidate = dateTime.slice(0, 5);
   return /\d{2}:\d{2}/.test(candidate) ? candidate : DEFAULT_TIME;
 };
 const combineDateTime = (datePart: string, timePart: string) =>
   `${datePart} ${timePart}`;
 
-// Helper function to parse date/time string safely in local timezone
 const parseDateInLocalTimezone = (dateString: string) => {
   const datePart = getDatePart(dateString) || getCurrentDateInLocalTimezone();
   const timePart = getTimePart(dateString) || DEFAULT_TIME;
-  // Add seconds to avoid platform quirks, construct ISO-like local string
   return new Date(`${datePart} ${timePart}:00`);
 };
 
-type CreateWorkoutContainerProps = {
-  exerciseList: Exercise[];
-};
-
-export function CreateWorkoutContainer({
-  exerciseList,
-}: CreateWorkoutContainerProps) {
-  //const router = useRouter();
+export function CreateWorkoutContainer() {
+  const { user } = useAuth();
   const { theme } = useColorTheme();
   const { date } = useLocalSearchParams();
   const [workoutType, setWorkoutType] =
     useState<ExerciseType>("Select workout");
   const [showExerciseModal, setShowExerciseModal] = useState(false);
-  const [isFocusedDurationInput, setIsFocusedDurationInput] = useState(false);
   const [isFocusedNameInput, setIsFocusedNameInput] = useState(false);
   const [isFocusedDescriptionInput, setIsFocusedDescriptionInput] =
     useState(false);
-  const { workouts, setWorkouts } = useWorkout();
-  const { db } = useDatabase();
-  const currentDate = new Date();
-  currentDate.setHours(12, 0, 0, 0);
+  const { workouts, setWorkouts, exercises } = useWorkout();
 
-  // Form state
-  const methods = useForm<CreateWorkoutForm>({
+  const { bottom } = useSafeAreaInsets();
+
+  const methods = useForm<Workout>({
     defaultValues: {
+      id: Crypto.randomUUID(),
       name: "",
       description: "",
       duration: undefined,
       scheduled_datetime: (() => {
-        const initialDatePart = (date as string)
-          ? (date as string)
-          : getCurrentDateInLocalTimezone();
-        const initialTimePart = DEFAULT_TIME;
-        return combineDateTime(initialDatePart, initialTimePart);
+        const initialDatePart =
+          (date as string) || getCurrentDateInLocalTimezone();
+        return combineDateTime(initialDatePart, DEFAULT_TIME);
       })(),
       workoutType: "Select workout",
       exercises: [],
@@ -117,17 +101,17 @@ export function CreateWorkoutContainer({
     setValue,
     formState: { errors },
   } = methods;
-  const [workout, setWorkout] = useState(getValues().workoutType);
+
   const [mode, setMode] = useState<"date" | "time">("date");
   const [show, setShow] = useState(false);
   const userLocale = Localization.getLocales()[0]?.languageTag || "en-US";
   const userTimeZone = Localization.getCalendars()[0]?.timeZone;
+
   const openDatePicker = () => {
     setMode("date");
     setShow(true);
   };
 
-  // Ensure field is registered so programmatic updates are tracked by RHF
   useEffect(() => {
     methods.register("scheduled_datetime");
   }, []);
@@ -136,23 +120,21 @@ export function CreateWorkoutContainer({
     useCallback(() => {
       return () => {
         reset({
+          id: "",
           name: "",
           description: "",
           duration: undefined,
-          scheduled_datetime: (() => {
-            const initialDatePart = (date as string)
-              ? (date as string)
-              : getCurrentDateInLocalTimezone();
-            const initialTimePart = DEFAULT_TIME;
-            return combineDateTime(initialDatePart, initialTimePart);
-          })(),
+          scheduled_datetime: combineDateTime(
+            (date as string) || getCurrentDateInLocalTimezone(),
+            DEFAULT_TIME,
+          ),
           workoutType: "Select workout",
           exercises: [],
           isCompleted: false,
           completed_at: null,
         });
       };
-    }, [])
+    }, []),
   );
 
   useEffect(() => {
@@ -160,32 +142,19 @@ export function CreateWorkoutContainer({
       setValue(
         "scheduled_datetime",
         combineDateTime(date as string, DEFAULT_TIME),
-        { shouldDirty: true, shouldValidate: false, shouldTouch: false }
+        { shouldDirty: true, shouldValidate: false, shouldTouch: false },
       );
     }
   }, [date]);
 
-  const workoutExerciseListUpdate = useWatch({
-    control,
-    name: "exercises",
-  });
-  const scheduledDateTime = useWatch({
-    control,
-    name: "scheduled_datetime",
-  });
-  const isCompleted = useWatch({ control, name: "isCompleted" });
+  const workoutExerciseListUpdate = useWatch({ control, name: "exercises" });
+  const scheduledDateTime = useWatch({ control, name: "scheduled_datetime" });
 
-  const onSubmit = async (data: CreateWorkoutForm) => {
-    if (db) {
-      const result = await workoutService.insertWorkout(db, data);
+  const onSubmit = async (data: Workout) => {
+    if (user?.id) {
+      const result = await workoutService.insertWorkout(data, user!.id);
       if (result.success) {
-        console.log(
-          "Workout inserted successfully ",
-          JSON.stringify(result.data?.exercises[0], null, 2)
-        );
-        if (result.data) {
-          setWorkouts([...workouts, result.data]);
-        }
+        if (result.data) setWorkouts([...workouts, result.data]);
         reset();
         router.back();
       } else {
@@ -197,453 +166,373 @@ export function CreateWorkoutContainer({
   useBlurOnKeyboardHide();
 
   return (
-    <TouchableWithoutFeedback //onPress={Keyboard.dismiss} web issues going to need to create a wrapper
-      accessible={false}
-      onPress={Keyboard.dismiss}
-      style={{ flex: 1 }}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={[
-          styles.keyboardAvoidingViewContainer,
-          { backgroundColor: theme.color.background },
-        ]}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-      >
-        <FormProvider {...methods}>
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollViewContainer,
-              {
-                gap: theme.spacing.lg,
-                paddingVertical: theme.spacing.xl,
-                paddingHorizontal: theme.spacing.md,
-              },
-            ]}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View>
-              <Text
-                style={[
-                  styles.text,
-                  {
-                    marginBottom: theme.spacing.label,
-                    color: theme.color.textPrimary,
-                  },
-                ]}
-              >
-                Select Workout Type:
-              </Text>
-
-              <View
-                style={[
-                  styles.pickerContainer,
-                  {
-                    height: theme.spacing.button_height,
-                    borderWidth: 1,
-                    borderColor: theme.color.border,
-                    borderRadius: 8,
-                    backgroundColor: theme.color.surface,
-                    justifyContent: "center",
-                  },
-                ]}
-              >
-                <Controller
-                  name="workoutType"
-                  control={control}
-                  rules={{
-                    required: true,
-                    validate: (value) => value !== "Select workout",
-                  }}
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Picker
-                      mode="dialog"
-                      selectionColor={theme.color.textPrimary}
-                      dropdownIconColor={theme.color.accent}
-                      itemStyle={{
-                        lineHeight: 22,
-                        justifyContent: "center",
-                        alignItems: "center",
-                      }}
-                      style={[
-                        {
-                          backgroundColor: theme.color.surface,
-                          color: theme.color.textPrimary,
-                          marginLeft: theme.spacing.md,
-                        },
-                      ]}
-                      selectedValue={value}
-                      onValueChange={(value) => {
-                        setWorkout(value);
-                        onChange(value);
-                      }}
-                    >
-                      {[
-                        "Select workout",
-                        "strength",
-                        "cardio",
-                        "mobility",
-                        "circuit",
-                      ].map((item, index) => (
-                        <Picker.Item
-                          key={`workout-type-${index}`}
-                          label={item}
-                          value={item}
-                          color={"#0B1A17"}
-                          style={[
-                            {
-                              backgroundColor: theme.color.surface,
-                              color: theme.color.textPrimary,
-                              height: theme.spacing.button_height,
-                            },
-                          ]}
-                        />
-                      ))}
-                    </Picker>
-                  )}
-                />
-              </View>
-              {errors.workoutType && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
-                  Select workout
-                </Text>
-              )}
-            </View>
-
-            {workout !== "Select workout" && (
-              <AppButton
-                title="Add exercise"
-                onPress={() => setShowExerciseModal(true)}
-                style={{
-                  backgroundColor: theme.color.accent,
-                  borderColor: theme.color.border,
-                  height: theme.spacing.button_height,
-                  borderWidth: 1,
-                  marginVertical: 0,
-                }}
-                textStyle={{ color: theme.color.textPrimary }}
-              />
-            )}
-
-            {workoutExerciseListUpdate.length > 0 &&
-              workoutExerciseListUpdate.map((exercise, index) => (
-                <ExerciseListItem
-                  key={index}
-                  exercise={exercise}
-                  setValue={setValue}
-                  getValues={getValues}
-                />
-              ))}
-
-            <Modal
-              animationType="slide"
-              transparent={false}
-              visible={showExerciseModal}
-              onRequestClose={() => {
-                setShowExerciseModal(!showExerciseModal);
-              }}
+    <FormProvider {...methods}>
+      <View style={{ flex: 1, backgroundColor: theme.color.background }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.scrollViewContainer,
+            {
+              gap: theme.spacing.lg,
+              paddingVertical: theme.spacing.screenPadding,
+              paddingHorizontal: theme.spacing.screenPadding,
+            },
+          ]}
+          nestedScrollEnabled
+          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Name */}
+          <View style={{ gap: theme.spacing.label }}>
+            <Text
+              style={[styles.fieldLabel, { color: theme.color.textSecondary }]}
             >
-              <AddExercise
-                workoutType={workoutType}
-                exerciseList={exerciseList}
-                setShowExerciseModal={setShowExerciseModal}
-              />
-            </Modal>
-
-            {/* Date selector */}
-            <View>
-              <Text
-                style={{
-                  color: theme.color.textPrimary,
-                  marginBottom: theme.spacing.label,
-                  fontSize: theme.spacing.lg,
-                }}
-              >
-                Date selector
-              </Text>
-              <Pressable
-                style={({ pressed }) => [
-                  {
-                    backgroundColor: pressed ? "gray" : "white",
-                  },
-                  styles.button,
-                  {
-                    backgroundColor: theme.color.surface,
-                    height: theme.spacing.button_height,
-                    borderWidth: 1,
-                    borderColor: theme.color.border,
-                  },
-                ]}
-                onPress={openDatePicker}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+              NAME
+            </Text>
+            <Controller
+              name="name"
+              control={control}
+              rules={{ required: true }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  placeholder="Workout name..."
+                  placeholderTextColor={theme.color.placeholderColor}
+                  value={value.toString()}
+                  onFocus={() => setIsFocusedNameInput(true)}
+                  onBlur={() => {
+                    setIsFocusedNameInput(false);
+                    onBlur();
                   }}
-                >
-                  <View
+                  onChangeText={onChange}
+                  style={[
+                    styles.textInput,
+                    {
+                      height: theme.spacing.inputHeight,
+                      paddingHorizontal: theme.spacing.lg,
+                      color: theme.color.textPrimary,
+                      backgroundColor: theme.color.input,
+                      borderColor: isFocusedNameInput
+                        ? theme.color.accentActive
+                        : theme.color.border,
+                    },
+                  ]}
+                />
+              )}
+            />
+            {errors.name && (
+              <Text style={[styles.errorText, { color: theme.color.danger }]}>
+                Workout name is required
+              </Text>
+            )}
+          </View>
+
+          {/* Workout Type */}
+          <View style={{ gap: theme.spacing.label }}>
+            <Text
+              style={[styles.fieldLabel, { color: theme.color.textSecondary }]}
+            >
+              WORKOUT TYPE
+            </Text>
+            <View
+              style={[
+                styles.pickerContainer,
+                {
+                  height: theme.spacing.buttonHeight,
+                  borderColor: theme.color.border,
+                  backgroundColor: theme.color.input,
+                },
+              ]}
+            >
+              <Controller
+                name="workoutType"
+                control={control}
+                rules={{
+                  required: true,
+                  validate: (value) => value !== "Select workout",
+                }}
+                render={({ field: { onChange, value } }) => (
+                  <Picker
+                    mode="dialog"
+                    selectionColor={theme.color.textPrimary}
+                    dropdownIconColor={theme.color.accent}
                     style={{
-                      paddingLeft: theme.spacing.md,
-                      flexDirection: "row",
-                      alignItems: "baseline",
-                      justifyContent: "flex-start",
-                      gap: theme.spacing.sm,
+                      backgroundColor: theme.color.input,
+                      color: theme.color.textPrimary,
+                    }}
+                    selectedValue={value}
+                    onValueChange={(val) => {
+                      setWorkoutType(val);
+                      onChange(val);
                     }}
                   >
-                    <AntDesign
-                      name="calendar"
-                      size={24}
-                      color={theme.color.accentStrong}
-                    />
-                    <Text
-                      style={[
-                        {
-                          fontSize: 16,
-                          color: theme.color.textPrimary,
-                        },
-                      ]}
-                    >
-                      {mode}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: theme.spacing.xs }}>
-                    <Text
-                      style={[{ margin: 5, color: theme.color.textPrimary }]}
-                    >
-                      {parseDateInLocalTimezone(
-                        scheduledDateTime
-                      ).toLocaleDateString(userLocale, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                        timeZone: userTimeZone || undefined,
-                      })}
-                    </Text>
-                    <Text
-                      style={[{ margin: 5, color: theme.color.textPrimary }]}
-                    >
-                      {parseDateInLocalTimezone(
-                        scheduledDateTime
-                      ).toLocaleTimeString(userLocale, {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                        timeZone: userTimeZone || undefined,
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
-
-            {show && (
-              // DateTime Picker
-              <Controller
-                name="scheduled_datetime"
-                control={control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <DateTimePicker
-                    value={parseDateInLocalTimezone(value)}
-                    mode={mode}
-                    is24Hour={false}
-                    display="default"
-                    onChange={(___, selectedDate) => {
-                      if (selectedDate) {
-                        if (mode === "date") {
-                          // Update date part and preserve time
-                          const yyyy = selectedDate.getFullYear();
-
-                          const mm = String(
-                            selectedDate.getMonth() + 1
-                          ).padStart(2, "0");
-                          const dd = String(selectedDate.getDate()).padStart(
-                            2,
-                            "0"
-                          );
-                          const dateString = `${yyyy}-${mm}-${dd}`;
-                          const timePart = getTimePart(value) || DEFAULT_TIME;
-                          onChange(combineDateTime(dateString, timePart));
-                          setMode("time");
-                        } else {
-                          // Update time part and preserve date
-
-                          const hh = String(selectedDate.getHours()).padStart(
-                            2,
-                            "0"
-                          );
-                          const min = String(
-                            selectedDate.getMinutes()
-                          ).padStart(2, "0");
-                          const timeString = `${hh}:${min}`;
-                          const datePart =
-                            getDatePart(value) ||
-                            getCurrentDateInLocalTimezone();
-                          onChange(combineDateTime(datePart, timeString));
-
-                          setMode("date");
-                          setShow(false);
+                    {[
+                      "Select workout",
+                      "strength",
+                      "cardio",
+                      "mobility",
+                      "circuit",
+                    ].map((item, index) => (
+                      <Picker.Item
+                        key={`workout-type-${index}`}
+                        label={
+                          item === "Select workout"
+                            ? item
+                            : item.charAt(0).toUpperCase() + item.slice(1)
                         }
-                      }
-                    }}
-                  />
+                        value={item}
+                        style={{
+                          backgroundColor: theme.color.input,
+                          color: theme.color.textPrimary,
+                        }}
+                      />
+                    ))}
+                  </Picker>
                 )}
               />
+            </View>
+            {errors.workoutType && (
+              <Text style={[styles.errorText, { color: theme.color.danger }]}>
+                Select a workout type
+              </Text>
             )}
+          </View>
 
-            {/* Workout length */}
-            <View>
-              <Text
-                style={{
-                  color: theme.color.textPrimary,
-                  marginBottom: theme.spacing.label,
-                  fontSize: theme.spacing.lg,
-                }}
-              >
-                Workout length (minutes)
-              </Text>
-
-              <DurationWheelPicker />
-            </View>
-
-            {/* Name */}
-            <View>
-              <Text
-                style={{
-                  color: theme.color.textPrimary,
-                  marginBottom: theme.spacing.label,
-                  fontSize: theme.spacing.lg,
-                }}
-              >
-                Name
-              </Text>
-              <Controller
-                name="name"
-                control={control}
-                rules={{ required: true }}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    placeholder="Workout Name"
-                    placeholderTextColor={theme.color.placeholderColor}
-                    value={value.toString()}
-                    onFocus={() => setIsFocusedNameInput(true)}
-                    onBlur={() => {
-                      setIsFocusedNameInput(false);
-                      onBlur();
-                    }}
-                    onChangeText={onChange}
-                    editable
-                    style={[
-                      styles.textInput,
-                      {
-                        height: theme.spacing.input_height,
-                        paddingHorizontal: theme.spacing.lg,
-                        color: theme.color.textPrimary,
-                        backgroundColor: theme.color.surface,
-                        borderColor: isFocusedNameInput
-                          ? theme.color.accentStrong
-                          : theme.color.border,
-                      },
-                    ]}
-                  />
-                )}
-              />
-              {errors.name && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
-                  Workout name is required
-                </Text>
+          {/* Description */}
+          <View style={{ gap: theme.spacing.label }}>
+            <Text
+              style={[styles.fieldLabel, { color: theme.color.textSecondary }]}
+            >
+              DESCRIPTION
+            </Text>
+            <Controller
+              name="description"
+              control={control}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  placeholder="Add a description..."
+                  placeholderTextColor={theme.color.placeholderColor}
+                  value={value.toString()}
+                  onFocus={() => setIsFocusedDescriptionInput(true)}
+                  onBlur={() => {
+                    setIsFocusedDescriptionInput(false);
+                    onBlur();
+                  }}
+                  onChangeText={onChange}
+                  multiline
+                  style={[
+                    styles.areaTextInput,
+                    {
+                      padding: theme.spacing.lg,
+                      backgroundColor: theme.color.input,
+                      color: theme.color.textPrimary,
+                      borderColor: isFocusedDescriptionInput
+                        ? theme.color.accentActive
+                        : theme.color.border,
+                    },
+                  ]}
+                />
               )}
-            </View>
+            />
+          </View>
 
-            {/* Workout Description */}
-            <View>
-              <Text
-                style={{
-                  color: theme.color.textPrimary,
-                  marginBottom: theme.spacing.label,
-                  fontSize: theme.spacing.lg,
-                }}
-              >
-                Workout Description
-              </Text>
-              <Controller
-                name="description"
-                control={control}
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    placeholder="Workout Description..."
-                    placeholderTextColor={theme.color.placeholderColor}
-                    value={value.toString()}
-                    onFocus={() => setIsFocusedDescriptionInput(true)}
-                    onBlur={() => {
-                      setIsFocusedDescriptionInput(false);
-                      onBlur();
-                    }}
-                    onChangeText={onChange}
-                    editable
-                    multiline
-                    style={[
-                      styles.areaTextInput,
-                      {
-                        minHeight: theme.spacing.input_height * 2,
-                        padding: theme.spacing.lg,
-                        backgroundColor: theme.color.surface,
-                        color: theme.color.textPrimary,
-                        borderColor: isFocusedDescriptionInput
-                          ? theme.color.accentStrong
-                          : theme.color.border,
-                      },
-                    ]}
-                  />
-                )}
-              />
-            </View>
-          </ScrollView>
+          {/* Add Exercise */}
           <AppButton
-            title="Create workout"
-            onPress={() => handleSubmit(onSubmit)()}
-            style={[
-              {
-                height: theme.spacing.button_height,
-                marginHorizontal: theme.spacing.md,
-                marginBottom: theme.spacing.xxl,
-              },
-            ]}
+            title="Add Exercise"
+            onPress={() => setShowExerciseModal(true)}
+            style={{
+              backgroundColor: theme.color.accent,
+              borderColor: theme.color.border,
+              height: theme.spacing.buttonHeight,
+              borderWidth: 1,
+              marginVertical: 0,
+            }}
             textStyle={{ color: theme.color.textPrimary }}
           />
-        </FormProvider>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+
+          {/* Exercise list */}
+          {workoutExerciseListUpdate.length > 0 &&
+            workoutExerciseListUpdate.map((exercise, index) => (
+              <ExerciseListItem
+                key={index}
+                index={index}
+                exercise={exercise}
+                setValue={setValue}
+                getValues={getValues}
+              />
+            ))}
+
+          {/* Duration */}
+          <View style={{ gap: theme.spacing.label }}>
+            <Text
+              style={[styles.fieldLabel, { color: theme.color.textSecondary }]}
+            >
+              DURATION
+            </Text>
+            <DurationWheelPicker />
+          </View>
+
+          <Modal
+            animationType="slide"
+            transparent={false}
+            visible={showExerciseModal}
+            onRequestClose={() => setShowExerciseModal(false)}
+            statusBarTranslucent={true}
+          >
+            <AddExercise setShowExerciseModal={setShowExerciseModal} />
+          </Modal>
+
+          {/* Date & Time */}
+          <View style={{ gap: theme.spacing.label }}>
+            <Text
+              style={[styles.fieldLabel, { color: theme.color.textSecondary }]}
+            >
+              DATE & TIME
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.dateButton,
+                {
+                  backgroundColor: pressed
+                    ? theme.color.surface2
+                    : theme.color.input,
+                  borderColor: theme.color.border,
+                  height: theme.spacing.buttonHeight,
+                },
+              ]}
+              onPress={openDatePicker}
+            >
+              <View style={styles.dateButtonLeft}>
+                <AntDesign
+                  name="calendar"
+                  size={18}
+                  color={theme.color.accent}
+                />
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.color.textSecondary },
+                  ]}
+                >
+                  {mode.toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.dateButtonRight}>
+                <Text
+                  style={[styles.dateValue, { color: theme.color.textPrimary }]}
+                >
+                  {parseDateInLocalTimezone(
+                    scheduledDateTime,
+                  ).toLocaleDateString(userLocale, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    timeZone: userTimeZone || undefined,
+                  })}
+                </Text>
+                <Text
+                  style={[styles.dateValue, { color: theme.color.textPrimary }]}
+                >
+                  {parseDateInLocalTimezone(
+                    scheduledDateTime,
+                  ).toLocaleTimeString(userLocale, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    hour12: true,
+                    timeZone: userTimeZone || undefined,
+                  })}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+
+          {show && (
+            <Controller
+              name="scheduled_datetime"
+              control={control}
+              render={({ field: { onChange, value } }) => (
+                <DateTimePicker
+                  value={parseDateInLocalTimezone(value)}
+                  mode={mode}
+                  is24Hour={false}
+                  display="default"
+                  onChange={(_, selectedDate) => {
+                    if (selectedDate) {
+                      if (mode === "date") {
+                        const yyyy = selectedDate.getFullYear();
+                        const mm = String(selectedDate.getMonth() + 1).padStart(
+                          2,
+                          "0",
+                        );
+                        const dd = String(selectedDate.getDate()).padStart(
+                          2,
+                          "0",
+                        );
+                        onChange(
+                          combineDateTime(
+                            `${yyyy}-${mm}-${dd}`,
+                            getTimePart(value) || DEFAULT_TIME,
+                          ),
+                        );
+                        setMode("time");
+                      } else {
+                        const hh = String(selectedDate.getHours()).padStart(
+                          2,
+                          "0",
+                        );
+                        const min = String(selectedDate.getMinutes()).padStart(
+                          2,
+                          "0",
+                        );
+                        onChange(
+                          combineDateTime(
+                            getDatePart(value) ||
+                              getCurrentDateInLocalTimezone(),
+                            `${hh}:${min}`,
+                          ),
+                        );
+                        setMode("date");
+                        setShow(false);
+                      }
+                    }
+                  }}
+                />
+              )}
+            />
+          )}
+        </ScrollView>
+
+        <AppButton
+          title="Create Workout"
+          onPress={() => handleSubmit(onSubmit)()}
+          style={{
+            height: theme.spacing.buttonHeight,
+            marginHorizontal: theme.spacing.md,
+            marginBottom: bottom + 16,
+          }}
+          textStyle={{ color: theme.color.textPrimary }}
+        />
+      </View>
+    </FormProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  text: {
-    fontSize: 16,
-    fontWeight: "medium",
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
   },
-  textError: {
-    fontSize: 16,
-    fontWeight: "semibold",
-    color: "red",
+  errorText: {
+    fontSize: 12,
+    marginTop: 2,
   },
   pickerContainer: {
     width: "100%",
     borderWidth: 1,
     borderRadius: 8,
     overflow: "hidden",
-    padding: 0,
   },
-  picker: {
-    //width: "100%",
-  },
-  keyboardAvoidingViewContainer: {
-    flexGrow: 1,
-  },
-  scrollViewContainer: {
-    flexGrow: 1,
-  },
+  scrollViewContainer: {},
   textInput: {
     fontSize: 16,
     borderWidth: 1,
@@ -656,11 +545,24 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     borderRadius: 8,
   },
-  button: {
-    padding: 10,
-    borderColor: "black",
+  dateButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderRadius: 8,
   },
-  createWorkoutButton: {},
+  dateButtonLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dateButtonRight: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  dateValue: {
+    fontSize: 14,
+  },
 });

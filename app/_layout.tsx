@@ -1,16 +1,28 @@
-import { DatabaseProvider } from "@/context/databaseContext";
-import { HomeProvider } from "@/context/HomeContext";
 import { AuthProvider } from "@/context/authContext";
 import { WorkoutProvider } from "@/context/workoutContext";
 import { Slot, SplashScreen } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ColorThemeProvider } from "@/context/colorThemeContext";
+import { useResolvedScheme } from "@/hooks/useResolvedScheme";
 import Toast from "react-native-toast-message";
 import { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator } from "react-native";
-
-// Prevent the splash screen from auto-hiding
+//import { StatusBar } from "expo-status-bar";
+import { MaxLiftProvider } from "@/context/maxLiftContext";
+import * as Font from "expo-font";
+import { Oswald_700Bold } from "@expo-google-fonts/oswald";
+import { Inter_400Regular, Inter_700Bold } from "@expo-google-fonts/inter";
+import { Pacifico_400Regular } from "@expo-google-fonts/pacifico";
+import { RussoOne_400Regular } from "@expo-google-fonts/russo-one";
+import { Orbitron_700Bold } from "@expo-google-fonts/orbitron";
+import { UserPreferenceProvider } from "@/context/userPreferenceContext";
+import { ProfileProvider } from "@/context/profileContext";
+import { AppInitProvider } from "@/context/AppInitContext";
+import { DataProvider } from "@/context/DataContext";
+import { SyncProvider } from "@/context/SyncContext";
+import { tokens } from "@/utils/colorTheme";
+import { StatusBar } from "react-native";
 SplashScreen.preventAutoHideAsync();
 
 export default function Layout() {
@@ -19,21 +31,34 @@ export default function Layout() {
 
   useEffect(() => {
     const prepare = async () => {
+      console.log("prepare started");
       try {
-        // Give providers time to initialize
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setIsReady(true);
-        await SplashScreen.hideAsync();
+        console.log("loading fonts...");
+        await Font.loadAsync({
+          "Oswald-Bold": Oswald_700Bold,
+          "Inter-Regular": Inter_400Regular,
+          "Inter-Bold": Inter_700Bold,
+          "Pacifico-Regular": Pacifico_400Regular,
+          "RussoOne-Regular": RussoOne_400Regular,
+          "Orbitron-Bold": Orbitron_700Bold,
+        });
+        console.log("fonts loaded");
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        await SplashScreen.hideAsync();
+        console.warn("Failed to load fonts:", e);
+      } finally {
+        console.log("finally block reached");
+        setIsReady(true);
+        console.log("isReady set to true");
+        await SplashScreen.hideAsync().catch((e) => {
+          console.warn("Failed to hide splash screen:", e);
+        });
+        console.log("splash hidden");
       }
     };
 
     prepare();
   }, []);
 
-  // Show loading state AFTER splash hides
   if (!isReady && !error) {
     return (
       <View
@@ -41,15 +66,14 @@ export default function Layout() {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#fff",
+          backgroundColor: "#0B0F0E",
         }}
       >
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="large" color="#0EA06F" />
         </View>
-
         <Text style={{ marginTop: 20, fontSize: 16 }}>Initializing app...</Text>
       </View>
     );
@@ -73,22 +97,55 @@ export default function Layout() {
     );
   }
 
+  function AppStatusBar() {
+    const resolvedScheme = useResolvedScheme();
+    const isDark = resolvedScheme === "dark";
+
+    return (
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={
+          isDark ? tokens.dark.background : tokens.light.background
+        }
+        translucent={false}
+        animated={false}
+      />
+    );
+  }
+
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <ColorThemeProvider>
-          <DatabaseProvider>
-            <WorkoutProvider>
-              <HomeProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <Slot />
-                  <Toast />
-                </GestureHandlerRootView>
-              </HomeProvider>
-            </WorkoutProvider>
-          </DatabaseProvider>
-        </ColorThemeProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <>
+      {/* <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FF0000"
+        translucent={false}
+      /> */}
+      <SafeAreaProvider>
+        <AppInitProvider>
+          <AuthProvider>
+            <SyncProvider>
+              <ColorThemeProvider>
+                <DataProvider>
+                  <ProfileProvider>
+                    <UserPreferenceProvider>
+                      <WorkoutProvider>
+                        <MaxLiftProvider>
+                          <GestureHandlerRootView style={{ flex: 1 }}>
+                            <AppStatusBar />
+
+                            <Slot />
+                            <Toast />
+                          </GestureHandlerRootView>
+                        </MaxLiftProvider>
+                      </WorkoutProvider>
+                    </UserPreferenceProvider>
+                  </ProfileProvider>
+                </DataProvider>
+              </ColorThemeProvider>
+            </SyncProvider>
+          </AuthProvider>
+        </AppInitProvider>
+      </SafeAreaProvider>
+    </>
   );
 }

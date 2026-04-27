@@ -13,14 +13,14 @@ export interface WorkoutFormValues {
 }
 
 export interface ExerciseProps {
-  workoutType: string;
   exerciseList: Exercise[];
   setShowExerciseModal: (showExerciseModal: boolean) => void;
 }
 
 // Interface for a complete workout
 export interface WorkoutUpdateFormValues {
-  id: number;
+  id: string;
+  user_id: string;
   name: string;
   description: string;
   type: string;

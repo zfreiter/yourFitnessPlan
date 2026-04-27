@@ -1,8 +1,10 @@
 import * as SQLite from "expo-sqlite";
 import { Exercise, ValidUnit, ExerciseType, Difficulty } from "@/types/type";
+import { syncService } from "@/services/syncService";
+import { getDB } from "./database";
 
 interface ExerciseRow {
-  id: number;
+  id: string;
   name: string;
   description: string;
   difficulty: string;
@@ -14,42 +16,29 @@ interface ExerciseRow {
 }
 
 export interface ExerciseService {
-  getExercises: (db: SQLite.SQLiteDatabase) => Promise<Exercise[]>;
-  getExerciseById: (
-    db: SQLite.SQLiteDatabase,
-    id: number
-  ) => Promise<Exercise | null>;
-  getExercisesByType: (
-    db: SQLite.SQLiteDatabase,
-    type: ExerciseType
-  ) => Promise<Exercise[]>;
-  getExercisesByMuscle: (
-    db: SQLite.SQLiteDatabase,
-    muscle: string
-  ) => Promise<Exercise[]>;
-  getExerciseByEquipment: (
-    db: SQLite.SQLiteDatabase,
-    equipment: string
-  ) => Promise<Exercise[]>;
+  getExercises: () => Promise<Exercise[]>;
+  getExerciseById: (id: string) => Promise<Exercise | null>;
+  getExercisesByType: (type: ExerciseType) => Promise<Exercise[]>;
+  getExercisesByMuscle: (muscle: string) => Promise<Exercise[]>;
+  getExerciseByEquipment: (equipment: string) => Promise<Exercise[]>;
   getParsedExercises: (exercises: ExerciseRow[]) => Exercise[];
   getParsedExerciseById: (exercise: ExerciseRow) => Exercise | null;
   updateExerciseOrder: (
-    db: SQLite.SQLiteDatabase,
-    exerciseListToUpdate: { id: number; exercise_order: number }[]
+    userId: string,
+    exerciseListToUpdate: { id: string; exercise_order: number }[],
   ) => Promise<{ success: boolean; error?: string }>;
   deleteExercise: (
-    db: SQLite.SQLiteDatabase,
-    exerciseId: number
+    userId: string,
+    exerciseId: string,
   ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const exerciseService: ExerciseService = {
-  // parse exercises from db to Exercise[]
   getParsedExercises: (exercises: ExerciseRow[]): Exercise[] => {
     return exercises.map((exercise) => ({
       id: exercise.id,
       exercise_id: exercise.id,
-      workout_id: 0, // Template exercises don't belong to a specific workout
+      workout_id: "",
       exercise_name: exercise.name,
       exercise_description: exercise.description,
       exercise_difficulty: exercise.difficulty as Difficulty,
@@ -71,7 +60,7 @@ export const exerciseService: ExerciseService = {
     return {
       id: exercise.id,
       exercise_id: exercise.id,
-      workout_id: 0, // Template exercises don't belong to a specific workout
+      workout_id: "",
       exercise_name: exercise.name,
       exercise_description: exercise.description,
       exercise_difficulty: exercise.difficulty as Difficulty,
@@ -89,7 +78,8 @@ export const exerciseService: ExerciseService = {
     };
   },
 
-  getExercises: async (db: SQLite.SQLiteDatabase) => {
+  getExercises: async () => {
+    const db = await getDB();
     try {
       const exercises: ExerciseRow[] = await db.getAllAsync(`
         SELECT e.id, e.name, e.description, e.difficulty, e.no_weight,
@@ -108,17 +98,23 @@ export const exerciseService: ExerciseService = {
         ON e.id = eq.exercise_id
         GROUP BY e.id
       `);
-      //console.log("test        ", exercises[0]);
+
       const parsedExercises: Exercise[] =
         exerciseService.getParsedExercises(exercises);
 
-      return parsedExercises;
+      const orderedExercises = parsedExercises.sort((a, b) =>
+        a.exercise_name.localeCompare(b.exercise_name),
+      );
+
+      return orderedExercises;
     } catch (error) {
       console.error("Error fetching all exercises:", error);
       throw new Error("Failed to fetch exercises");
     }
   },
-  getExerciseById: async (db: SQLite.SQLiteDatabase, id: number) => {
+
+  getExerciseById: async (id: string) => {
+    const db = await getDB();
     try {
       const foundExercise: ExerciseRow | null = await db.getFirstAsync(
         `
@@ -139,22 +135,20 @@ export const exerciseService: ExerciseService = {
         WHERE e.id = ?
         GROUP BY e.id, e.name, e.description, e.difficulty, e.no_weight
         `,
-        [id]
+        [id],
       );
 
-      if (!foundExercise) {
-        return null;
-      }
-      const parsedExercise =
-        exerciseService.getParsedExerciseById(foundExercise);
+      if (!foundExercise) return null;
 
-      return parsedExercise;
+      return exerciseService.getParsedExerciseById(foundExercise);
     } catch (error) {
       console.error("Error fetching exercise by id:", error);
       throw new Error("Failed to fetch exercise by id");
     }
   },
-  getExercisesByType: async (db: SQLite.SQLiteDatabase, type: ExerciseType) => {
+
+  getExercisesByType: async (type: ExerciseType) => {
+    const db = await getDB();
     try {
       const exercises: ExerciseRow[] = await db.getAllAsync(
         `
@@ -177,23 +171,20 @@ export const exerciseService: ExerciseService = {
         )
         GROUP BY e.id, e.name, e.description, e.difficulty, e.no_weight
         `,
-        [type]
+        [type],
       );
 
-      if (!exercises) {
-        return [];
-      }
+      if (!exercises) return [];
 
-      const parsedExercises: Exercise[] =
-        exerciseService.getParsedExercises(exercises);
-
-      return parsedExercises;
+      return exerciseService.getParsedExercises(exercises);
     } catch (error) {
       console.error("Error fetching exercises by type:", error);
       throw new Error("Failed to fetch exercises by type");
     }
   },
-  getExercisesByMuscle: async (db: SQLite.SQLiteDatabase, muscle: string) => {
+
+  getExercisesByMuscle: async (muscle: string) => {
+    const db = await getDB();
     try {
       const exercises: ExerciseRow[] = await db.getAllAsync(
         `
@@ -216,25 +207,20 @@ export const exerciseService: ExerciseService = {
         )
         GROUP BY e.id, e.name, e.description, e.difficulty, e.no_weight
         `,
-        [muscle]
+        [muscle],
       );
 
-      if (!exercises) {
-        return [];
-      }
+      if (!exercises) return [];
 
-      const parsedExercises: Exercise[] =
-        exerciseService.getParsedExercises(exercises);
-      return parsedExercises;
+      return exerciseService.getParsedExercises(exercises);
     } catch (error) {
       console.error("Error fetching exercises by muscle:", error);
       throw new Error("Failed to fetch exercises by muscle");
     }
   },
-  getExerciseByEquipment: async (
-    db: SQLite.SQLiteDatabase,
-    equipment: string
-  ) => {
+
+  getExerciseByEquipment: async (equipment: string) => {
+    const db = await getDB();
     try {
       const exercises: ExerciseRow[] = await db.getAllAsync(
         `
@@ -257,61 +243,82 @@ export const exerciseService: ExerciseService = {
         )
         GROUP BY e.id, e.name, e.description, e.difficulty, e.no_weight
         `,
-        [equipment]
+        [equipment],
       );
 
-      if (!exercises) {
-        return [];
-      }
+      if (!exercises) return [];
 
-      const parsedExercises: Exercise[] =
-        exerciseService.getParsedExercises(exercises);
-      return parsedExercises;
+      return exerciseService.getParsedExercises(exercises);
     } catch (error) {
       console.error("Error fetching exercises by equipment:", error);
       throw new Error("Failed to fetch exercises by equipment");
     }
   },
+
   updateExerciseOrder: async (
-    db: SQLite.SQLiteDatabase,
-    exercisesToUpdate: { id: number; exercise_order: number }[]
+    userId: string,
+    exercisesToUpdate: { id: string; exercise_order: number }[],
   ): Promise<{ success: boolean; error?: string }> => {
+    const db = await getDB();
     try {
       await db.withTransactionAsync(async () => {
-        // Use Promise.all to wait for all updates to complete
         await Promise.all(
           exercisesToUpdate.map(async (exercise) => {
             await db.runAsync(
               `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
-              [exercise.exercise_order, exercise.id]
+              [exercise.exercise_order, exercise.id],
             );
-          })
+          }),
         );
       });
 
-      console.log("Successfully updated exercise order");
+      // Add each reordered exercise to sync queue
+      for (const exercise of exercisesToUpdate) {
+        await syncService.addToSyncQueue(
+          userId,
+          "workout_exercises",
+          exercise.id,
+          "update",
+          {
+            id: exercise.id,
+            exercise_order: exercise.exercise_order,
+          },
+        );
+      }
+
       return { success: true };
     } catch (error) {
       console.error("Error updating exercise order:", error);
-
       return { success: false, error: "Failed to update exercise order" };
     }
   },
+
   deleteExercise: async (
-    db: SQLite.SQLiteDatabase,
-    exerciseId: number
+    userId: string,
+    exerciseId: string,
   ): Promise<{ success: boolean; error?: string }> => {
+    const db = await getDB();
     try {
       await db.withTransactionAsync(async () => {
         await db.runAsync(
           `DELETE FROM exercise_sets WHERE workout_exercise_id = ?`,
-          [exerciseId]
+          [exerciseId],
         );
-
         await db.runAsync(`DELETE FROM workout_exercises WHERE id = ?`, [
           exerciseId,
         ]);
       });
+
+      // Sync queue — sets are cascade deleted via workout_exercise in Supabase
+      // so we only need to delete the workout_exercise
+      await syncService.addToSyncQueue(
+        userId,
+        "workout_exercises",
+        exerciseId,
+        "delete",
+        { id: exerciseId },
+      );
+
       return { success: true };
     } catch (error) {
       console.error("Error deleting exercise:", error);

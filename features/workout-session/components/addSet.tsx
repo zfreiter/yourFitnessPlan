@@ -1,12 +1,14 @@
-import { useDatabase } from "@/context/databaseContext";
 import { useWorkout } from "@/context/workoutContext";
-import { setService } from "@/services/setService";
 import { Exercise, Workout } from "@/types/type";
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import { ExerciseSet } from "@/types/type";
 import { useColorTheme } from "@/context/colorThemeContext";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import * as Crypto from "expo-crypto";
+import { workoutService } from "@/services/workoutService";
+import { useEffect } from "react";
+import { useAuth } from "@/context/authContext";
 
 export default function AddSet({
   setIndex,
@@ -17,47 +19,39 @@ export default function AddSet({
   size: number;
   exerciseIndex: number;
 }) {
-  const { watch } = useFormContext();
-  const { setWorkouts } = useWorkout();
-  const { append } = useFieldArray({
+  const {
+    watch,
+    reset,
+    getValues,
+    formState: { dirtyFields },
+  } = useFormContext();
+  const { insertSet, setWorkouts } = useWorkout();
+  const { fields, append } = useFieldArray({
     name: `exercises.${exerciseIndex}.sets`,
   });
-  const exercise = watch(`exercises.${exerciseIndex}`);
+  const exercise: Exercise = watch(`exercises.${exerciseIndex}`);
 
-  const { db } = useDatabase();
   const { theme } = useColorTheme();
-  const handleAddSet = async () => {
-    if (db) {
-      const newSet: ExerciseSet = {
-        id: -1,
-        workout_exercise_id: exercise.id,
-        reps: exercise.track_reps ? 0 : undefined,
-        weight: exercise.track_weight ? 0 : undefined,
-        duration: exercise.track_time ? 0 : undefined,
-        distance: exercise.track_distance ? 0 : undefined,
-        set_order: (exercise.sets?.length || 0) + 1,
-      };
-      const response = await setService.createSet(db, newSet);
-      if (response.success && response.rowId) {
-        newSet.id = response.rowId ?? -1;
+  const { user } = useAuth();
 
-        append(newSet);
-        setWorkouts((prevWorkouts: Workout[]) =>
-          prevWorkouts.map((workout: Workout) => {
-            if (workout.id === exercise.workout_id) {
-              workout.exercises.map((ex: Exercise) => {
-                if (ex.id === exercise.id) {
-                  ex.sets.push(newSet);
-                }
-                return ex;
-              });
-            }
-            return workout;
-          })
-        );
-      } else {
-        throw new Error("Set not created");
-      }
+  const handleAddSet = async () => {
+    //if (db) {
+    const setId = Crypto.randomUUID();
+    const newSet: ExerciseSet = {
+      id: setId,
+      workout_exercise_id: exercise.id,
+      reps: exercise.track_reps ? 0 : undefined,
+      weight: exercise.track_weight ? 0 : undefined,
+      duration: exercise.track_time ? 0 : undefined,
+      distance: exercise.track_distance ? 0 : undefined,
+      set_order: (exercise.sets?.length || 0) + 1,
+    };
+
+    const result = await insertSet(user?.id!, newSet, exercise.workout_id);
+
+    if (result.success) {
+      append(newSet);
+      //reset(getValues());
     }
   };
 
