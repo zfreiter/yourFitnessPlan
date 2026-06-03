@@ -67,6 +67,7 @@ export function CreateWorkoutContainer() {
   const { date } = useLocalSearchParams();
   const [workoutType, setWorkoutType] =
     useState<ExerciseType>("Select workout");
+  const [isFocused, setIsFocused] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [isFocusedNameInput, setIsFocusedNameInput] = useState(false);
   const [isFocusedDescriptionInput, setIsFocusedDescriptionInput] =
@@ -80,7 +81,7 @@ export function CreateWorkoutContainer() {
       id: Crypto.randomUUID(),
       name: "",
       description: "",
-      duration: undefined,
+      duration: 0,
       scheduled_datetime: (() => {
         const initialDatePart =
           (date as string) || getCurrentDateInLocalTimezone();
@@ -123,7 +124,7 @@ export function CreateWorkoutContainer() {
           id: "",
           name: "",
           description: "",
-          duration: undefined,
+          duration: 0,
           scheduled_datetime: combineDateTime(
             (date as string) || getCurrentDateInLocalTimezone(),
             DEFAULT_TIME,
@@ -235,10 +236,11 @@ export function CreateWorkoutContainer() {
             </Text>
             <View
               style={[
-                styles.pickerContainer,
+                styles.pickerWrapper,
                 {
-                  height: theme.spacing.buttonHeight,
-                  borderColor: theme.color.border,
+                  borderColor: isFocused
+                    ? theme.color.accentActive
+                    : theme.color.border,
                   backgroundColor: theme.color.input,
                 },
               ]}
@@ -259,6 +261,8 @@ export function CreateWorkoutContainer() {
                       backgroundColor: theme.color.input,
                       color: theme.color.textPrimary,
                     }}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
                     selectedValue={value}
                     onValueChange={(val) => {
                       setWorkoutType(val);
@@ -525,6 +529,14 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     marginTop: 2,
+  },
+  pickerWrapper: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: "hidden",
+    height: 40,
+    justifyContent: "center",
   },
   pickerContainer: {
     width: "100%",

@@ -23,7 +23,6 @@ import { format } from "date-fns";
 import { setService } from "@/services/setService";
 import { debugSchema } from "@/services/database";
 import { useSync } from "./SyncContext";
-import { syncService } from "@/services/syncService";
 
 interface WorkoutContextType {
   workouts: Workout[];

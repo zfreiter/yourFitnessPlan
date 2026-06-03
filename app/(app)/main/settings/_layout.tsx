@@ -37,7 +37,7 @@ export default function SettingsLayout() {
             }}
           >
             {/* Left — back button or spacer */}
-            {navigation.canGoBack() ? (
+            {navigation.canGoBack() && options.title !== "Settings" ? (
               <Pressable
                 onPress={() => navigation.goBack()}
                 style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}

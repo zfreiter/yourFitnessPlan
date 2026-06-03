@@ -7,10 +7,16 @@ import { ColorThemeProvider } from "@/context/colorThemeContext";
 import { useResolvedScheme } from "@/hooks/useResolvedScheme";
 import Toast from "react-native-toast-message";
 import { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator } from "react-native";
-//import { StatusBar } from "expo-status-bar";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  Platform,
+  StatusBar,
+} from "react-native";
 import { MaxLiftProvider } from "@/context/maxLiftContext";
 import * as Font from "expo-font";
+import * as Notifications from "expo-notifications";
 import { Oswald_700Bold } from "@expo-google-fonts/oswald";
 import { Inter_400Regular, Inter_700Bold } from "@expo-google-fonts/inter";
 import { Pacifico_400Regular } from "@expo-google-fonts/pacifico";
@@ -22,8 +28,28 @@ import { AppInitProvider } from "@/context/AppInitContext";
 import { DataProvider } from "@/context/DataContext";
 import { SyncProvider } from "@/context/SyncContext";
 import { tokens } from "@/utils/colorTheme";
-import { StatusBar } from "react-native";
+
 SplashScreen.preventAutoHideAsync();
+
+// ← NEW: controls how notifications appear when app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// ← NEW: Android requires a channel for sound/vibration to work reliably
+if (Platform.OS === "android") {
+  Notifications.setNotificationChannelAsync("timer", {
+    name: "Timer Alerts",
+    importance: Notifications.AndroidImportance.MAX,
+    sound: "default",
+    vibrationPattern: [0, 250, 250, 250],
+  });
+}
 
 export default function Layout() {
   const [isReady, setIsReady] = useState(false);
@@ -31,9 +57,7 @@ export default function Layout() {
 
   useEffect(() => {
     const prepare = async () => {
-      console.log("prepare started");
       try {
-        console.log("loading fonts...");
         await Font.loadAsync({
           "Oswald-Bold": Oswald_700Bold,
           "Inter-Regular": Inter_400Regular,
@@ -42,17 +66,21 @@ export default function Layout() {
           "RussoOne-Regular": RussoOne_400Regular,
           "Orbitron-Bold": Orbitron_700Bold,
         });
-        console.log("fonts loaded");
+
+        // ← NEW: request notification permission once on first launch.
+        // getPermissionsAsync checks first so we don't prompt on every launch.
+        // If already granted it skips the dialog entirely.
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        if (existing !== "granted") {
+          await Notifications.requestPermissionsAsync();
+        }
       } catch (e) {
-        console.warn("Failed to load fonts:", e);
+        console.warn("Prepare failed:", e);
       } finally {
-        console.log("finally block reached");
         setIsReady(true);
-        console.log("isReady set to true");
         await SplashScreen.hideAsync().catch((e) => {
           console.warn("Failed to hide splash screen:", e);
         });
-        console.log("splash hidden");
       }
     };
 
@@ -114,38 +142,30 @@ export default function Layout() {
   }
 
   return (
-    <>
-      {/* <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FF0000"
-        translucent={false}
-      /> */}
-      <SafeAreaProvider>
-        <AppInitProvider>
-          <AuthProvider>
-            <SyncProvider>
-              <ColorThemeProvider>
-                <DataProvider>
-                  <ProfileProvider>
-                    <UserPreferenceProvider>
-                      <WorkoutProvider>
-                        <MaxLiftProvider>
-                          <GestureHandlerRootView style={{ flex: 1 }}>
-                            <AppStatusBar />
-
-                            <Slot />
-                            <Toast />
-                          </GestureHandlerRootView>
-                        </MaxLiftProvider>
-                      </WorkoutProvider>
-                    </UserPreferenceProvider>
-                  </ProfileProvider>
-                </DataProvider>
-              </ColorThemeProvider>
-            </SyncProvider>
-          </AuthProvider>
-        </AppInitProvider>
-      </SafeAreaProvider>
-    </>
+    <SafeAreaProvider>
+      <AppInitProvider>
+        <AuthProvider>
+          <SyncProvider>
+            <ColorThemeProvider>
+              <DataProvider>
+                <ProfileProvider>
+                  <UserPreferenceProvider>
+                    <WorkoutProvider>
+                      <MaxLiftProvider>
+                        <GestureHandlerRootView style={{ flex: 1 }}>
+                          <AppStatusBar />
+                          <Slot />
+                          <Toast />
+                        </GestureHandlerRootView>
+                      </MaxLiftProvider>
+                    </WorkoutProvider>
+                  </UserPreferenceProvider>
+                </ProfileProvider>
+              </DataProvider>
+            </ColorThemeProvider>
+          </SyncProvider>
+        </AuthProvider>
+      </AppInitProvider>
+    </SafeAreaProvider>
   );
 }

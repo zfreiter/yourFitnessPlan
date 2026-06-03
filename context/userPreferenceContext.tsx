@@ -45,6 +45,7 @@ export const UserPreferenceProvider = ({
   async function updateUserPreferences(
     updatedPreferences: UserPreferencesUpdate,
   ): Promise<boolean> {
+    console.log("Updating user preferences with: ", updatedPreferences);
     const response =
       await userPreferenceService.updateUserPreferences(updatedPreferences);
 

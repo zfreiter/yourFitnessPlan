@@ -47,15 +47,14 @@ export const userPreferenceService: UserPreferenceServiceInterface = {
     try {
       const result = await db.runAsync(
         `INSERT OR REPLACE INTO user_preferences 
-    (user_id, theme, weight_unit, height_unit, set_progression_style, rm_formula, weight_rounding, 
+    (user_id, theme, unit_system, set_progression_style, rm_formula, weight_rounding, 
      allow_analytics, default_workout_visibility, allow_friend_requests, who_can_send_workouts, 
      notifications_enabled, email_product_updates, email_tips, created_at, updated_at) 
    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.user_id,
           data.theme,
-          data.weight_unit,
-          data.height_unit,
+          data.unit_system,
           data.set_progression_style,
           data.rm_formula,
           data.weight_rounding,
@@ -85,15 +84,14 @@ export const userPreferenceService: UserPreferenceServiceInterface = {
       // update sqlite
       const response = await db.runAsync(
         `UPDATE user_preferences 
-   SET theme = ?, weight_unit = ?, height_unit = ?, set_progression_style = ?, rm_formula = ?, 
+   SET theme = ?,unit_system = ?, set_progression_style = ?, rm_formula = ?, 
        weight_rounding = ?, allow_analytics = ?, default_workout_visibility = ?, allow_friend_requests = ?, 
        who_can_send_workouts = ?, notifications_enabled = ?, email_product_updates = ?, email_tips = ?, 
        updated_at = ?
    WHERE user_id = ?`,
         [
           preferences.theme ?? null,
-          preferences.weight_unit ?? null,
-          preferences.height_unit ?? null,
+          preferences.unit_system ?? null,
           preferences.set_progression_style ?? null,
           preferences.rm_formula ?? null,
           preferences.weight_rounding ?? null,

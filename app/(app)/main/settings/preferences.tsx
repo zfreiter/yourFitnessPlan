@@ -27,16 +27,10 @@ export default function Preferences() {
     userPreferences?.theme ?? "light",
   );
 
-  console.log("user preferences in component ", userPreferences?.theme);
   const [isSaving, setIsSaving] = useState(false);
 
   const c = tokens[tempTheme];
-  console.log(
-    "current theme preference ",
-    themePreference,
-    " temp theme ",
-    tempTheme,
-  );
+
   const {
     control,
     handleSubmit,
@@ -47,8 +41,7 @@ export default function Preferences() {
     defaultValues: {
       user_id: user?.id || "",
       theme: userPreferences?.theme || "light",
-      weight_unit: userPreferences?.weight_unit || "lbs",
-      height_unit: userPreferences?.height_unit || "in",
+      unit_system: userPreferences?.unit_system || "us",
       set_progression_style:
         userPreferences?.set_progression_style || "straight",
       rm_formula: userPreferences?.rm_formula || "epley",
@@ -88,14 +81,11 @@ export default function Preferences() {
     () => [makeRadio("light", "Light"), makeRadio("dark", "Dark")],
     [tempTheme],
   );
-  const weightUnitRadioButtons = useMemo(
-    () => [makeRadio("lbs", "Pounds (lbs)"), makeRadio("kg", "Kilograms (kg)")],
+  const unitSystemRadioButtons = useMemo(
+    () => [makeRadio("us", "US Units"), makeRadio("metric", "Metric Units")],
     [tempTheme],
   );
-  const heightUnitRadioButtons = useMemo(
-    () => [makeRadio("in", "Inches (in)"), makeRadio("cm", "Centimeters (cm)")],
-    [tempTheme],
-  );
+
   const setProgressionRadioButtons = useMemo(
     () => [
       makeRadio("straight", "Straight Sets"),
@@ -187,7 +177,6 @@ export default function Preferences() {
           position: "top",
         });
       }
-      //originalThemeRef.current = data.theme as "light" | "dark";
     } catch {
       Toast.show({
         type: "error",
@@ -231,7 +220,7 @@ export default function Preferences() {
             value={value as boolean}
             onValueChange={onChange}
             trackColor={{
-              false: c.border,
+              false: "#767577",
               true: c.accentStrong,
             }}
             thumbColor="#fff"
@@ -253,10 +242,13 @@ export default function Preferences() {
     >
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ gap: 20, paddingBottom: 100 }}
+        contentContainerStyle={{ gap: theme.spacing.xl, paddingBottom: 100 }}
         scrollEnabled={!isSaving}
       >
-        <View pointerEvents={isSaving ? "none" : "auto"}>
+        <View
+          pointerEvents={isSaving ? "none" : "auto"}
+          style={{ flex: 1, gap: theme.spacing.lg }}
+        >
           {isSaving && (
             <View style={styles.loadingOverlay}>
               <View
@@ -277,33 +269,40 @@ export default function Preferences() {
           )}
 
           {/* APPEARANCE */}
-          <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
-            APPEARANCE
-          </Text>
-          <SectionCard>
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              Theme
+          <View>
+            <Text
+              style={[
+                styles.sectionLabel,
+                { color: c.textSecondary, marginBottom: theme.spacing.label },
+              ]}
+            >
+              APPEARANCE
             </Text>
-            <Controller
-              control={control}
-              name="theme"
-              render={({ field: { onChange, value } }) => (
-                <RadioGroup
-                  radioButtons={themeRadioButtons}
-                  onPress={(v) => {
-                    onChange(v);
-                    setTempTheme(v as "light" | "dark");
-                  }}
-                  selectedId={value}
-                  layout="row"
-                  containerStyle={styles.radioContainer}
-                />
-              )}
-            />
-          </SectionCard>
+            <SectionCard>
+              <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
+                Theme
+              </Text>
+              <Controller
+                control={control}
+                name="theme"
+                render={({ field: { onChange, value } }) => (
+                  <RadioGroup
+                    radioButtons={themeRadioButtons}
+                    onPress={(v) => {
+                      onChange(v);
+                      setTempTheme(v as "light" | "dark");
+                    }}
+                    selectedId={value}
+                    layout="row"
+                    containerStyle={styles.radioContainer}
+                  />
+                )}
+              />
+            </SectionCard>
+          </View>
 
           {/* UNITS */}
-          <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
+          {/* <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
             UNITS
           </Text>
           <SectionCard>
@@ -312,10 +311,10 @@ export default function Preferences() {
             </Text>
             <Controller
               control={control}
-              name="weight_unit"
+              name="unit_system"
               render={({ field: { onChange, value } }) => (
                 <RadioGroup
-                  radioButtons={weightUnitRadioButtons}
+                  radioButtons={unitSystemRadioButtons}
                   onPress={onChange}
                   selectedId={value}
                   layout="row"
@@ -324,172 +323,184 @@ export default function Preferences() {
               )}
             />
             <View style={[styles.divider, { backgroundColor: c.border }]} />
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              Height Unit
-            </Text>
-            <Controller
-              control={control}
-              name="height_unit"
-              render={({ field: { onChange, value } }) => (
-                <RadioGroup
-                  radioButtons={heightUnitRadioButtons}
-                  onPress={onChange}
-                  selectedId={value}
-                  layout="row"
-                  containerStyle={styles.radioContainer}
-                />
-              )}
-            />
-          </SectionCard>
+          </SectionCard> */}
 
           {/* WORKOUT SETTINGS */}
-          <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
-            WORKOUT SETTINGS
-          </Text>
-          <SectionCard>
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              Set Progression
+          <View>
+            <Text
+              style={[
+                styles.sectionLabel,
+                { color: c.textSecondary, marginBottom: theme.spacing.label },
+              ]}
+            >
+              WORKOUT SETTINGS
             </Text>
-            <Controller
-              control={control}
-              name="set_progression_style"
-              render={({ field: { onChange, value } }) => (
-                <>
+            <SectionCard>
+              <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
+                Set Progression
+              </Text>
+              <Controller
+                control={control}
+                name="set_progression_style"
+                render={({ field: { onChange, value } }) => (
+                  <>
+                    <RadioGroup
+                      radioButtons={setProgressionRadioButtons}
+                      onPress={onChange}
+                      selectedId={value}
+                      layout="row"
+                      containerStyle={styles.radioContainer}
+                    />
+                    <Text style={[styles.infoText, { color: c.textSecondary }]}>
+                      {getSetProgressionDescription(
+                        currentSetProgression || "straight",
+                      )}
+                    </Text>
+                  </>
+                )}
+              />
+
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
+
+              <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
+                1RM Formula
+              </Text>
+              <Text style={[styles.sublabel, { color: c.textSecondary }]}>
+                Used to estimate your one-rep max from multi-rep sets
+              </Text>
+              <Controller
+                control={control}
+                name="rm_formula"
+                render={({ field: { onChange, value } }) => (
+                  <>
+                    <RadioGroup
+                      radioButtons={rmFormulaRadioButtons}
+                      onPress={onChange}
+                      selectedId={value}
+                      layout="column"
+                      containerStyle={styles.radioContainer}
+                    />
+                    <Text style={[styles.infoText, { color: c.textSecondary }]}>
+                      {getRmFormulaDescription(currentRmFormula || "epley")}
+                    </Text>
+                  </>
+                )}
+              />
+
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
+
+              <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
+                Weight Rounding
+              </Text>
+              <Controller
+                control={control}
+                name="weight_rounding"
+                render={({ field: { onChange, value } }) => (
                   <RadioGroup
-                    radioButtons={setProgressionRadioButtons}
+                    radioButtons={weightRoundingRadioButtons}
                     onPress={onChange}
                     selectedId={value}
                     layout="row"
                     containerStyle={styles.radioContainer}
                   />
-                  <Text style={[styles.infoText, { color: c.textSecondary }]}>
-                    {getSetProgressionDescription(
-                      currentSetProgression || "straight",
-                    )}
-                  </Text>
-                </>
-              )}
-            />
+                )}
+              />
 
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
 
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              1RM Formula
-            </Text>
-            <Text style={[styles.sublabel, { color: c.textSecondary }]}>
-              Used to estimate your one-rep max from multi-rep sets
-            </Text>
-            <Controller
-              control={control}
-              name="rm_formula"
-              render={({ field: { onChange, value } }) => (
-                <>
+              <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
+                Default Workout Visibility
+              </Text>
+              <Controller
+                control={control}
+                name="default_workout_visibility"
+                render={({ field: { onChange, value } }) => (
                   <RadioGroup
-                    radioButtons={rmFormulaRadioButtons}
+                    radioButtons={workoutVisibilityRadioButtons}
                     onPress={onChange}
                     selectedId={value}
-                    layout="column"
+                    layout="row"
                     containerStyle={styles.radioContainer}
                   />
-                  <Text style={[styles.infoText, { color: c.textSecondary }]}>
-                    {getRmFormulaDescription(currentRmFormula || "epley")}
-                  </Text>
-                </>
-              )}
-            />
-
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              Weight Rounding
-            </Text>
-            <Controller
-              control={control}
-              name="weight_rounding"
-              render={({ field: { onChange, value } }) => (
-                <RadioGroup
-                  radioButtons={weightRoundingRadioButtons}
-                  onPress={onChange}
-                  selectedId={value}
-                  layout="row"
-                  containerStyle={styles.radioContainer}
-                />
-              )}
-            />
-
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              Default Workout Visibility
-            </Text>
-            <Controller
-              control={control}
-              name="default_workout_visibility"
-              render={({ field: { onChange, value } }) => (
-                <RadioGroup
-                  radioButtons={workoutVisibilityRadioButtons}
-                  onPress={onChange}
-                  selectedId={value}
-                  layout="row"
-                  containerStyle={styles.radioContainer}
-                />
-              )}
-            />
-          </SectionCard>
+                )}
+              />
+            </SectionCard>
+          </View>
 
           {/* PRIVACY & SOCIAL */}
-          <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
-            PRIVACY & SOCIAL
-          </Text>
-          <SectionCard>
-            <ToggleRow
-              label="Allow Friend Requests"
-              name="allow_friend_requests"
-            />
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-            <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
-              Who Can Send Workouts
+          <View>
+            <Text
+              style={[
+                styles.sectionLabel,
+                { color: c.textSecondary, marginBottom: theme.spacing.label },
+              ]}
+            >
+              PRIVACY & SOCIAL
             </Text>
-            <Controller
-              control={control}
-              name="who_can_send_workouts"
-              render={({ field: { onChange, value } }) => (
-                <RadioGroup
-                  radioButtons={whoCanSendWorkoutsRadioButtons}
-                  onPress={onChange}
-                  selectedId={value}
-                  layout="row"
-                  containerStyle={styles.radioContainer}
-                />
-              )}
-            />
-          </SectionCard>
+            <SectionCard>
+              <ToggleRow
+                label="Allow Friend Requests"
+                name="allow_friend_requests"
+              />
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
+              <Text style={[styles.rowLabel, { color: c.textPrimary }]}>
+                Who Can Send Workouts
+              </Text>
+              <Controller
+                control={control}
+                name="who_can_send_workouts"
+                render={({ field: { onChange, value } }) => (
+                  <RadioGroup
+                    radioButtons={whoCanSendWorkoutsRadioButtons}
+                    onPress={onChange}
+                    selectedId={value}
+                    layout="row"
+                    containerStyle={styles.radioContainer}
+                  />
+                )}
+              />
+            </SectionCard>
+          </View>
 
           {/* DATA & ANALYTICS */}
-          <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
-            DATA & ANALYTICS
-          </Text>
-          <SectionCard>
-            <ToggleRow label="Allow Analytics" name="allow_analytics" />
-          </SectionCard>
+          <View>
+            <Text
+              style={[
+                styles.sectionLabel,
+                { color: c.textSecondary, marginBottom: theme.spacing.label },
+              ]}
+            >
+              DATA & ANALYTICS
+            </Text>
+            <SectionCard>
+              <ToggleRow label="Allow Analytics" name="allow_analytics" />
+            </SectionCard>
+          </View>
 
           {/* NOTIFICATIONS */}
-          <Text style={[styles.sectionLabel, { color: c.textSecondary }]}>
-            NOTIFICATIONS
-          </Text>
-          <SectionCard>
-            <ToggleRow
-              label="Enable Notifications"
-              name="notifications_enabled"
-            />
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-            <ToggleRow
-              label="Email Product Updates"
-              name="email_product_updates"
-            />
-            <View style={[styles.divider, { backgroundColor: c.border }]} />
-            <ToggleRow label="Email Tips & Advice" name="email_tips" />
-          </SectionCard>
+          <View>
+            <Text
+              style={[
+                styles.sectionLabel,
+                { color: c.textSecondary, marginBottom: theme.spacing.label },
+              ]}
+            >
+              NOTIFICATIONS
+            </Text>
+            <SectionCard>
+              <ToggleRow
+                label="Enable Notifications"
+                name="notifications_enabled"
+              />
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
+              <ToggleRow
+                label="Email Product Updates"
+                name="email_product_updates"
+              />
+              <View style={[styles.divider, { backgroundColor: c.border }]} />
+              <ToggleRow label="Email Tips & Advice" name="email_tips" />
+            </SectionCard>
+          </View>
 
           {/* Save */}
           <Pressable

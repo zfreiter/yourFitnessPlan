@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useAuth } from "@/context/authContext";
 import { ShimmerSkeleton, SkeletonTextLines } from "@/components/ui/skeleton";
 import HomeHeader from "@/features/home/HomeHeader";
@@ -27,29 +27,30 @@ export default function Index() {
       ]}
     >
       <HomeHeader />
-      <TodaysWorkout />
-      {/* <QuickActions />
+      <ScrollView style={{ flex: 1 }}>
+        <TodaysWorkout />
+        {/* <QuickActions />
       <ProgressCard />
       <LastWorkoutCard />
       <Carousel /> */}
-      {isLoading || !isAuthInitialized ? (
-        <View style={{ width: "100%" }}>
-          <ShimmerSkeleton
-            height={35}
-            width="100%"
-            borderRadius={8}
-            style={{ marginBottom: 12, color: theme.color.textPrimary }}
-          />
-          <SkeletonTextLines lines={3} lastLineWidth="40%" />
-        </View>
-      ) : (
-        <>
-          <Text
-            style={[styles.text, { color: theme.color.textPrimary }]}
-          >{`Home page, welcome back ${user?.full_name || "User"}`}</Text>
-        </>
-      )}
-
+        {isLoading || !isAuthInitialized ? (
+          <View style={{ width: "100%" }}>
+            <ShimmerSkeleton
+              height={35}
+              width="100%"
+              borderRadius={8}
+              style={{ marginBottom: 12, color: theme.color.textPrimary }}
+            />
+            <SkeletonTextLines lines={3} lastLineWidth="40%" />
+          </View>
+        ) : (
+          <>
+            <Text
+              style={[styles.text, { color: theme.color.textPrimary }]}
+            >{`Home page, welcome back ${user?.full_name || "User"}`}</Text>
+          </>
+        )}
+      </ScrollView>
       <FabButton />
     </View>
   );

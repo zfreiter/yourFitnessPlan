@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useAuth } from "@/context/authContext";
-import { View, Text, ActivityIndicator, Pressable } from "react-native";
+import { View, Text, ActivityIndicator, Pressable, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -69,15 +69,19 @@ export default function RootLayout() {
             )}
 
             {/* Center — title */}
-            <Text
-              style={{
-                color: theme.color.textPrimary,
-                fontSize: 18,
-                fontFamily: theme.fonts.heading,
-              }}
-            >
-              {options.title}
-            </Text>
+            {options.title !== "Login" && options.title !== "Register" ? (
+              <Text
+                style={{
+                  color: theme.color.textPrimary,
+                  fontSize: 18,
+                  fontFamily: theme.fonts.heading,
+                }}
+              >
+                {options.title}
+              </Text>
+            ) : (
+              <View></View>
+            )}
 
             {/* Right — menu button or spacer */}
             {options.title === "Workout Session" ? (

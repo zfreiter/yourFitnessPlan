@@ -33,8 +33,7 @@ export interface ProfileUpdateFunction {
 export interface UserPreferences {
   user_id: string;
   theme: "light" | "dark";
-  weight_unit: "lbs" | "kg";
-  height_unit: "in" | "cm";
+  unit_system: "us" | "metric";
   set_progression_style: "straight" | "ramp" | "custom";
   rm_formula: "epley" | "brzycki" | "lombardi";
   weight_rounding: "2.5" | "5" | "10" | "none";
@@ -53,8 +52,7 @@ export interface UserPreferences {
 export interface UserPreferencesInsert {
   user_id: string;
   theme?: "light" | "dark";
-  weight_unit?: "lbs" | "kg";
-  height_unit?: "in" | "cm";
+  unit_system?: "us" | "metric";
   set_progression_style?: "straight" | "ramp" | "custom";
   rm_formula?: "epley" | "brzycki" | "lombardi";
   weight_rounding?: "2.5" | "5" | "10" | "none";
@@ -71,8 +69,7 @@ export interface UserPreferencesInsert {
 export interface UserPreferencesUpdate {
   user_id: string;
   theme?: "light" | "dark";
-  weight_unit?: "lbs" | "kg";
-  height_unit?: "in" | "cm";
+  unit_system?: "us" | "metric";
   set_progression_style?: "straight" | "ramp" | "custom";
   rm_formula?: "epley" | "brzycki" | "lombardi";
   weight_rounding?: "2.5" | "5" | "10" | "none";

@@ -6,18 +6,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: "yourFitnessPlan",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/images/playstore.png",
   scheme: "myapp",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
+    icon: {
+      dark: ".assets/images/ios-dark.png",
+      light: ".assets/images/ios-light.png",
+      tinted: ".assets/images/ios-tinted.png",
+    },
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: "./assets/images/ic_launcher.png",
+      foregroundImage: "./assets/images/adaptive-icon.png",
+      monochromeImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#ffffff",
     },
+    permissions: [
+      "android.permission.SCHEDULE_EXACT_ALARM",
+      "android.permission.USE_EXACT_ALARM",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.VIBRATE",
+    ],
     softwareKeyboardLayoutMode: "pan",
     package: "com.anonymous.yourFitnessPlan",
   },
@@ -36,10 +47,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        image: "./assets/images/ic_launcher.png",
-        imageWidth: 150,
+        image: "./assets/images/splash-icon-dark.png",
+        imageWidth: 200,
         resizeMode: "contain",
         backgroundColor: "#ffffff",
+        dark: {
+          image: "./assets/images/splash-icon-light.png",
+          backgroundColor: "#000000",
+        },
+      },
+    ],
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/images/adaptive-icon.png",
+        color: "#ffffff",
+        androidMode: "default",
+        androidCollapsedTitle: "Timer Alert",
       },
     ],
     "expo-font",

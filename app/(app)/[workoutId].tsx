@@ -6,6 +6,7 @@ import {
   Platform,
   Modal,
   Pressable,
+  Button,
 } from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
@@ -15,6 +16,8 @@ import { useEffect, useState } from "react";
 import ActiveWorkoutSession from "@/features/workout-session/components/activeWorkoutSession";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/authContext";
+import { useRestTimer } from "@/hooks/useRestTimer";
+import { TimerDisplay } from "@/utils/timerDisplay";
 
 export default function WorkoutDetails() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
@@ -92,6 +95,7 @@ export default function WorkoutDetails() {
           styles.container,
           {
             padding: theme.spacing.screenPadding,
+            paddingBottom: 0,
             backgroundColor: theme.color.background,
           },
         ]}
@@ -102,9 +106,10 @@ export default function WorkoutDetails() {
           keyboardVerticalOffset={300}
         >
           <ActiveWorkoutSession workout={workout} />
+          {/* Temporary test button for rest timer */}
         </KeyboardAvoidingView>
       </View>
-
+      <TimerDisplay />
       {/* Delete menu */}
       <Modal
         transparent
@@ -196,6 +201,11 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 20,
     fontWeight: "bold",
+  },
+  timerText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "green",
   },
   overlay: {
     flex: 1,

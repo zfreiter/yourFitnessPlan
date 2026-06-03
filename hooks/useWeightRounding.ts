@@ -10,7 +10,7 @@ type WeightRounding = "2.5" | "5" | "10" | "none";
 export function useWeightRounding() {
   const { userPreferences } = useUserPreference();
 
-  const roundWeight = (weight: number): number => {
+  const applyWeightRounding = (weight: number): number => {
     if (!weight || weight === 0) {
       return weight;
     }
@@ -31,12 +31,12 @@ export function useWeightRounding() {
     }
   };
 
-  return { roundWeight };
+  return { applyWeightRounding };
 }
 
 /**
  * Example usage:
  *
- * const { roundWeight } = useWeightRounding();
- * const rounded = roundWeight(234.56);
+ * const { applyWeightRounding } = useWeightRounding();
+ * const rounded = applyWeightRounding(234.56);
  */

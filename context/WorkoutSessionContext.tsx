@@ -13,6 +13,7 @@ import {
 } from "@/types/common/workoutInterface";
 import { useWorkout } from "./workoutContext";
 import { useFormContext } from "react-hook-form";
+import { useUnits } from "@/hooks/useUnits";
 
 export interface WorkoutSessionContextType {
   markDirty: (field: string) => void;
@@ -64,6 +65,7 @@ export const WorkoutSessionProvider = ({
   const { reset, getValues } = useFormContext();
 
   const markDirty = (field: string) => {
+    console.log("marking dirty", field);
     setUpdatedNeeded((prev) => new Set([...prev, field]));
   };
 
@@ -86,10 +88,17 @@ export const WorkoutSessionProvider = ({
         baseWorkoutValues.duration = getValues("duration");
       }
 
+      const metricSetUpdates =
+        setUpdates?.map((set) => ({
+          ...set,
+          weight: set.weight ?? 0,
+          distance: set.distance ?? 0,
+        })) ?? [];
+
       const result = await saveWorkoutToDb(
         userId,
         workoutUpdates ? baseWorkoutValues : undefined,
-        setUpdates ?? [],
+        metricSetUpdates,
         id,
       );
 

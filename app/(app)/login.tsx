@@ -5,15 +5,15 @@ import {
   TextInput,
   View,
   StyleSheet,
-  Keyboard,
   Modal,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { useAuth } from "@/context/authContext";
-import { useEffect, useState } from "react";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useState } from "react";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type FormData = {
   email: string;
@@ -27,6 +27,7 @@ export default function SignIn() {
   const [isPasswordFocused, setIsPasswordFocused] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const { theme } = useColorTheme();
+
   const {
     control,
     handleSubmit,
@@ -39,199 +40,207 @@ export default function SignIn() {
   });
 
   const onSubmit = async (data: FormData) => {
-    console.log("signing in");
     const { email, password } = data;
     setIsSubmitting(true);
-    setIsSubmitting(true);
-    const success = await signIn(data.email, data.password);
-    if (!success) setIsSubmitting(false); // only hide on failure, on success the auth context will handle navigation and loading state
+    const success = await signIn(email, password);
+    if (!success) setIsSubmitting(false);
   };
+
+  const inputStyle = (isFocused: boolean) => ({
+    height: theme.spacing.inputHeight,
+    paddingHorizontal: 12,
+    paddingRight: 44,
+    backgroundColor: theme.color.surface,
+    borderColor: isFocused ? theme.color.accent : theme.color.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    color: theme.color.textPrimary,
+  });
 
   return (
     <>
-      <View
-        style={{
-          flex: 1,
-          padding: theme.spacing.screenPadding,
-          alignItems: "center",
-          paddingVertical: 20,
-          gap: theme.spacing.sm,
-          backgroundColor: theme.color.background,
-        }}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: theme.color.background }}
+        edges={["top", "bottom"]}
       >
-        <Text
-          style={{
-            color: theme.color.textPrimary,
-            fontSize: 24,
-            fontWeight: "bold",
-            marginBottom: theme.spacing.label,
-          }}
-        >
-          Sign In
-        </Text>
-
-        <View style={{ gap: theme.spacing.label, width: "100%" }}>
-          <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-            Email:
-          </Text>
-          <Controller
-            control={control}
-            name="email"
-            rules={{
-              required: true,
-              maxLength: 40,
-            }}
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                placeholder="Email..."
-                placeholderTextColor={theme.color.placeholderColor}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                onFocus={() => setIsEmailFocused(true)}
-                style={[
-                  styles.input,
-                  {
-                    height: theme.spacing.inputHeight,
-                    padding: 10,
-                    backgroundColor: theme.color.surface,
-                    borderColor: isEmailFocused
-                      ? theme.color.accent
-                      : theme.color.border,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    color: theme.color.textPrimary,
-                  },
-                ]}
-                onBlur={() => {
-                  onBlur();
-                  setIsEmailFocused(false);
-                }}
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-          {errors.email && (
-            <Text style={[styles.textError, { color: theme.color.danger }]}>
-              This is required.
-            </Text>
-          )}
-        </View>
-
         <View
           style={{
-            gap: theme.spacing.label,
-            width: "100%",
+            flex: 1,
+            paddingHorizontal: theme.spacing.screenPadding,
+            paddingTop: 48,
+            paddingBottom: 32,
+            alignItems: "center",
+            gap: theme.spacing.md,
+            backgroundColor: theme.color.background,
           }}
         >
-          <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-            Password
-          </Text>
-          <Controller
-            control={control}
-            name="password"
-            rules={{
-              required: true,
-              minLength: 6,
-              maxLength: 40,
-            }}
-            render={({ field: { onChange, onBlur, value } }) => (
-              <View style={{ position: "relative" }}>
+          {/* Header */}
+          <View style={{ alignItems: "center", marginBottom: 8 }}>
+            <Image
+              source={require("@/assets/images/adaptive-icon.png")}
+              style={{ width: 80, height: 80, resizeMode: "contain" }}
+            />
+            <Text
+              style={{
+                color: theme.color.textPrimary,
+                fontSize: 24,
+                fontWeight: "bold",
+                marginTop: 12,
+                marginBottom: 4,
+              }}
+            >
+              Sign In
+            </Text>
+            <Text
+              style={{
+                color: theme.color.placeholderColor,
+                fontSize: 14,
+                textAlign: "center",
+              }}
+            >
+              Welcome back
+            </Text>
+          </View>
+
+          {/* Email */}
+          <View style={[styles.fieldGroup, { width: "100%" }]}>
+            <Text style={[styles.label, { color: theme.color.textPrimary }]}>
+              Email
+            </Text>
+            <Controller
+              control={control}
+              name="email"
+              rules={{ required: true, maxLength: 40 }}
+              render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  placeholder="Password..."
+                  placeholder="Email..."
                   placeholderTextColor={theme.color.placeholderColor}
-                  onFocus={() => setIsPasswordFocused(true)}
-                  style={[
-                    styles.input,
-                    {
-                      height: theme.spacing.inputHeight,
-                      padding: 10,
-                      backgroundColor: theme.color.surface,
-                      borderColor: isPasswordFocused
-                        ? theme.color.accent
-                        : theme.color.border,
-                      borderWidth: 1,
-                      borderRadius: 8,
-                      color: theme.color.textPrimary,
-                    },
-                  ]}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  onFocus={() => setIsEmailFocused(true)}
+                  style={inputStyle(isEmailFocused)}
                   onBlur={() => {
                     onBlur();
-                    setIsPasswordFocused(false);
+                    setIsEmailFocused(false);
                   }}
-                  secureTextEntry={!showPassword}
                   onChangeText={onChange}
                   value={value}
                 />
-                <Pressable
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Text>{showPassword ? "👁️" : "👁️‍🗨️"}</Text>
-                </Pressable>
-              </View>
+              )}
+            />
+            {errors.email && (
+              <Text style={[styles.errorText, { color: theme.color.danger }]}>
+                This is required.
+              </Text>
             )}
-          />
+          </View>
 
-          {errors.password && (
-            <Text style={[styles.textError, { color: theme.color.danger }]}>
-              {errors.password.type === "minLength"
-                ? "Password must be at least 6 characters."
-                : "This is required."}
+          {/* Password */}
+          <View style={[styles.fieldGroup, { width: "100%" }]}>
+            <Text style={[styles.label, { color: theme.color.textPrimary }]}>
+              Password
             </Text>
-          )}
-        </View>
+            <Controller
+              control={control}
+              name="password"
+              rules={{ required: true, minLength: 6, maxLength: 40 }}
+              render={({ field: { onChange, onBlur, value } }) => (
+                <View style={{ position: "relative" }}>
+                  <TextInput
+                    placeholder="Password..."
+                    placeholderTextColor={theme.color.placeholderColor}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="password"
+                    textContentType="password"
+                    onFocus={() => setIsPasswordFocused(true)}
+                    style={inputStyle(isPasswordFocused)}
+                    onBlur={() => {
+                      onBlur();
+                      setIsPasswordFocused(false);
+                    }}
+                    onChangeText={onChange}
+                    value={value}
+                  />
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.eyeIcon}>
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            />
+            {errors.password && (
+              <Text style={[styles.errorText, { color: theme.color.danger }]}>
+                {errors.password.type === "minLength"
+                  ? "Password must be at least 6 characters."
+                  : "This is required."}
+              </Text>
+            )}
+          </View>
 
-        <Pressable
-          onPress={handleSubmit(onSubmit)}
-          style={({ pressed }) => ({
-            height: theme.spacing.buttonHeight,
-            backgroundColor: pressed
-              ? theme.color.accentActive
-              : theme.color.accent,
-            width: "100%",
-            padding: 10,
-            borderRadius: 10,
-            marginTop: 10,
-          })}
-        >
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "bold",
-              textAlign: "center",
-              color: theme.color.textPrimary,
-            }}
+          {/* Login button */}
+          <Pressable
+            onPress={handleSubmit(onSubmit)}
+            style={({ pressed }) => ({
+              height: theme.spacing.buttonHeight,
+              backgroundColor: pressed
+                ? theme.color.accentActive
+                : theme.color.accent,
+              width: "100%",
+              borderRadius: 10,
+              marginTop: 16,
+              justifyContent: "center",
+              alignItems: "center",
+            })}
           >
-            Login
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => router.push("/register")}
-          style={({ pressed }) => ({
-            color: "blue",
-            padding: 10,
-            borderRadius: 5,
-            marginTop: 10,
-          })}
-        >
-          {({ pressed }) => (
             <Text
               style={{
                 fontSize: 16,
-                fontWeight: "500",
-                textAlign: "center",
-                color: pressed ? theme.color.accentActive : theme.color.accent,
+                fontWeight: "bold",
+                color: theme.color.textPrimary,
               }}
             >
-              Don't have an account? Sign up
+              Login
             </Text>
-          )}
-        </Pressable>
-      </View>
+          </Pressable>
+
+          {/* Sign up link */}
+          <Pressable onPress={() => router.push("/register")} hitSlop={8}>
+            {({ pressed }) => (
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "500",
+                  textAlign: "center",
+                  color: theme.color.textPrimary,
+                }}
+              >
+                Don't have an account?{" "}
+                <Text
+                  style={{
+                    fontWeight: "700",
+                    color: pressed
+                      ? theme.color.accentActive
+                      : theme.color.accent,
+                  }}
+                >
+                  Sign up
+                </Text>
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      </SafeAreaView>
+
+      {/* Loading overlay */}
       <Modal transparent visible={isSubmitting} animationType="none">
         <View
           style={{
@@ -241,7 +250,7 @@ export default function SignIn() {
             alignItems: "center",
           }}
         >
-          <ActivityIndicator size="large" color="#0EA06F" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </Modal>
     </>
@@ -249,22 +258,27 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  input: {
-    height: 40,
-    backgroundColor: "#e2e0e0ff",
-    borderColor: "gray",
-    borderWidth: 1,
-    marginBottom: 4,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+  fieldGroup: {
+    gap: 6,
   },
-  text: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  textError: {
+  label: {
     fontSize: 14,
-    marginBottom: 8,
+    fontWeight: "600",
+    letterSpacing: 0.1,
   },
-  eyeButton: { position: "absolute", right: 10, top: 12 },
+  errorText: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  eyeIcon: {
+    fontSize: 16,
+  },
 });

@@ -9,6 +9,7 @@ import { WorkoutSessionFooter } from "./WorkoutSessionFooter";
 import { useColorTheme } from "@/context/colorThemeContext";
 import UpdateManagerFabButton from "./updateManagerFabButton";
 import { WorkoutSessionProvider } from "@/context/WorkoutSessionContext";
+import { useUnits } from "@/hooks/useUnits";
 
 export default function ActiveWorkoutSession({
   workout,
@@ -33,7 +34,7 @@ export default function ActiveWorkoutSession({
   });
 
   const { control, setValue } = methods;
-  const { theme } = useColorTheme();
+  const { convertToUSWeight } = useUnits();
   const [mode, setMode] = useState<"date" | "time">("time");
   const [show, setShow] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);

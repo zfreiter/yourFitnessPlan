@@ -16,6 +16,11 @@ import { useMaxLift } from "@/context/maxLiftContext";
 //import { insertMultipleMaxLifts } from "@/lib/api/maxs";
 import { useWeightRounding } from "@/hooks/useWeightRounding";
 import { useUserPreference } from "@/context/userPreferenceContext";
+import {
+  unitConversion,
+  weightConversion,
+} from "@/utils/unitSystemConversions";
+import { useUnits } from "@/hooks/useUnits";
 
 interface TrainingStatsForm {
   squat_1rm: string | null;
@@ -58,7 +63,8 @@ export default function TrainingStatsForm() {
   const { userPreferences } = useUserPreference();
   const { exerciseMaxes, isMaxLiftLoading, insertMaxLifts } = useMaxLift();
   const { theme } = useColorTheme();
-  const { roundWeight } = useWeightRounding();
+  const { convertUnitWeight, convertToMetricWeight, convertToUSWeight } =
+    useUnits();
 
   const {
     control,
@@ -150,7 +156,8 @@ export default function TrainingStatsForm() {
     for (const [key, value] of Object.entries(exerciseMaxes)) {
       setValue(
         key as keyof TrainingStatsForm,
-        value.one_rep_max?.toString() ?? null,
+        value.one_rep_max.toString() ?? null,
+
         { shouldDirty: false, shouldValidate: false, shouldTouch: false },
       );
       setValue(
@@ -201,8 +208,12 @@ export default function TrainingStatsForm() {
                 control={control}
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    placeholder={`${lift.label} (${userPreferences?.weight_unit || "lbs"})...`}
-                    value={value?.toString() || ""}
+                    placeholder={`${lift.label} (${userPreferences?.unit_system === "us" ? "lbs" : "kg"})...`}
+                    value={
+                      convertToUSWeight(parseInt(value || "0"))
+                        .toFixed(2)
+                        ?.toString() || ""
+                    }
                     placeholderTextColor={theme.color.placeholderColor}
                     onChangeText={(text) => {
                       if (text === "" || /^\d*\.?\d{0,2}$/.test(text))
@@ -422,7 +433,7 @@ export default function TrainingStatsForm() {
             <Text
               style={[styles.resultValue, { color: theme.color.textPrimary }]}
             >
-              {oneRepMax} {userPreferences?.weight_unit || "lbs"}
+              {oneRepMax} {userPreferences?.unit_system === "us" ? "lbs" : "kg"}
             </Text>
           </View>
         )}

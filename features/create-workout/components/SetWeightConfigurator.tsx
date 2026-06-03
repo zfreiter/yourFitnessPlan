@@ -22,7 +22,7 @@ export default function SetWeightConfigurator({
 }: SetWeightConfiguratorProps) {
   const { theme } = useColorTheme();
   const { userPreferences } = useUserPreference();
-  const { roundWeight } = useWeightRounding();
+
   const [selectedId, setSelectedId] = useState<string>("1");
   const [isFocusedCustomInput, setIsFocusedCustomInput] = useState<string>("");
   const [startWeight, setStartWeight] = useState<number | null>(0);
@@ -69,11 +69,11 @@ export default function SetWeightConfigurator({
 
       for (let i = 0; i < setCount; i++) {
         const weight = startWeight + increment * i;
-        weights.push(roundWeight(weight));
+        weights.push(weight);
       }
     } else {
       for (let i = 0; i < setCount; i++) {
-        weights.push(roundWeight(startWeight));
+        weights.push(startWeight);
       }
     }
     return weights;
@@ -190,7 +190,7 @@ export default function SetWeightConfigurator({
           </View>
           {startWeight !== 0 && (
             <Text style={{ color: theme.color.textPrimary }}>
-              {`${startWeight} ${userPreferences?.weight_unit}`}
+              {`${startWeight} ${userPreferences?.unit_system === "metric" ? "kg" : "lbs"}`}
             </Text>
           )}
         </>
@@ -251,7 +251,7 @@ export default function SetWeightConfigurator({
           </View>
           {endWeight !== 0 && (
             <Text style={{ color: theme.color.textPrimary }}>
-              {`${endWeight} ${userPreferences?.weight_unit}`}
+              {`${endWeight} ${userPreferences?.unit_system === "metric" ? "kg" : "lbs"}`}
             </Text>
           )}
         </>
@@ -316,7 +316,8 @@ export default function SetWeightConfigurator({
                     fontWeight: "600",
                   }}
                 >
-                  {weight} {userPreferences?.weight_unit}
+                  {weight}{" "}
+                  {userPreferences?.unit_system === "metric" ? "kg" : "lbs"}
                 </Text>
               </View>
             ))}

@@ -1,17 +1,15 @@
 import { useAuth } from "@/context/authContext";
 import { AntDesign } from "@expo/vector-icons";
 import { router, Tabs } from "expo-router";
-import { useEffect } from "react";
-import { View, Text, StatusBar } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AppButton } from "@/components/button";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HomeProvider } from "@/context/HomeContext";
 import { useColorTheme } from "@/context/colorThemeContext";
 
 export default function MainLayoutTabs() {
   const { isAuthInitialized, isLoading, user } = useAuth();
   const { theme } = useColorTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <HomeProvider>
@@ -31,8 +29,9 @@ export default function MainLayoutTabs() {
           tabBarStyle: {
             backgroundColor: theme.color.surface,
             borderTopWidth: 0,
-            paddingBottom: 8,
+            paddingBottom: insets.bottom,
             paddingTop: 8,
+            height: 60 + insets.bottom,
           },
           tabBarLabelStyle: {
             fontFamily: theme.fonts.heading,

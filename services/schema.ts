@@ -21,8 +21,7 @@ export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS user_preferences (
     user_id TEXT PRIMARY KEY,
     theme TEXT DEFAULT 'light' CHECK(theme IN ('light', 'dark')),
-    weight_unit TEXT DEFAULT 'lbs' CHECK(weight_unit IN ('lbs', 'kg')),
-    height_unit TEXT DEFAULT 'in' CHECK(height_unit IN ('in', 'cm')),
+    unit_system TEXT DEFAULT 'us' CHECK(unit_system IN ('us', 'metric')),
     set_progression_style TEXT DEFAULT 'straight' CHECK(set_progression_style IN ('straight', 'ramp', 'custom')),
     rm_formula TEXT DEFAULT 'epley' CHECK(rm_formula IN ('epley', 'brzycki', 'lombardi')),
     weight_rounding TEXT DEFAULT '5' CHECK(weight_rounding IN ('2.5', '5', '10', 'none')),

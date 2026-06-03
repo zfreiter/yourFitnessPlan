@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
   StyleSheet,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
@@ -97,10 +98,9 @@ export default function Index() {
     }
   };
 
-  // Reusable input style builder
   const inputStyle = (isFocused: boolean) => ({
     height: theme.spacing.inputHeight,
-    padding: 10,
+    paddingHorizontal: 12,
     backgroundColor: theme.color.surface,
     borderColor: isFocused ? theme.color.accent : theme.color.border,
     borderWidth: 1,
@@ -109,7 +109,10 @@ export default function Index() {
   });
 
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.color.background }}
+      edges={["top", "bottom"]}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -118,32 +121,50 @@ export default function Index() {
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
           bounces={false}
+          showsVerticalScrollIndicator={false}
         >
           <View
             style={{
               padding: theme.spacing.screenPadding,
-              paddingVertical: 20,
-              gap: theme.spacing.sm,
+              paddingTop: 32,
+              paddingBottom: 40,
+              gap: theme.spacing.md,
               backgroundColor: theme.color.background,
             }}
           >
-            {/* Title now inside ScrollView so it scrolls with content */}
-            <Text
-              style={{
-                color: theme.color.textPrimary,
-                fontSize: 24,
-                fontWeight: "bold",
-                marginBottom: theme.spacing.label,
-                textAlign: "center",
-              }}
-            >
-              register
-            </Text>
+            {/* Header: logo + title */}
+            <View style={{ alignItems: "center", marginBottom: 8 }}>
+              <Image
+                source={require("@/assets/images/adaptive-icon.png")}
+                style={{ width: 80, height: 80, resizeMode: "contain" }}
+              />
+              <Text
+                style={{
+                  color: theme.color.textPrimary,
+                  fontSize: 24,
+                  fontWeight: "bold",
+                  marginTop: 12,
+                  marginBottom: 4,
+                  textAlign: "center",
+                }}
+              >
+                Register
+              </Text>
+              <Text
+                style={{
+                  color: theme.color.placeholderColor,
+                  fontSize: 14,
+                  textAlign: "center",
+                }}
+              >
+                Create your account to get started
+              </Text>
+            </View>
 
             {/* First Name */}
-            <View style={{ gap: theme.spacing.label, width: "100%" }}>
-              <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                First name:
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.color.textPrimary }]}>
+                First Name
               </Text>
               <Controller
                 control={control}
@@ -165,16 +186,16 @@ export default function Index() {
                 )}
               />
               {errors.firstName && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
+                <Text style={[styles.errorText, { color: theme.color.danger }]}>
                   This is required.
                 </Text>
               )}
             </View>
 
             {/* Last Name */}
-            <View style={{ gap: theme.spacing.label, width: "100%" }}>
-              <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                Last name:
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.color.textPrimary }]}>
+                Last Name
               </Text>
               <Controller
                 control={control}
@@ -196,16 +217,16 @@ export default function Index() {
                 )}
               />
               {errors.lastName && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
+                <Text style={[styles.errorText, { color: theme.color.danger }]}>
                   This is required.
                 </Text>
               )}
             </View>
 
             {/* Email */}
-            <View style={{ gap: theme.spacing.label, width: "100%" }}>
-              <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                Email:
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.color.textPrimary }]}>
+                Email
               </Text>
               <Controller
                 control={control}
@@ -231,15 +252,15 @@ export default function Index() {
                 )}
               />
               {errors.email && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
+                <Text style={[styles.errorText, { color: theme.color.danger }]}>
                   This is required.
                 </Text>
               )}
             </View>
 
             {/* Password */}
-            <View style={{ gap: theme.spacing.label, width: "100%" }}>
-              <Text style={[styles.text, { color: theme.color.textPrimary }]}>
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.color.textPrimary }]}>
                 Password
               </Text>
               <View style={{ position: "relative" }}>
@@ -257,7 +278,10 @@ export default function Index() {
                       autoComplete="password"
                       textContentType="password"
                       onFocus={() => setIsPasswordFocused(true)}
-                      style={inputStyle(isPasswordFocused)}
+                      style={[
+                        inputStyle(isPasswordFocused),
+                        { paddingRight: 44 },
+                      ]}
                       onBlur={() => {
                         onBlur();
                         setIsPasswordFocused(false);
@@ -269,18 +293,16 @@ export default function Index() {
                 />
                 <Pressable
                   onPress={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: 0,
-                    padding: 10,
-                  }}
+                  style={styles.eyeButton}
+                  hitSlop={8}
                 >
-                  <Text>{showPassword ? "👁️" : "👁️‍🗨️"}</Text>
+                  <Text style={styles.eyeIcon}>
+                    {showPassword ? "👁️" : "👁️‍🗨️"}
+                  </Text>
                 </Pressable>
               </View>
               {errors.password && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
+                <Text style={[styles.errorText, { color: theme.color.danger }]}>
                   {errors.password.type === "minLength"
                     ? "Password must be at least 6 characters."
                     : "This is required."}
@@ -289,8 +311,8 @@ export default function Index() {
             </View>
 
             {/* Confirm Password */}
-            <View style={{ gap: theme.spacing.label, width: "100%" }}>
-              <Text style={[styles.text, { color: theme.color.textPrimary }]}>
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.color.textPrimary }]}>
                 Confirm Password
               </Text>
               <View style={{ position: "relative" }}>
@@ -306,7 +328,7 @@ export default function Index() {
                   }}
                   render={({ field: { onChange, onBlur, value } }) => (
                     <TextInput
-                      placeholder="Confirm Password..."
+                      placeholder="Confirm password..."
                       placeholderTextColor={theme.color.placeholderColor}
                       secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
@@ -314,7 +336,10 @@ export default function Index() {
                       autoComplete="password"
                       textContentType="password"
                       onFocus={() => setIsConfirmPasswordFocused(true)}
-                      style={inputStyle(isConfirmPasswordFocused)}
+                      style={[
+                        inputStyle(isConfirmPasswordFocused),
+                        { paddingRight: 44 },
+                      ]}
                       onBlur={() => {
                         onBlur();
                         setIsConfirmPasswordFocused(false);
@@ -326,18 +351,16 @@ export default function Index() {
                 />
                 <Pressable
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: 0,
-                    padding: 10,
-                  }}
+                  style={styles.eyeButton}
+                  hitSlop={8}
                 >
-                  <Text>{showConfirmPassword ? "👁️" : "👁️‍🗨️"}</Text>
+                  <Text style={styles.eyeIcon}>
+                    {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                  </Text>
                 </Pressable>
               </View>
               {errors.confirmPassword && (
-                <Text style={[styles.textError, { color: theme.color.danger }]}>
+                <Text style={[styles.errorText, { color: theme.color.danger }]}>
                   {errors.confirmPassword.type === "minLength" &&
                     "Password must be at least 6 characters."}
                   {errors.confirmPassword.type === "required" &&
@@ -350,9 +373,11 @@ export default function Index() {
 
             {/* Age + Gender row */}
             <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
-              <View style={{ flex: 1, gap: theme.spacing.label }}>
-                <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                  Age:
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text
+                  style={[styles.label, { color: theme.color.textPrimary }]}
+                >
+                  Age
                 </Text>
                 <Controller
                   control={control}
@@ -368,8 +393,8 @@ export default function Index() {
                         onBlur();
                         setIsAgeFocused(false);
                       }}
-                      onChangeText={(value) => onChange(Number(value))}
-                      value={value.toString()}
+                      onChangeText={(val) => onChange(Number(val))}
+                      value={value === 0 ? "" : value.toString()}
                       inputMode="numeric"
                       keyboardType="numeric"
                     />
@@ -377,16 +402,18 @@ export default function Index() {
                 />
                 {errors.age && (
                   <Text
-                    style={[styles.textError, { color: theme.color.danger }]}
+                    style={[styles.errorText, { color: theme.color.danger }]}
                   >
                     This is required.
                   </Text>
                 )}
               </View>
 
-              <View style={{ flex: 1, gap: theme.spacing.label }}>
-                <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                  Gender:
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text
+                  style={[styles.label, { color: theme.color.textPrimary }]}
+                >
+                  Gender
                 </Text>
                 <View
                   style={{
@@ -409,15 +436,13 @@ export default function Index() {
                         onValueChange={(itemValue) => onChange(itemValue)}
                         dropdownIconColor={theme.color.accent}
                         itemStyle={{ color: theme.color.textPrimary }}
-                        selectionColor={theme.color.textPrimary}
                         style={{
                           color: theme.color.textPrimary,
-                          borderRadius: 8,
                           height: 50,
                           backgroundColor: theme.color.surface,
                         }}
                       >
-                        <Picker.Item label="Select gender..." value="NULL" />
+                        <Picker.Item label="Select..." value="NULL" />
                         <Picker.Item label="Male" value="male" />
                         <Picker.Item label="Female" value="female" />
                         <Picker.Item label="Other" value="other" />
@@ -427,7 +452,7 @@ export default function Index() {
                 </View>
                 {errors.gender && (
                   <Text
-                    style={[styles.textError, { color: theme.color.danger }]}
+                    style={[styles.errorText, { color: theme.color.danger }]}
                   >
                     This is required.
                   </Text>
@@ -436,16 +461,12 @@ export default function Index() {
             </View>
 
             {/* Height + Weight row */}
-            <View
-              style={{
-                width: "100%",
-                flexDirection: "row",
-                gap: theme.spacing.md,
-              }}
-            >
-              <View style={{ flex: 1, gap: theme.spacing.label }}>
-                <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                  Height:
+            <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text
+                  style={[styles.label, { color: theme.color.textPrimary }]}
+                >
+                  Height
                 </Text>
                 <Controller
                   control={control}
@@ -461,8 +482,8 @@ export default function Index() {
                         onBlur();
                         setIsHeightFocused(false);
                       }}
-                      onChangeText={(value) => onChange(Number(value))}
-                      value={value.toString()}
+                      onChangeText={(val) => onChange(Number(val))}
+                      value={value === 0 ? "" : value.toString()}
                       inputMode="numeric"
                       keyboardType="numeric"
                     />
@@ -470,16 +491,18 @@ export default function Index() {
                 />
                 {errors.height && (
                   <Text
-                    style={[styles.textError, { color: theme.color.danger }]}
+                    style={[styles.errorText, { color: theme.color.danger }]}
                   >
                     This is required.
                   </Text>
                 )}
               </View>
 
-              <View style={{ flex: 1, gap: theme.spacing.label }}>
-                <Text style={[styles.text, { color: theme.color.textPrimary }]}>
-                  Weight:
+              <View style={[styles.fieldGroup, { flex: 1 }]}>
+                <Text
+                  style={[styles.label, { color: theme.color.textPrimary }]}
+                >
+                  Weight
                 </Text>
                 <Controller
                   control={control}
@@ -495,8 +518,8 @@ export default function Index() {
                         onBlur();
                         setIsWeightFocused(false);
                       }}
-                      onChangeText={(value) => onChange(Number(value))}
-                      value={value.toString()}
+                      onChangeText={(val) => onChange(Number(val))}
+                      value={value === 0 ? "" : value.toString()}
                       inputMode="numeric"
                       keyboardType="numeric"
                     />
@@ -504,7 +527,7 @@ export default function Index() {
                 />
                 {errors.weight && (
                   <Text
-                    style={[styles.textError, { color: theme.color.danger }]}
+                    style={[styles.errorText, { color: theme.color.danger }]}
                   >
                     This is required.
                   </Text>
@@ -521,9 +544,11 @@ export default function Index() {
                   ? theme.color.accentActive
                   : theme.color.accent,
                 width: "100%",
-                padding: 10,
+                paddingHorizontal: 10,
                 borderRadius: 10,
-                marginTop: 10,
+                marginTop: 24,
+                justifyContent: "center",
+                alignItems: "center",
               })}
             >
               <Text
@@ -545,12 +570,28 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  text: {
-    fontSize: 16,
-    fontWeight: "500",
+  fieldGroup: {
+    gap: 6,
+    width: "100%",
   },
-  textError: {
+  label: {
     fontSize: 14,
-    marginBottom: 8,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  },
+  errorText: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  eyeIcon: {
+    fontSize: 16,
   },
 });

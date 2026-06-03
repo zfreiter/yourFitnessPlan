@@ -54,7 +54,7 @@ export default function UpdateManagerFabButton() {
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    bottom: 68,
+    bottom: 30,
     right: 20,
   },
 });

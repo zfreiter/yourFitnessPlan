@@ -4,6 +4,8 @@ import { useFormContext, Controller, useFieldArray } from "react-hook-form";
 import { useEffect, useRef, useState } from "react";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useWorkoutSession } from "@/context/WorkoutSessionContext";
+import { useUnits } from "@/hooks/useUnits";
+import { useWeightRounding } from "@/hooks/useWeightRounding";
 
 interface SetInputsProps {
   set: ExerciseSet;
@@ -33,6 +35,13 @@ export default function SetInputs({
   const [isFocusedOldValue, setIsFocusedOldValue] = useState<number | null>(
     null,
   );
+  const {
+    convertToUSWeight,
+    convertToMetricWeight,
+    convertToUSDistance,
+    convertToMetricDistance,
+  } = useUnits();
+  const { applyWeightRounding } = useWeightRounding();
 
   useEffect(() => {
     const keyboardDidHideListener = Keyboard.addListener(
@@ -94,12 +103,12 @@ export default function SetInputs({
                 onFocus={() => {
                   setIsSetFocused(true);
                   setIsFocusedOldValue(value || 0);
+                  if (value === 0) onChange("");
                 }}
                 onBlur={() => {
                   onBlur();
                   setIsSetFocused(false);
-                  if (value === null) onChange(isFocusedOldValue || 0);
-                  handleSetBlur();
+                  if (value === "") onChange(isFocusedOldValue || 0);
                 }}
                 onChangeText={(text) => {
                   onChange(parseInt(text) || 0);
@@ -136,6 +145,7 @@ export default function SetInputs({
                 style={[
                   styles.SetCardInput,
                   {
+                    width: 120,
                     backgroundColor: theme.color.input,
                     borderColor: isWeightFocused
                       ? theme.color.accentActive
@@ -147,16 +157,25 @@ export default function SetInputs({
                 onFocus={() => {
                   setIsWeightFocused(true);
                   setIsFocusedOldValue(value || 0);
+                  if (value === 0) {
+                    console.log(
+                      "weight field focused with 0 value, changing to empty string for better UX",
+                    );
+                    onChange("");
+                  }
                 }}
                 onBlur={() => {
                   setIsWeightFocused(false);
                   onBlur();
-                  if (value === null) onChange(isFocusedOldValue || 0);
-                  handleSetBlur();
+                  if (value === "") onChange(isFocusedOldValue || 0);
                 }}
                 onChangeText={(text) => {
-                  onChange(parseInt(text) || 0);
-                  handleFieldChange("weight", text);
+                  const value = parseFloat(text) || 0;
+                  // apply user rounding preference to the converted metric value for consistency in calculations and storage
+                  onChange(value);
+
+                  // handleFieldChange needs to receive the metric value for consistency with other fields and calculations, even if the displayed value is rounded and in US units
+                  handleFieldChange("weight", value.toString());
                 }}
               />
             )}
@@ -194,16 +213,17 @@ export default function SetInputs({
                 onFocus={() => {
                   setIsDurationFocused(true);
                   setIsFocusedOldValue(value || 0);
+                  if (value === 0) onChange("");
                 }}
                 onBlur={() => {
                   setIsDurationFocused(false);
                   onBlur();
-                  if (value === null) onChange(isFocusedOldValue || 0);
-                  handleSetBlur();
+                  if (value === "") onChange(isFocusedOldValue || 0);
                 }}
                 onChangeText={(text) => {
-                  onChange(parseInt(text) || 0);
-                  handleFieldChange("duration", text);
+                  const value = parseInt(text) || 0;
+                  onChange(value);
+                  handleFieldChange("duration", value.toString());
                 }}
               />
             )}
@@ -237,20 +257,22 @@ export default function SetInputs({
                   },
                 ]}
                 keyboardType="numeric"
-                value={value?.toString() || ""}
+                value={convertToUSDistance(value)?.toString() || ""}
                 onFocus={() => {
                   setIsDistanceFocused(true);
                   setIsFocusedOldValue(value || 0);
+                  if (value === 0) onChange("");
                 }}
                 onBlur={() => {
                   setIsDistanceFocused(false);
                   onBlur();
-                  if (value === null) onChange(isFocusedOldValue || 0);
-                  handleSetBlur();
+                  if (value === "") onChange(isFocusedOldValue || 0);
                 }}
                 onChangeText={(text) => {
-                  onChange(parseInt(text) || 0);
-                  handleFieldChange("distance", text);
+                  // convert to metric for storage and calculations, convert back to us for display if needed
+                  const value = parseInt(text) || 0;
+                  onChange(value);
+                  handleFieldChange("duration", value.toString());
                 }}
               />
             )}
