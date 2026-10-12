@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
-import { Workout } from "@/types/type";
 import { useWorkout } from "@/context/workoutContext";
 import { useEffect, useState } from "react";
 import ActiveWorkoutSession from "@/features/workout-session/components/activeWorkoutSession";
@@ -18,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/authContext";
 import { useRestTimer } from "@/hooks/useRestTimer";
 import { TimerDisplay } from "@/utils/timerDisplay";
+import { Workout } from "@/types/interfaces/types";
 
 export default function WorkoutDetails() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
@@ -110,6 +110,7 @@ export default function WorkoutDetails() {
         </KeyboardAvoidingView>
       </View>
       <TimerDisplay />
+
       {/* Delete menu */}
       <Modal
         transparent

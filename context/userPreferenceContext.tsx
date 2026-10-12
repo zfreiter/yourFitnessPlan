@@ -6,7 +6,10 @@ import {
   useContext,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { UserPreferences, UserPreferencesUpdate } from "@/types/user/type";
+import {
+  UserPreferences,
+  UserPreferencesUpdate,
+} from "@/types/interfaces/types";
 import { useAuth } from "./authContext";
 import { userPreferenceService } from "@/services/userPreferenceService";
 

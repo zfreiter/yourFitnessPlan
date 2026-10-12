@@ -1,30 +1,26 @@
-import { WorkoutUpdateFormValues } from "@/features/create-workout/types/type";
 import {
   createContext,
-  useState,
   ReactNode,
+  useCallback,
   useContext,
-  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
+import { useFormContext, useFormState, useWatch } from "react-hook-form";
+
+import { Workout } from "@/types/interfaces/types";
+import { workoutService } from "@/services/workoutService";
 import {
-  Exercise,
-  ExerciseSet,
-  Workout,
-} from "@/types/common/workoutInterface";
-import { useWorkout } from "./workoutContext";
-import { useFormContext } from "react-hook-form";
-import { useUnits } from "@/hooks/useUnits";
+  buildWorkoutChanges,
+  hasWorkoutChanges,
+} from "@/utils/workoutChangeUtils";
 
 export interface WorkoutSessionContextType {
-  markDirty: (field: string) => void;
   saveWorkout: () => Promise<{ success: boolean }>;
-  saveError: Error | null;
-  isUpdateNeeded: boolean;
   isSaving: boolean;
-  trackWorkoutUpdate: (fields: Partial<Workout>) => void;
-  trackExerciseUpdate: (exercise: Partial<Exercise>) => void;
-  trackSetUpdate: (set: ExerciseSet) => void;
-  clearAllUpdates: () => void;
+  isUpdateNeeded: boolean;
+  saveError: Error | null;
 }
 
 export const WorkoutSessionContext = createContext<
@@ -32,150 +28,109 @@ export const WorkoutSessionContext = createContext<
 >(undefined);
 
 export function useWorkoutSession(): WorkoutSessionContextType {
-  const value = useContext(WorkoutSessionContext);
-  if (process.env.NODE_ENV !== "production") {
-    if (!value) {
-      throw new Error(
-        "useWorkoutSession must be wrapped in a <WorkoutSessionProvider />",
-      );
-    }
-    return value;
+  const context = useContext(WorkoutSessionContext);
+
+  if (!context) {
+    throw new Error(
+      "useWorkoutSession must be wrapped in a WorkoutSessionProvider",
+    );
   }
-  return value as WorkoutSessionContextType;
+
+  return context;
+}
+
+interface WorkoutSessionProviderProps {
+  children: ReactNode;
+  workout: Workout;
 }
 
 export const WorkoutSessionProvider = ({
   children,
-}: {
-  children: ReactNode;
-}) => {
-  const [updatedNeeded, setUpdatedNeeded] = useState<Set<string>>(new Set());
-  const [workoutUpdates, setWorkoutUpdates] = useState<Partial<Workout> | null>(
-    null,
+  workout,
+}: WorkoutSessionProviderProps) => {
+  const { control, getValues, reset } = useFormContext<Workout>();
+
+  const { isDirty } = useFormState({
+    control,
+  });
+
+  const oldWorkoutRef = useRef<Workout>(workout);
+
+  // Watch the entire form
+  const currentWorkout = useWatch({
+    control,
+  }) as Workout;
+
+  const changes = useMemo(
+    () => buildWorkoutChanges(oldWorkoutRef.current, currentWorkout),
+    [currentWorkout],
   );
-  const [exerciseUpdates, setExerciseUpdates] = useState<
-    Partial<Exercise>[] | null
-  >(null);
-  const [setUpdates, setSetUpdates] = useState<ExerciseSet[] | null>(null);
+
+  const isUpdateNeeded = hasWorkoutChanges(changes);
+  console.log("isUpdateNeeded:", isUpdateNeeded);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<Error | null>(null);
 
-  // only form and tracking concerns here — no db, no service calls
-  const { saveWorkoutToDb } = useWorkout();
-  const { reset, getValues } = useFormContext();
+  const saveWorkout = useCallback(async () => {
+    const currentWorkout = getValues();
 
-  const markDirty = (field: string) => {
-    console.log("marking dirty", field);
-    setUpdatedNeeded((prev) => new Set([...prev, field]));
-  };
+    const changes = buildWorkoutChanges(oldWorkoutRef.current, currentWorkout);
 
-  const saveWorkout = async (): Promise<{ success: boolean }> => {
-    if (!isUpdateNeeded) return { success: true };
-
-    const id = getValues("id");
-    const userId = getValues("user_id");
+    console.log("Workout changes:", changes);
+    console.log("Workout changes:", JSON.stringify(changes, null, 2));
+    if (!hasWorkoutChanges(changes)) {
+      return { success: true };
+    }
 
     setIsSaving(true);
     setSaveError(null);
 
     try {
-      //   // delegate all db + context updates to workoutContext
-      // if there are base level workout fields we will pass all
-      const baseWorkoutValues = { name: "", description: "", duration: 0 };
-      if (workoutUpdates) {
-        baseWorkoutValues.name = getValues("name").trim();
-        baseWorkoutValues.description = getValues("description").trim();
-        baseWorkoutValues.duration = getValues("duration");
-      }
-
-      const metricSetUpdates =
-        setUpdates?.map((set) => ({
-          ...set,
-          weight: set.weight ?? 0,
-          distance: set.distance ?? 0,
-        })) ?? [];
-
-      const result = await saveWorkoutToDb(
-        userId,
-        workoutUpdates ? baseWorkoutValues : undefined,
-        metricSetUpdates,
-        id,
+      const result = await workoutService.updateWorkout(
+        currentWorkout.user_id,
+        currentWorkout.id,
+        changes,
       );
 
       if (!result.success) {
-        throw new Error(result.error ?? "Failed to save workout");
+        throw new Error(result.error ?? "Failed to update workout");
       }
 
-      //   // reset form baseline so nothing looks dirty
-      reset(getValues());
-      clearAllUpdates();
+      /*
+       * Use the freshly loaded workout as the new source
+       * of truth if the service returns it.
+       */
+      const savedWorkout = result.data ?? currentWorkout;
+
+      oldWorkoutRef.current = savedWorkout;
+
+      reset(savedWorkout);
 
       return { success: true };
     } catch (error) {
-      const err =
-        error instanceof Error ? error : new Error("Failed to save workout");
-      setSaveError(err);
+      const normalizedError =
+        error instanceof Error ? error : new Error("Failed to update workout");
+
+      setSaveError(normalizedError);
+
       return { success: false };
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [getValues, reset]);
 
-  function trackWorkoutUpdate(fields: Partial<Workout>) {
-    setWorkoutUpdates((prev) => {
-      if (!prev) return fields;
-      return { ...prev, ...fields };
-    });
-  }
-
-  function trackExerciseUpdate(exercise: Partial<Exercise>) {
-    setExerciseUpdates((prev) => {
-      if (!prev) return [exercise];
-      const exists = prev.some((e) => e.id === exercise.id);
-      if (exists) {
-        return prev.map((e) =>
-          e.id === exercise.id ? { ...e, ...exercise } : e,
-        );
-      }
-      return [...prev, exercise];
-    });
-  }
-
-  function trackSetUpdate(set: ExerciseSet) {
-    setSetUpdates((prev) => {
-      if (!prev) return [set];
-      const exists = prev.some((s) => s.id === set.id);
-      if (exists) {
-        return prev.map((s) => (s.id === set.id ? { ...s, ...set } : s));
-      }
-      return [...prev, set];
-    });
-  }
-
-  function clearAllUpdates() {
-    setWorkoutUpdates(null);
-    setExerciseUpdates(null);
-    setSetUpdates(null);
-    setUpdatedNeeded(new Set());
-  }
-
-  const isUpdateNeeded: boolean =
-    workoutUpdates !== null || exerciseUpdates !== null || setUpdates !== null;
+  const contextValue = useMemo<WorkoutSessionContextType>(
+    () => ({
+      saveWorkout,
+      isSaving,
+      isUpdateNeeded,
+      saveError,
+    }),
+    [saveWorkout, isSaving, isUpdateNeeded, saveError],
+  );
 
   return (
-    <WorkoutSessionContext.Provider
-      value={{
-        markDirty,
-        saveWorkout,
-        saveError,
-        isUpdateNeeded,
-        isSaving,
-        trackWorkoutUpdate,
-        trackExerciseUpdate,
-        trackSetUpdate,
-        clearAllUpdates,
-      }}
-    >
+    <WorkoutSessionContext.Provider value={contextValue}>
       {children}
     </WorkoutSessionContext.Provider>
   );

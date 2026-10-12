@@ -7,13 +7,14 @@ import {
   useContext,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { ProfileInterface } from "@/types/user/type";
+
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
 import { getDB } from "@/services/database";
 import { getMeta, META_KEYS, setMeta } from "@/utils/appMeta";
 import { syncService } from "@/services/syncService";
 import { useAppInit } from "@/context/AppInitContext";
+import { ProfileInterface } from "@/types/interfaces/types";
 export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;

@@ -1,8 +1,8 @@
 export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS app_meta (
-  key TEXT PRIMARY KEY,
-  value TEXT
-)`,
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`,
 
   `CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY,
@@ -80,7 +80,7 @@ export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS exercise_types (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     exercise_id TEXT,
-    type TEXT CHECK(type IN ('strength', 'cardio', 'mobility', 'circuit')),
+    type TEXT CHECK(type IN ('strength', 'cardio', 'circuit', 'open')),
     FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
     UNIQUE(exercise_id, type)
   )`,
@@ -122,29 +122,50 @@ export const SCHEMA_STATEMENTS = [
     user_id TEXT,
     name TEXT NOT NULL,
     description TEXT,
-    type TEXT CHECK(type IN ('strength', 'cardio', 'mobility', 'circuit')),
+    type TEXT CHECK(type IN ('strength', 'cardio', 'circuit', 'open')),
     scheduled_datetime TEXT NOT NULL,
     duration INTEGER,
+    perceived_effort TEXT CHECK(perceived_effort IN ('easy', 'moderate', 'hard')),
     is_completed INTEGER DEFAULT 0,
     completed_at TEXT DEFAULT NULL,
     created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
   )`,
 
   `CREATE TABLE IF NOT EXISTS workout_exercises (
-    id TEXT PRIMARY KEY,
-    workout_id TEXT,
-    exercise_id TEXT,
-    exercise_name TEXT NOT NULL,
-    chosen_unit_combination TEXT,
-    track_reps INTEGER DEFAULT 0,
-    track_weight INTEGER DEFAULT 0,
-    track_time INTEGER DEFAULT 0,
-    track_distance INTEGER DEFAULT 0,
-    exercise_order INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (workout_id) REFERENCES workouts(id) ON DELETE CASCADE,
-    FOREIGN KEY (exercise_id) REFERENCES exercises(id)
-  )`,
+  id TEXT PRIMARY KEY,
+  workout_id TEXT,
+  exercise_id TEXT,
+  exercise_name TEXT NOT NULL,
+
+  valid_units TEXT NOT NULL DEFAULT '[]',
+
+  muscles_targeted TEXT,
+  equipment TEXT,
+  description TEXT,
+
+  exercise_order INTEGER NOT NULL DEFAULT 1,
+
+  group_id TEXT DEFAULT NULL,
+  group_type TEXT
+    CHECK(group_type IN ('superset', 'compound_set', 'circuit'))
+    DEFAULT NULL,
+
+  round_number INTEGER DEFAULT NULL,
+  circuit_id TEXT DEFAULT NULL,
+
+  FOREIGN KEY (workout_id)
+    REFERENCES workouts(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY (exercise_id)
+    REFERENCES exercises(id),
+
+  FOREIGN KEY (circuit_id)
+    REFERENCES circuit_rounds(id)
+    ON DELETE SET NULL
+);`,
 
   `CREATE TABLE IF NOT EXISTS exercise_sets (
     id TEXT PRIMARY KEY,
@@ -153,7 +174,51 @@ export const SCHEMA_STATEMENTS = [
     weight REAL,
     time INTEGER,
     distance REAL,
+    is_warmup INTEGER DEFAULT 0,
+    is_max INTEGER DEFAULT 0,
     set_order INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (workout_exercise_id) REFERENCES workout_exercises(id) ON DELETE CASCADE
+  )`,
+
+  // ---------- CARDIO ----------
+
+  `CREATE TABLE IF NOT EXISTS cardio_entries (
+    id TEXT PRIMARY KEY,
+    workout_id TEXT,
+    activity TEXT CHECK(activity IN ('run', 'sprint', 'bike', 'row', 'swim', 'jump_rope', 'hike', 'walk')),
+    mode TEXT CHECK(mode IN ('simple', 'intervals')) DEFAULT 'simple',
+    duration INTEGER,
+    distance REAL,
+    calories INTEGER,
+    heart_rate_avg INTEGER,
+    heart_rate_zone TEXT CHECK(heart_rate_zone IN ('z1', 'z2', 'z3', 'z4', 'z5')),
+    is_finisher INTEGER DEFAULT 0,
+    entry_order INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (workout_id) REFERENCES workouts(id) ON DELETE CASCADE
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS cardio_intervals (
+    id TEXT PRIMARY KEY,
+    cardio_entry_id TEXT,
+    interval_order INTEGER NOT NULL DEFAULT 1,
+    work_duration INTEGER,
+    rest_duration INTEGER,
+    distance REAL,
+    calories INTEGER,
+    notes TEXT,
+    FOREIGN KEY (cardio_entry_id) REFERENCES cardio_entries(id) ON DELETE CASCADE
+  )`,
+
+  // ---------- CIRCUIT ----------
+
+  `CREATE TABLE IF NOT EXISTS circuit_rounds (
+    id TEXT PRIMARY KEY,
+    workout_id TEXT,
+    round_number INTEGER NOT NULL,
+    rest_after_round INTEGER NOT NULL DEFAULT 90,
+    notes TEXT,
+    FOREIGN KEY (workout_id) REFERENCES workouts(id) ON DELETE CASCADE
   )`,
 ];

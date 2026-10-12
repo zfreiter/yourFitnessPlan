@@ -6,14 +6,14 @@ import {
   PropsWithChildren,
 } from "react";
 import { useAuth } from "./authContext";
-import { ExerciseMax } from "@/types/interfaces/types";
+import { TrainingMax } from "@/types/interfaces/types";
 import { maxLiftService } from "@/services/maxLiftService";
 import { supabase } from "@/lib/supabaseClient";
 import { useProfile } from "./profileContext";
 
 interface MaxLiftContextType {
   isMaxLiftLoading: boolean;
-  exerciseMaxes: Record<string, ExerciseMax>;
+  exerciseMaxes: Record<string, TrainingMax>;
   insertMaxLifts: (
     userId: string,
     formData: Record<string, any>,
@@ -31,12 +31,12 @@ export function MaxLiftProvider({ children }: PropsWithChildren) {
   const { isLoading, user } = useAuth();
   const { isLoading: isProfileLoading } = useProfile();
   const [exerciseMaxes, setExerciseMaxes] = useState<
-    Record<string, ExerciseMax>
+    Record<string, TrainingMax>
   >({});
   const [isMaxLiftLoading, setMaxLiftLoading] = useState(true);
 
-  const toMaxesMap = (maxLifts: ExerciseMax[]): Record<string, ExerciseMax> =>
-    maxLifts.reduce<Record<string, ExerciseMax>>((acc, max) => {
+  const toMaxesMap = (maxLifts: TrainingMax[]): Record<string, TrainingMax> =>
+    maxLifts.reduce<Record<string, TrainingMax>>((acc, max) => {
       acc[max.exercise_name] = max;
       return acc;
     }, {});

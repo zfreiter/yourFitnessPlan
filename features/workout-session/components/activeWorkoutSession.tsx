@@ -1,142 +1,163 @@
-import { FlatList } from "react-native";
-import { Workout } from "@/types/type";
-import { useForm, FormProvider, useWatch } from "react-hook-form";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { WorkoutUpdateFormValues } from "@/features/create-workout/types/type";
-import ExerciseManager from "./exerciseManager";
-import { WorkoutSessionHeader } from "./WorkoutSessionHeader";
-import { WorkoutSessionFooter } from "./WorkoutSessionFooter";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
+
+import { Workout } from "@/types/interfaces/types";
 import { useColorTheme } from "@/context/colorThemeContext";
+import {
+  useWorkoutSession,
+  WorkoutSessionProvider,
+} from "@/context/WorkoutSessionContext";
+
+import { NameInput } from "@/features/create-workout/components/nameInput";
+import { DateTimePickerInput } from "@/features/create-workout/components/dateTimePicker";
+import { DescriptionInput } from "@/features/create-workout/components/descriptionInput";
+import DurationWheelPicker from "@/features/create-workout/components/durationWheelPicker";
+import { PerceivedEffortInput } from "@/features/create-workout/components/perceivedEffort";
+import { CompleteWorkoutButton } from "@/features/create-workout/components/complete";
+import { StrengthBuilder } from "@/features/create-workout/components/strengthBuilder";
+import { CardioBuilder } from "@/features/create-workout/components/cardioBuilder";
+import { CircuitBuilder } from "@/features/create-workout/components/circuitBuilder";
 import UpdateManagerFabButton from "./updateManagerFabButton";
-import { WorkoutSessionProvider } from "@/context/WorkoutSessionContext";
-import { useUnits } from "@/hooks/useUnits";
+
+interface ActiveWorkoutSessionProps {
+  workout: Workout;
+}
+
+function ActiveWorkoutSessionContent() {
+  const { theme } = useColorTheme();
+  const { isUpdateNeeded } = useWorkoutSession();
+  const workoutType = useWatch<Workout>({
+    name: "workoutType",
+  });
+
+  return (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: theme.color.background,
+      }}
+      edges={["top", "bottom"]}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            gap: theme.spacing.lg,
+            paddingVertical: theme.spacing.screenPadding,
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View
+            style={[
+              styles.typeWrapper,
+              {
+                gap: theme.spacing.label,
+                backgroundColor: theme.color.input,
+                borderColor: theme.color.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.fieldLabel,
+                {
+                  color: theme.color.textSecondary,
+                  paddingLeft: 8,
+                },
+              ]}
+            >
+              WORKOUT TYPE:
+            </Text>
+
+            <Text style={{ color: theme.color.textPrimary }}>
+              {` ${workoutType}`}
+            </Text>
+          </View>
+
+          <NameInput />
+
+          <DateTimePickerInput />
+
+          <DescriptionInput />
+
+          {workoutType === "strength" && (
+            <View style={{ gap: theme.spacing.lg }}>
+              <StrengthBuilder />
+              <CardioBuilder isFinisher />
+            </View>
+          )}
+
+          {workoutType === "circuit" && <CircuitBuilder />}
+
+          {workoutType === "cardio" && <CardioBuilder />}
+
+          <DurationWheelPicker />
+
+          <PerceivedEffortInput />
+
+          <CompleteWorkoutButton />
+        </ScrollView>
+        {isUpdateNeeded && <UpdateManagerFabButton />}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
 
 export default function ActiveWorkoutSession({
   workout,
-}: {
-  workout: Workout;
-}) {
-  const methods = useForm<WorkoutUpdateFormValues>({
+}: ActiveWorkoutSessionProps) {
+  const methods = useForm<Workout>({
     defaultValues: {
       id: workout.id,
       user_id: workout.user_id,
       name: workout.name,
-      description: workout.description,
-      type: workout.workoutType,
-      date: workout.scheduled_datetime
-        ? new Date(workout.scheduled_datetime) // works for both UTC and offset strings
-        : new Date(),
+      description: workout.description ?? "",
+      workoutType: workout.workoutType,
+      scheduled_datetime:
+        workout.scheduled_datetime ?? new Date().toISOString(),
       duration: workout.duration,
-      exercises: workout.exercises,
-      isCompleted: workout.isCompleted,
-      completed_at: workout.completed_at,
+      perceived_effort: workout.perceived_effort,
+      is_completed: workout.is_completed,
+      completed_at: workout.completed_at ?? null,
+      exercises: workout.exercises ?? [],
+      cardio_entries: workout.cardio_entries ?? [],
+      circuit_rounds: workout.circuit_rounds ?? [],
     },
   });
 
-  const { control, setValue } = methods;
-  const { convertToUSWeight } = useUnits();
-  const [mode, setMode] = useState<"date" | "time">("time");
-  const [show, setShow] = useState(false);
-  const [showExerciseModal, setShowExerciseModal] = useState(false);
-  //const [workoutType, setWorkoutType] = useState(workout.workoutType);
-
-  // Register all nested form fields to ensure they are properly initialized
-  const isInitializedRef = useRef<Record<string, boolean>>({});
-  useEffect(() => {
-    if (!workout?.exercises) return;
-
-    workout.exercises.forEach((exercise, exerciseIndex) => {
-      if (!exercise.sets) return;
-
-      exercise.sets.forEach((set, setIndex) => {
-        const key = `${exercise.id}_${set.id}`;
-        if (isInitializedRef.current[key]) return;
-
-        setValue(
-          `exercises.${exerciseIndex}.sets.${setIndex}.reps`,
-          set.reps || 0,
-        );
-        setValue(
-          `exercises.${exerciseIndex}.sets.${setIndex}.weight`,
-          set.weight || 0,
-        );
-        setValue(
-          `exercises.${exerciseIndex}.sets.${setIndex}.duration`,
-          set.duration || 0,
-        );
-        setValue(
-          `exercises.${exerciseIndex}.sets.${setIndex}.distance`,
-          set.distance || 0,
-        );
-
-        isInitializedRef.current[key] = true;
-      });
-    });
-  }, [workout.id, setValue]);
-
-  const openDatePicker = useCallback(() => {
-    setMode("date");
-    setShow(true);
-  }, []);
-
-  const handleAddExercise = useCallback(() => {
-    setShowExerciseModal(true);
-  }, []);
-
-  const handleCloseExerciseModal = useCallback(() => {
-    setShowExerciseModal(false);
-  }, []);
-
-  const exercises = useWatch({
-    control,
-    name: "exercises",
-  });
-
-  const header = useMemo(
-    () => (
-      <WorkoutSessionHeader
-        showExerciseModal={showExerciseModal}
-        handleAddExercise={handleAddExercise}
-        handleCloseExerciseModal={handleCloseExerciseModal}
-      />
-    ),
-    [showExerciseModal, handleAddExercise, handleCloseExerciseModal],
-  );
-
-  const footer = useMemo(
-    () => (
-      <WorkoutSessionFooter
-        show={show}
-        mode={mode}
-        openDatePicker={openDatePicker}
-        setMode={setMode}
-        setShow={setShow}
-      />
-    ),
-    [show, mode, openDatePicker, setMode, setShow],
-  );
-
   return (
     <FormProvider {...methods}>
-      <WorkoutSessionProvider>
-        <FlatList
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          initialNumToRender={10}
-          data={exercises || []}
-          renderItem={useCallback(
-            ({ item, index }: { item: any; index: number }) => (
-              <ExerciseManager exercise={item} exerciseIndex={index} />
-            ),
-            [],
-          )}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={header}
-          ListFooterComponent={footer}
-        />
-        <UpdateManagerFabButton />
+      <WorkoutSessionProvider workout={workout}>
+        <ActiveWorkoutSessionContent />
       </WorkoutSessionProvider>
     </FormProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+
+  typeWrapper: {
+    flexDirection: "row",
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 8,
+    height: 40,
+    alignItems: "center",
+  },
+});

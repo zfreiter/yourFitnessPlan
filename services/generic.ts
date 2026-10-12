@@ -34,14 +34,6 @@ export const getCurrentStreak = async (): Promise<{
     [`${startMonth}`, `${todayStr}`],
   );
 
-  const work = await db.getAllAsync(
-    `
-    SELECT *
-    FROM workouts
-    WHERE id = 30
-    `,
-  );
-
   const workoutsInCurrentWeek = workoutsInCurrentMonth.filter(
     (element) => element.scheduled_datetime >= startWeek,
   );

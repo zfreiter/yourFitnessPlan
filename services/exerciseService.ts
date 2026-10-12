@@ -1,7 +1,16 @@
-import * as SQLite from "expo-sqlite";
-import { Exercise, ValidUnit, ExerciseType, Difficulty } from "@/types/type";
+import {
+  Difficulty,
+  Exercise,
+  WorkoutType,
+  ValidUnit,
+  WorkoutExercise,
+  ExerciseGroupType,
+} from "@/types/interfaces/types";
 import { syncService } from "@/services/syncService";
 import { getDB } from "./database";
+import { SQLiteDatabase } from "expo-sqlite";
+import { setService } from "./setService";
+import { withLocalTransaction } from "./localTransaction";
 
 interface ExerciseRow {
   id: string;
@@ -15,14 +24,56 @@ interface ExerciseRow {
   equipment: string;
 }
 
+interface WorkoutExerciseRow {
+  id: string;
+  workout_id: string;
+  exercise_id: string;
+  exercise_name: string;
+
+  valid_units: string;
+
+  muscles_targeted: string | null;
+  equipment: string | null;
+  description: string | null;
+
+  exercise_order: number;
+
+  group_id: string | null;
+  group_type: ExerciseGroupType | null;
+  round_number: number | null;
+}
+
+interface ExerciseSetRow {
+  id: string;
+  workout_exercise_id: string;
+  reps: number | null;
+  weight: number | null;
+  time: number | null;
+  distance: number | null;
+  is_warmup: number;
+  is_max: number;
+  set_order: number;
+}
+
 export interface ExerciseService {
+  insertWorkoutExercises: (
+    exercises: WorkoutExercise[],
+    db: SQLiteDatabase,
+  ) => Promise<void>;
+  updateWorkoutExercise: (
+    exercise: WorkoutExercise,
+    db: SQLiteDatabase,
+  ) => Promise<void>;
+  getWorkoutExercises: (
+    workoutId: string,
+    db: SQLiteDatabase,
+  ) => Promise<WorkoutExercise[]>;
   getExercises: () => Promise<Exercise[]>;
   getExerciseById: (id: string) => Promise<Exercise | null>;
-  getExercisesByType: (type: ExerciseType) => Promise<Exercise[]>;
+  getExercisesByType: (type: WorkoutType) => Promise<Exercise[]>;
   getExercisesByMuscle: (muscle: string) => Promise<Exercise[]>;
   getExerciseByEquipment: (equipment: string) => Promise<Exercise[]>;
   getParsedExercises: (exercises: ExerciseRow[]) => Exercise[];
-  getParsedExerciseById: (exercise: ExerciseRow) => Exercise | null;
   updateExerciseOrder: (
     userId: string,
     exerciseListToUpdate: { id: string; exercise_order: number }[],
@@ -34,48 +85,222 @@ export interface ExerciseService {
 }
 
 export const exerciseService: ExerciseService = {
-  getParsedExercises: (exercises: ExerciseRow[]): Exercise[] => {
-    return exercises.map((exercise) => ({
-      id: exercise.id,
-      exercise_id: exercise.id,
-      workout_id: "",
-      exercise_name: exercise.name,
-      exercise_description: exercise.description,
-      exercise_difficulty: exercise.difficulty as Difficulty,
-      track_reps: 0,
-      track_weight: 0,
-      track_time: 0,
-      track_distance: 0,
-      validUnits: exercise.validUnits
-        ? exercise.validUnits
-            .split(",")
-            .map((combo) => combo.split("||") as ValidUnit[])
-        : [],
-      sets: [],
-      exercise_order: 0,
-    }));
-  },
+  insertWorkoutExercises: async (
+    exercises: WorkoutExercise[],
+    db: SQLiteDatabase,
+  ): Promise<void> => {
+    try {
+      for (const exercise of exercises) {
+        const {
+          id,
+          workout_id,
+          exercise_id,
+          exercise_name,
+          validUnits,
+          musclesTargeted,
+          equipment,
+          description,
+          exercise_order,
+          group_id,
+          group_type,
+          round_number,
+          sets,
+        } = exercise;
 
-  getParsedExerciseById: (exercise: ExerciseRow): Exercise => {
-    return {
-      id: exercise.id,
-      exercise_id: exercise.id,
-      workout_id: "",
-      exercise_name: exercise.name,
-      exercise_description: exercise.description,
-      exercise_difficulty: exercise.difficulty as Difficulty,
-      track_reps: 0,
-      track_weight: 0,
-      track_time: 0,
-      track_distance: 0,
-      validUnits: exercise.validUnits
+        await db.runAsync(
+          `INSERT INTO workout_exercises (
+          id,
+          workout_id,
+          exercise_id,
+          exercise_name,
+          valid_units,
+          muscles_targeted,
+          equipment,
+          description,
+          exercise_order,
+          group_id,
+          group_type,
+          round_number
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            workout_id,
+            exercise_id,
+            exercise_name,
+            JSON.stringify(validUnits ?? []),
+            musclesTargeted?.length ? musclesTargeted.join(",") : null,
+            equipment?.length ? equipment.join(",") : null,
+            description ?? null,
+            exercise_order ?? 1,
+            group_id ?? null,
+            group_type ?? null,
+            round_number ?? null,
+          ],
+        );
+
+        await setService.insertWorkoutSets(sets, db);
+      }
+    } catch (error) {
+      console.error("Error inserting workout exercises:", error);
+      throw new Error("Failed to insert workout exercises");
+    }
+  },
+  updateWorkoutExercise: async (
+    exercise: WorkoutExercise,
+    db: SQLiteDatabase,
+  ): Promise<void> => {
+    try {
+      await db.runAsync(
+        `UPDATE workout_exercises
+       SET
+         exercise_id = ?,
+         exercise_name = ?,
+         valid_units = ?,
+         muscles_targeted = ?,
+         equipment = ?,
+         description = ?,
+         exercise_order = ?,
+         group_id = ?,
+         group_type = ?,
+         round_number = ?
+       WHERE id = ?`,
+        [
+          exercise.exercise_id ?? null,
+          exercise.exercise_name,
+          JSON.stringify(exercise.validUnits ?? []),
+          exercise.musclesTargeted?.length
+            ? exercise.musclesTargeted.join(",")
+            : null,
+          exercise.equipment?.length ? exercise.equipment.join(",") : null,
+          exercise.description ?? null,
+          exercise.exercise_order ?? 1,
+          exercise.group_id ?? null,
+          exercise.group_type ?? null,
+          exercise.round_number ?? null,
+          exercise.id,
+        ],
+      );
+    } catch (error) {
+      console.error(`Error updating workout exercise ${exercise.id}:`, error);
+
+      throw new Error("Failed to update workout exercise");
+    }
+  },
+  getWorkoutExercises: async (
+    workoutId: string,
+    db: SQLiteDatabase,
+  ): Promise<WorkoutExercise[]> => {
+    try {
+      const exerciseRows = await db.getAllAsync<WorkoutExerciseRow>(
+        `SELECT
+          id,
+          workout_id,
+          exercise_id,
+          exercise_name,
+          valid_units,
+          muscles_targeted,
+          equipment,
+          description,
+          exercise_order,
+          group_id,
+          group_type,
+          round_number
+        FROM workout_exercises
+        WHERE workout_id = ?
+        ORDER BY exercise_order`,
+        [workoutId],
+      );
+
+      return await Promise.all(
+        exerciseRows.map(async (row) => {
+          const sets = await setService.getWorkoutSets(row.id, db);
+
+          let validUnits: ValidUnit[] = [];
+
+          try {
+            const parsed = JSON.parse(row.valid_units);
+
+            if (Array.isArray(parsed)) {
+              validUnits = parsed.filter(
+                (unit): unit is ValidUnit =>
+                  unit === "reps" ||
+                  unit === "weight" ||
+                  unit === "time" ||
+                  unit === "distance",
+              );
+            }
+          } catch {
+            console.error("Invalid valid_units JSON:", row.valid_units);
+          }
+
+          return {
+            id: row.id,
+            workout_id: row.workout_id,
+            exercise_id: row.exercise_id,
+            exercise_name: row.exercise_name,
+
+            validUnits,
+
+            musclesTargeted: row.muscles_targeted
+              ? row.muscles_targeted.split(",")
+              : [],
+
+            equipment: row.equipment ? row.equipment.split(",") : [],
+
+            description: row.description ?? undefined,
+
+            exercise_order: row.exercise_order,
+
+            group_id: row.group_id,
+            group_type: row.group_type,
+            round_number: row.round_number,
+
+            sets,
+          };
+        }),
+      );
+    } catch (error) {
+      console.error("Error getting workout exercises:", error);
+
+      throw new Error("Failed to get workout exercises");
+    }
+  },
+  getParsedExercises: (exercises: ExerciseRow[]): Exercise[] => {
+    return exercises.map((exercise) => {
+      const validUnits: ValidUnit[] = exercise.validUnits
         ? exercise.validUnits
-            .split(",")
-            .map((combo) => combo.split("||") as ValidUnit[])
-        : [],
-      sets: [],
-      exercise_order: 0,
-    };
+            .split(",")[0]
+            .split(/[+|]/)
+            .map((unit) => unit.trim())
+            .filter(
+              (unit): unit is ValidUnit =>
+                unit === "reps" ||
+                unit === "weight" ||
+                unit === "time" ||
+                unit === "distance",
+            )
+        : [];
+
+      return {
+        id: exercise.id,
+        name: exercise.name,
+        description: exercise.description ?? "",
+        difficulty: exercise.difficulty as Difficulty,
+
+        validUnits,
+
+        types: exercise.types
+          ? (exercise.types.split(",") as WorkoutType[])
+          : [],
+
+        musclesTargeted: exercise.muscles ? exercise.muscles.split(",") : [],
+
+        equipment: exercise.equipment ? exercise.equipment.split(",") : [],
+
+        noWeight: exercise.no_weight === 1,
+      };
+    });
   },
 
   getExercises: async () => {
@@ -103,7 +328,7 @@ export const exerciseService: ExerciseService = {
         exerciseService.getParsedExercises(exercises);
 
       const orderedExercises = parsedExercises.sort((a, b) =>
-        a.exercise_name.localeCompare(b.exercise_name),
+        a.name.localeCompare(b.name),
       );
 
       return orderedExercises;
@@ -140,14 +365,14 @@ export const exerciseService: ExerciseService = {
 
       if (!foundExercise) return null;
 
-      return exerciseService.getParsedExerciseById(foundExercise);
+      return exerciseService.getParsedExercises([foundExercise])[0];
     } catch (error) {
       console.error("Error fetching exercise by id:", error);
       throw new Error("Failed to fetch exercise by id");
     }
   },
 
-  getExercisesByType: async (type: ExerciseType) => {
+  getExercisesByType: async (type: WorkoutType) => {
     const db = await getDB();
     try {
       const exercises: ExerciseRow[] = await db.getAllAsync(
@@ -259,32 +484,26 @@ export const exerciseService: ExerciseService = {
     userId: string,
     exercisesToUpdate: { id: string; exercise_order: number }[],
   ): Promise<{ success: boolean; error?: string }> => {
-    const db = await getDB();
     try {
-      await db.withTransactionAsync(async () => {
-        await Promise.all(
-          exercisesToUpdate.map(async (exercise) => {
-            await db.runAsync(
-              `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
-              [exercise.exercise_order, exercise.id],
-            );
-          }),
-        );
+      await withLocalTransaction(async (transaction) => {
+        for (const exercise of exercisesToUpdate) {
+          await transaction.runAsync(
+            `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
+            [exercise.exercise_order, exercise.id],
+          );
+          await syncService.addToSyncQueueInTransaction(
+            transaction,
+            userId,
+            "workout_exercises",
+            exercise.id,
+            "update",
+            {
+              id: exercise.id,
+              exercise_order: exercise.exercise_order,
+            },
+          );
+        }
       });
-
-      // Add each reordered exercise to sync queue
-      for (const exercise of exercisesToUpdate) {
-        await syncService.addToSyncQueue(
-          userId,
-          "workout_exercises",
-          exercise.id,
-          "update",
-          {
-            id: exercise.id,
-            exercise_order: exercise.exercise_order,
-          },
-        );
-      }
 
       return { success: true };
     } catch (error) {
@@ -297,27 +516,27 @@ export const exerciseService: ExerciseService = {
     userId: string,
     exerciseId: string,
   ): Promise<{ success: boolean; error?: string }> => {
-    const db = await getDB();
     try {
-      await db.withTransactionAsync(async () => {
-        await db.runAsync(
+      await withLocalTransaction(async (transaction) => {
+        await transaction.runAsync(
           `DELETE FROM exercise_sets WHERE workout_exercise_id = ?`,
           [exerciseId],
         );
-        await db.runAsync(`DELETE FROM workout_exercises WHERE id = ?`, [
+        await transaction.runAsync(`DELETE FROM workout_exercises WHERE id = ?`, [
           exerciseId,
         ]);
+        await syncService.addToSyncQueueInTransaction(
+          transaction,
+          userId,
+          "workout_exercises",
+          exerciseId,
+          "delete",
+          { id: exerciseId },
+        );
       });
 
       // Sync queue — sets are cascade deleted via workout_exercise in Supabase
       // so we only need to delete the workout_exercise
-      await syncService.addToSyncQueue(
-        userId,
-        "workout_exercises",
-        exerciseId,
-        "delete",
-        { id: exerciseId },
-      );
 
       return { success: true };
     } catch (error) {

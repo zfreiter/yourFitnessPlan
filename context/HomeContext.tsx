@@ -36,6 +36,7 @@ export function HomeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const fetchCurrentStreak = async () => {
       const { workoutsMonth, workoutsWeek } = await getCurrentStreak();
+
       setWeeklyTotal(workoutsWeek);
       setMonthlyTotal(workoutsMonth);
       setResetFlag(false);

@@ -1,13 +1,18 @@
 import { exerciseService } from "@/services/exerciseService";
 import { workoutService } from "@/services/workoutService";
-import { Workout, Exercise } from "@/types/type";
+import {
+  CreateWorkoutForm,
+  Exercise,
+  Workout,
+  WorkoutExercise,
+} from "@/types/interfaces/types";
 import { useAppInit } from "./AppInitContext";
 import { useAuth } from "./authContext";
 import {
   ExerciseDirection,
   ExerciseSet,
-  ExerciseType,
-} from "@/types/common/workoutInterface";
+  WorkoutType,
+} from "@/types/interfaces/types";
 import {
   createContext,
   Dispatch,
@@ -29,14 +34,18 @@ interface WorkoutContextType {
   setWorkouts: Dispatch<SetStateAction<Workout[]>>;
   exercises: Exercise[];
   setExercises: Dispatch<SetStateAction<Exercise[]>>;
+  insertWorkout: (workout: Workout) => void;
   updateWorkoutExerciseOrder: (
     userId: string,
     workoutId: string,
-    exercises: Exercise[],
+    exercises: WorkoutExercise[],
     currentIndex: number,
     direction: ExerciseDirection,
   ) => void;
-  addWorkoutExercise: (newExerciseData: Exercise, workoutId: string) => void;
+  addWorkoutExercise: (
+    newExerciseData: WorkoutExercise,
+    workoutId: string,
+  ) => void;
   deleteWorkoutExercise: (userId: string, exerciseId: string) => void;
   deleteWorkoutExerciseSet: (
     workoutId: string,
@@ -56,7 +65,7 @@ interface WorkoutContextType {
     workoutId: string,
     exercisesSetsMap: Map<string, ExerciseSet[]>,
   ) => void;
-  updateWorkoutType: (workoutId: string, workoutType: ExerciseType) => void;
+  updateWorkoutType: (workoutId: string, workoutType: WorkoutType) => void;
   updateContextWorkoutField: (
     userId: string,
     workoutId: string,
@@ -189,6 +198,16 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     );
   }, [workouts]);
 
+  // Inserting new workout by date.
+  async function insertWorkout(workout: Workout) {
+    setWorkouts((workouts) => {
+      const updated = [...workouts, workout];
+      return updated.sort((a, b) =>
+        a.scheduled_datetime.localeCompare(b.scheduled_datetime),
+      );
+    });
+  }
+
   async function saveWorkoutToDb(
     userId: string,
     workoutUpdates: Partial<Workout> | undefined,
@@ -248,7 +267,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   async function updateWorkoutExerciseOrder(
     userId: string,
     workoutId: string,
-    exercises: Exercise[],
+    exercises: WorkoutExercise[],
     currentIndex: number,
     direction: ExerciseDirection,
   ) {
@@ -292,7 +311,10 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     }
   }
 
-  function addWorkoutExercise(newExerciseData: Exercise, workoutId: string) {
+  function addWorkoutExercise(
+    newExerciseData: WorkoutExercise,
+    workoutId: string,
+  ) {
     setWorkouts((prev: Workout[]) => {
       if (newExerciseData) {
         return prev.map((workout: Workout) =>
@@ -389,7 +411,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     );
   }
 
-  function updateWorkoutType(workoutId: string, workoutType: ExerciseType) {
+  function updateWorkoutType(workoutId: string, workoutType: WorkoutType) {
     setWorkouts((prevWorkouts: Workout[]) =>
       prevWorkouts.map((workout: Workout) =>
         workout.id === workoutId
@@ -501,7 +523,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   }
 
   async function deleteWorkout(userId: string, workoutIdToDelete: string) {
-    await debugSchema();
+    //await debugSchema();
     const result = await workoutService.deleteWorkout(
       userId,
       workoutIdToDelete,
@@ -613,6 +635,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         setWorkouts,
         exercises,
         setExercises,
+        insertWorkout,
         updateWorkoutExerciseOrder,
         addWorkoutExercise,
         deleteWorkoutExercise,

@@ -11,7 +11,7 @@ import { useColorTheme } from "@/context/colorThemeContext";
 import RadioGroup, { RadioButtonProps } from "react-native-radio-buttons-group";
 import { useMemo, useState, useCallback } from "react";
 import { useAuth } from "@/context/authContext";
-import { UserPreferencesUpdate } from "@/types/user/type";
+import { UserPreferencesUpdate } from "@/types/interfaces/types";
 import { useForm, Controller } from "react-hook-form";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";

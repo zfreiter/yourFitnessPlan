@@ -100,10 +100,10 @@ export function AppInitProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
-      for (const combo of exercise.valid_units ?? []) {
+      if (exercise.valid_units?.length) {
         await db.runAsync(
           `INSERT OR IGNORE INTO exercise_unit_combinations (exercise_id, unit_combination) VALUES (?, ?)`,
-          [exercise.id, combo.join("||")],
+          [exercise.id, exercise.valid_units.join("||")],
         );
       }
     }
