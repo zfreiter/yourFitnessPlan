@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import { useSync } from "@/context/SyncContext";
 import { useAuth } from "@/context/authContext";
 import { runDevTransactionVerification } from "@/services/devTransactionVerification";
+import { runDevWorkoutSyncVerification } from "@/services/devWorkoutSyncVerification";
 
 export default function DevTransactionVerificationScreen() {
   const { isSyncLoading, isSyncing } = useSync();
@@ -16,7 +17,9 @@ export default function DevTransactionVerificationScreen() {
     setRunning(true);
     setOutput("Running local SQLite checks…");
     try {
-      const results = await runDevTransactionVerification();
+      const transactionResults = await runDevTransactionVerification();
+      const syncResults = await runDevWorkoutSyncVerification();
+      const results = [...transactionResults, ...syncResults];
       setOutput(JSON.stringify(results, null, 2));
     } catch (error) {
       setOutput(error instanceof Error ? error.message : String(error));
@@ -32,12 +35,12 @@ export default function DevTransactionVerificationScreen() {
     <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
       <View style={{ gap: 8 }}>
         <Text style={{ fontSize: 22, fontWeight: "700" }}>
-          DEV ONLY: SQLite transaction verification
+          DEV ONLY: SQLite transaction and workout sync verification
         </Text>
         <Text>
           Creates and removes synthetic fixture rows in the local database. It
-          never calls sync. Run only on an isolated development install, with
-          app sync idle; do not use a database containing data you need.
+          Sync checks use a fake Supabase client and never send Supabase
+          requests. Run on an isolated development install with app sync idle.
         </Text>
       </View>
 
@@ -55,7 +58,7 @@ export default function DevTransactionVerificationScreen() {
             ? syncBusy
               ? "Waiting for sync to finish…"
               : "Running…"
-            : "Run five SQLite checks"}
+            : "Run SQLite and sync checks"}
         </Text>
       </Pressable>
 

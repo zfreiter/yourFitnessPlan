@@ -137,6 +137,7 @@ export interface BaseWorkoutExercise {
   group_id?: string | null;
   group_type?: ExerciseGroupType | null;
   round_number?: number | null;
+  circuit_id?: string | null;
 
   sets: BaseExerciseSet[];
 }

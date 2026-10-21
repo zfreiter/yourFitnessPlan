@@ -157,6 +157,9 @@ const workoutExerciseSyncData = (exercise: WorkoutExercise) => ({
   group_id: exercise.group_id ?? null,
   group_type: exercise.group_type ?? null,
   round_number: exercise.round_number ?? null,
+  circuit_id:
+    exercise.circuit_id ??
+    (exercise.group_type === "circuit" ? exercise.group_id ?? null : null),
 });
 
 const exerciseSetSyncData = (set: ExerciseSet) => ({
@@ -336,17 +339,18 @@ export const workoutService = {
           ],
         );
 
-        // Insert exercises and sets
+        // Circuit rounds are parents of exercises with circuit_id set.
+        if (circuit_rounds.length > 0) {
+          await circuitService.insertWorkoutCircuitRounds(circuit_rounds, transaction);
+        }
+
+        // Insert exercises and sets after their possible circuit round parents.
         if (exercises.length > 0) {
           await exerciseService.insertWorkoutExercises(exercises, transaction);
         }
 
         if (cardio_entries.length > 0) {
           await cardioService.insertWorkoutCardioEntries(cardio_entries, transaction);
-        }
-
-        if (circuit_rounds.length > 0) {
-          await circuitService.insertWorkoutCircuitRounds(circuit_rounds, transaction);
         }
 
         // Queue records in the same transaction as their local data.
@@ -408,6 +412,9 @@ export const workoutService = {
             group_id: group_id ?? null,
             group_type: group_type ?? null,
             round_number: round_number ?? null,
+            circuit_id:
+              workoutExercise.circuit_id ??
+              (group_type === "circuit" ? workoutExercise.group_id ?? null : null),
             muscles_targeted: musclesTargeted ?? null,
             equipment: equipment ?? null,
             description: description ?? null,

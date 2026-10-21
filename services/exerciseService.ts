@@ -41,6 +41,7 @@ interface WorkoutExerciseRow {
   group_id: string | null;
   group_type: ExerciseGroupType | null;
   round_number: number | null;
+  circuit_id: string | null;
 }
 
 interface ExerciseSetRow {
@@ -104,6 +105,7 @@ export const exerciseService: ExerciseService = {
           group_id,
           group_type,
           round_number,
+          circuit_id,
           sets,
         } = exercise;
 
@@ -120,9 +122,10 @@ export const exerciseService: ExerciseService = {
           exercise_order,
           group_id,
           group_type,
-          round_number
+          round_number,
+          circuit_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             workout_id,
@@ -136,6 +139,7 @@ export const exerciseService: ExerciseService = {
             group_id ?? null,
             group_type ?? null,
             round_number ?? null,
+            circuit_id ?? (group_type === "circuit" ? group_id ?? null : null),
           ],
         );
 
@@ -163,7 +167,8 @@ export const exerciseService: ExerciseService = {
          exercise_order = ?,
          group_id = ?,
          group_type = ?,
-         round_number = ?
+         round_number = ?,
+         circuit_id = ?
        WHERE id = ?`,
         [
           exercise.exercise_id ?? null,
@@ -178,6 +183,8 @@ export const exerciseService: ExerciseService = {
           exercise.group_id ?? null,
           exercise.group_type ?? null,
           exercise.round_number ?? null,
+          exercise.circuit_id ??
+            (exercise.group_type === "circuit" ? exercise.group_id ?? null : null),
           exercise.id,
         ],
       );
@@ -205,7 +212,8 @@ export const exerciseService: ExerciseService = {
           exercise_order,
           group_id,
           group_type,
-          round_number
+          round_number,
+          circuit_id
         FROM workout_exercises
         WHERE workout_id = ?
         ORDER BY exercise_order`,
@@ -255,6 +263,7 @@ export const exerciseService: ExerciseService = {
             group_id: row.group_id,
             group_type: row.group_type,
             round_number: row.round_number,
+            circuit_id: row.circuit_id,
 
             sets,
           };
