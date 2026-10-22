@@ -10,6 +10,7 @@ import {
 import { useFormContext, useFormState, useWatch } from "react-hook-form";
 
 import { Workout } from "@/types/interfaces/types";
+import { useAuth } from "@/context/authContext";
 import { workoutService } from "@/services/workoutService";
 import {
   buildWorkoutChanges,
@@ -49,6 +50,7 @@ export const WorkoutSessionProvider = ({
   workout,
 }: WorkoutSessionProviderProps) => {
   const { control, getValues, reset } = useFormContext<Workout>();
+  const { user } = useAuth();
 
   const { isDirty } = useFormState({
     control,
@@ -86,8 +88,11 @@ export const WorkoutSessionProvider = ({
     setSaveError(null);
 
     try {
+      if (!user?.id || currentWorkout.user_id !== user.id) {
+        throw new Error("Workout does not belong to the authenticated user");
+      }
       const result = await workoutService.updateWorkout(
-        currentWorkout.user_id,
+        user.id,
         currentWorkout.id,
         changes,
       );
@@ -117,7 +122,7 @@ export const WorkoutSessionProvider = ({
     } finally {
       setIsSaving(false);
     }
-  }, [getValues, reset]);
+  }, [getValues, reset, user?.id]);
 
   const contextValue = useMemo<WorkoutSessionContextType>(
     () => ({

@@ -17,6 +17,11 @@ import { circuitService } from "./circuitService";
 import { WorkoutChanges } from "@/utils/workoutChangeUtils";
 import { setService } from "./setService";
 import { withLocalTransaction } from "./localTransaction";
+import {
+  assertWorkoutChildDoesNotExist,
+  assertWorkoutChildOwned,
+  assertWorkoutOwned,
+} from "./localOwnership";
 
 interface WorkoutDataRow {
   id: string;
@@ -36,9 +41,9 @@ const hydrateWorkout = async (
   db: SQLiteDatabase,
 ): Promise<Workout> => {
   const [exercises, cardio_entries, circuit_rounds] = await Promise.all([
-    exerciseService.getWorkoutExercises(row.id, db),
-    cardioService.getWorkoutCardioEntries(row.id, db),
-    circuitService.getWorkoutCircuitRounds(row.id, db),
+    exerciseService.getWorkoutExercises(row.user_id, row.id, db),
+    cardioService.getWorkoutCardioEntries(row.user_id, row.id, db),
+    circuitService.getWorkoutCircuitRounds(row.user_id, row.id, db),
   ]);
 
   return {
@@ -81,6 +86,7 @@ type BaseWorkoutChanges = Partial<
 
 const updateBaseWorkoutInDb = async (
   db: SQLiteDatabase,
+  userId: string,
   workoutId: string,
   changes: BaseWorkoutChanges,
 ): Promise<void> => {
@@ -134,12 +140,12 @@ const updateBaseWorkoutInDb = async (
   assignments.push("updated_at = ?");
   values.push(new Date().toISOString());
 
-  values.push(workoutId);
+  values.push(workoutId, userId);
 
   await db.runAsync(
     `UPDATE workouts
      SET ${assignments.join(", ")}
-     WHERE id = ?`,
+     WHERE id = ? AND user_id = ?`,
     values,
   );
 };
@@ -238,7 +244,7 @@ export const workoutService = {
     }
   },
 
-  getWorkoutById: async (id: string): Promise<Workout | null> => {
+  getWorkoutById: async (userId: string, id: string): Promise<Workout | null> => {
     const db = await getDB();
 
     try {
@@ -255,8 +261,8 @@ export const workoutService = {
            is_completed,
            completed_at
          FROM workouts
-         WHERE id = ?`,
-        [id],
+         WHERE id = ? AND user_id = ?`,
+        [id, userId],
       );
 
       if (!row) return null;
@@ -268,7 +274,7 @@ export const workoutService = {
     }
   },
 
-  getWorkoutsByDate: async (date: string): Promise<Workout[]> => {
+  getWorkoutsByDate: async (userId: string, date: string): Promise<Workout[]> => {
     const db = await getDB();
 
     try {
@@ -285,9 +291,9 @@ export const workoutService = {
            is_completed,
            completed_at
          FROM workouts
-         WHERE DATE(scheduled_datetime) = ?
+         WHERE user_id = ? AND DATE(scheduled_datetime) = ?
          ORDER BY scheduled_datetime`,
-        [date],
+        [userId, date],
       );
 
       return hydrateWorkouts(rows, db);
@@ -300,6 +306,7 @@ export const workoutService = {
   // Insert here --------------------------------------------------------
   insertWorkout: async (
     createWorkout: Workout,
+    authenticatedUserId: string,
   ): Promise<{ success: boolean; data?: Workout | null; error?: string }> => {
     try {
       const {
@@ -318,9 +325,37 @@ export const workoutService = {
         circuit_rounds,
       } = createWorkout;
 
+      if (!authenticatedUserId || user_id !== authenticatedUserId) {
+        throw new Error("Workout owner does not match authenticated user");
+      }
+
       console.log("options ", cardio_entries, circuit_rounds);
       // 1. Write all data in a single transaction
       await withLocalTransaction(async (transaction) => {
+        for (const exercise of exercises) {
+          if (exercise.workout_id !== workoutId) throw new Error("Exercise belongs to a different workout");
+          await assertWorkoutChildDoesNotExist(transaction, "workout_exercises", exercise.id);
+          const circuitId = exercise.circuit_id ?? (exercise.group_type === "circuit" ? exercise.group_id : null);
+          if (circuitId && !circuit_rounds.some((round) => round.id === circuitId && round.workout_id === workoutId)) {
+            throw new Error("Circuit exercise references a round outside this workout");
+          }
+          for (const set of exercise.sets ?? []) {
+            if (set.workout_exercise_id !== exercise.id) throw new Error("Set belongs to a different exercise");
+            await assertWorkoutChildDoesNotExist(transaction, "exercise_sets", set.id);
+          }
+        }
+        for (const entry of cardio_entries) {
+          if (entry.workout_id !== workoutId) throw new Error("Cardio entry belongs to a different workout");
+          await assertWorkoutChildDoesNotExist(transaction, "cardio_entries", entry.id);
+          for (const interval of entry.intervals ?? []) {
+            if (interval.cardio_entry_id !== entry.id) throw new Error("Cardio interval belongs to a different entry");
+            await assertWorkoutChildDoesNotExist(transaction, "cardio_intervals", interval.id);
+          }
+        }
+        for (const round of circuit_rounds) {
+          if (round.workout_id !== workoutId) throw new Error("Circuit round belongs to a different workout");
+          await assertWorkoutChildDoesNotExist(transaction, "circuit_rounds", round.id);
+        }
         // Insert workout
         await transaction.runAsync(
           `INSERT INTO workouts (id, user_id, name, description, type, scheduled_datetime, duration, perceived_effort, is_completed, completed_at)
@@ -341,16 +376,16 @@ export const workoutService = {
 
         // Circuit rounds are parents of exercises with circuit_id set.
         if (circuit_rounds.length > 0) {
-          await circuitService.insertWorkoutCircuitRounds(circuit_rounds, transaction);
+          await circuitService.insertWorkoutCircuitRounds(circuit_rounds, transaction, authenticatedUserId);
         }
 
         // Insert exercises and sets after their possible circuit round parents.
         if (exercises.length > 0) {
-          await exerciseService.insertWorkoutExercises(exercises, transaction);
+          await exerciseService.insertWorkoutExercises(exercises, transaction, authenticatedUserId);
         }
 
         if (cardio_entries.length > 0) {
-          await cardioService.insertWorkoutCardioEntries(cardio_entries, transaction);
+          await cardioService.insertWorkoutCardioEntries(cardio_entries, transaction, authenticatedUserId);
         }
 
         // Queue records in the same transaction as their local data.
@@ -562,7 +597,7 @@ export const workoutService = {
 
       });
 
-      const workout = await workoutService.getWorkoutById(workoutId);
+      const workout = await workoutService.getWorkoutById(user_id, workoutId);
       return { success: true, data: workout };
     } catch (error) {
       console.error("Error inserting workout:", error);
@@ -584,9 +619,58 @@ export const workoutService = {
   }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutOwned(transaction, userId, workoutId);
+        for (const id of changes.exerciseIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "workout_exercises", id, workoutId);
+        for (const id of changes.setIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "exercise_sets", id, workoutId);
+        for (const id of changes.cardioEntryIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "cardio_entries", id, workoutId);
+        for (const id of changes.cardioIntervalIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "cardio_intervals", id, workoutId);
+        for (const id of changes.circuitRoundIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "circuit_rounds", id, workoutId);
+        for (const exercise of changes.exercisesToUpdate) await assertWorkoutChildOwned(transaction, userId, "workout_exercises", exercise.id, workoutId);
+        for (const set of changes.setsToUpdate) await assertWorkoutChildOwned(transaction, userId, "exercise_sets", set.id, workoutId);
+        for (const entry of changes.cardioEntriesToUpdate) await assertWorkoutChildOwned(transaction, userId, "cardio_entries", entry.id, workoutId);
+        for (const interval of changes.cardioIntervalsToUpdate) await assertWorkoutChildOwned(transaction, userId, "cardio_intervals", interval.id, workoutId);
+        for (const round of changes.circuitRoundsToUpdate) await assertWorkoutChildOwned(transaction, userId, "circuit_rounds", round.id, workoutId);
+        for (const exercise of changes.exercisesToUpdate) {
+          if (exercise.workout_id !== workoutId) throw new Error("Exercise belongs to a different workout");
+          const circuitId = exercise.circuit_id ?? (exercise.group_type === "circuit" ? exercise.group_id : null);
+          if (circuitId) await assertWorkoutChildOwned(transaction, userId, "circuit_rounds", circuitId, workoutId);
+        }
+        for (const exercise of changes.exercisesToInsert) {
+          if (exercise.workout_id !== workoutId) throw new Error("Exercise belongs to a different workout");
+          await assertWorkoutChildDoesNotExist(transaction, "workout_exercises", exercise.id);
+          const circuitId = exercise.circuit_id ?? (exercise.group_type === "circuit" ? exercise.group_id : null);
+          if (circuitId) {
+            const isNewRound = changes.circuitRoundsToInsert.some((round) => round.id === circuitId && round.workout_id === workoutId);
+            if (!isNewRound) await assertWorkoutChildOwned(transaction, userId, "circuit_rounds", circuitId, workoutId);
+          }
+          for (const set of exercise.sets ?? []) {
+            if (set.workout_exercise_id !== exercise.id) throw new Error("Set belongs to a different exercise");
+            await assertWorkoutChildDoesNotExist(transaction, "exercise_sets", set.id);
+          }
+        }
+        for (const set of changes.setsToInsert) {
+          await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id, workoutId);
+          await assertWorkoutChildDoesNotExist(transaction, "exercise_sets", set.id);
+        }
+        for (const entry of changes.cardioEntriesToInsert) {
+          if (entry.workout_id !== workoutId) throw new Error("Cardio entry belongs to a different workout");
+          await assertWorkoutChildDoesNotExist(transaction, "cardio_entries", entry.id);
+          for (const interval of entry.intervals ?? []) {
+            if (interval.cardio_entry_id !== entry.id) throw new Error("Cardio interval belongs to a different entry");
+            await assertWorkoutChildDoesNotExist(transaction, "cardio_intervals", interval.id);
+          }
+        }
+        for (const interval of changes.cardioIntervalsToInsert) {
+          await assertWorkoutChildOwned(transaction, userId, "cardio_entries", interval.cardio_entry_id, workoutId);
+          await assertWorkoutChildDoesNotExist(transaction, "cardio_intervals", interval.id);
+        }
+        for (const round of changes.circuitRoundsToInsert) {
+          if (round.workout_id !== workoutId) throw new Error("Circuit round belongs to a different workout");
+          await assertWorkoutChildDoesNotExist(transaction, "circuit_rounds", round.id);
+        }
         // Base workout fields
         if (changes.workout) {
-          await updateBaseWorkoutInDb(transaction, workoutId, changes.workout);
+          await updateBaseWorkoutInDb(transaction, userId, workoutId, changes.workout);
         }
 
         // Deletes: children first
@@ -620,30 +704,31 @@ export const workoutService = {
 
         // Updates
         for (const exercise of changes.exercisesToUpdate) {
-          await exerciseService.updateWorkoutExercise(exercise, transaction);
+          await exerciseService.updateWorkoutExercise(exercise, transaction, userId);
         }
 
         for (const set of changes.setsToUpdate) {
-          await setService.updateWorkoutSet(set, transaction);
+          await setService.updateWorkoutSet(set, transaction, userId);
         }
 
         // Add equivalent updates for cardio/circuit.
         for (const entry of changes.cardioEntriesToUpdate) {
-          await cardioService.updateWorkoutCardioEntry(entry, transaction);
+          await cardioService.updateWorkoutCardioEntry(entry, transaction, userId);
         }
 
         for (const interval of changes.cardioIntervalsToUpdate) {
-          await cardioService.updateWorkoutCardioInterval(interval, transaction);
+          await cardioService.updateWorkoutCardioInterval(interval, transaction, userId);
         }
 
         for (const round of changes.circuitRoundsToUpdate) {
-          await circuitService.updateWorkoutCircuitRound(round, transaction);
+          await circuitService.updateWorkoutCircuitRound(round, transaction, userId);
         }
         // Inserts
         if (changes.circuitRoundsToInsert.length) {
           await circuitService.insertWorkoutCircuitRounds(
             changes.circuitRoundsToInsert,
             transaction,
+            userId,
           );
         }
 
@@ -660,6 +745,7 @@ export const workoutService = {
           await exerciseService.insertWorkoutExercises(
             changes.exercisesToInsert,
             transaction,
+            userId,
           );
         }
 
@@ -668,13 +754,14 @@ export const workoutService = {
          * Avoid reinserting sets already inserted with a new exercise.
          */
         if (changes.setsToInsert.length) {
-          await setService.insertWorkoutSets(changes.setsToInsert, transaction);
+          await setService.insertWorkoutSets(changes.setsToInsert, transaction, userId);
         }
 
         if (changes.cardioEntriesToInsert.length) {
           await cardioService.insertWorkoutCardioEntries(
             changes.cardioEntriesToInsert,
             transaction,
+            userId,
           );
         }
 
@@ -682,6 +769,7 @@ export const workoutService = {
           await cardioService.insertWorkoutCardioIntervals(
             changes.cardioIntervalsToInsert,
             transaction,
+            userId,
           );
         }
 
@@ -778,7 +866,7 @@ export const workoutService = {
         }
       });
 
-      const updatedWorkout = await workoutService.getWorkoutById(workoutId);
+      const updatedWorkout = await workoutService.getWorkoutById(userId, workoutId);
 
       return {
         success: true,
@@ -803,8 +891,8 @@ export const workoutService = {
 
     try {
       const foundWorkout = await db.getFirstAsync<{ id: string }>(
-        `SELECT id FROM workouts WHERE id = ?`,
-        [workoutId],
+        `SELECT id FROM workouts WHERE id = ? AND user_id = ?`,
+        [workoutId, userId],
       );
 
       if (!foundWorkout) {
@@ -817,7 +905,12 @@ export const workoutService = {
       };
 
       await withLocalTransaction(async (transaction) => {
-        await exerciseService.insertWorkoutExercises([workoutExercise], transaction);
+        await assertWorkoutOwned(transaction, userId, workoutId);
+        if (workoutExercise.workout_id !== workoutId) throw new Error("Exercise belongs to a different workout");
+        for (const set of workoutExercise.sets ?? []) {
+          if (set.workout_exercise_id !== workoutExercise.id) throw new Error("Set belongs to a different exercise");
+        }
+        await exerciseService.insertWorkoutExercises([workoutExercise], transaction, userId);
         await syncService.addToSyncQueueInTransaction(
           transaction,
           userId,
@@ -865,6 +958,8 @@ export const workoutService = {
 
     try {
       await withLocalTransaction(async (transaction) => {
+        const ownerWorkoutId = await assertWorkoutChildOwned(transaction, userId, "workout_exercises", current.id);
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", swap.id, ownerWorkoutId);
         await transaction.runAsync(
           "UPDATE workout_exercises SET exercise_order = ? WHERE id = ?",
           [swap.exercise_order, current.id],
@@ -904,9 +999,11 @@ export const workoutService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
-        await transaction.runAsync(`UPDATE workouts SET type = ? WHERE id = ?`, [
+        await assertWorkoutOwned(transaction, userId, workoutId);
+        await transaction.runAsync(`UPDATE workouts SET type = ? WHERE id = ? AND user_id = ?`, [
           workoutType,
           workoutId,
+          userId,
         ]);
         await syncService.addToSyncQueueInTransaction(
           transaction,
@@ -934,9 +1031,10 @@ export const workoutService = {
       if (details.name && details.description) {
         const { name, description } = details;
         await withLocalTransaction(async (transaction) => {
+          await assertWorkoutOwned(transaction, userId, workoutId);
           await transaction.runAsync(
-            `UPDATE workouts SET name = ?, description = ? WHERE id = ?`,
-            [name, description, workoutId],
+            `UPDATE workouts SET name = ?, description = ? WHERE id = ? AND user_id = ?`,
+            [name, description, workoutId, userId],
           );
 
           await syncService.addToSyncQueueInTransaction(
@@ -967,10 +1065,19 @@ export const workoutService = {
     value: string,
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      const allowedFields = new Set([
+        "name", "description", "type", "scheduled_datetime", "duration",
+        "perceived_effort", "is_completed", "completed_at",
+      ]);
+      if (!allowedFields.has(fieldName)) {
+        return { success: false, error: "Workout field cannot be updated" };
+      }
       await withLocalTransaction(async (transaction) => {
-        await transaction.runAsync(`UPDATE workouts SET ${fieldName} = ? WHERE id = ?`, [
+        await assertWorkoutOwned(transaction, userId, workoutId);
+        await transaction.runAsync(`UPDATE workouts SET ${fieldName} = ? WHERE id = ? AND user_id = ?`, [
           value,
           workoutId,
+          userId,
         ]);
 
         await syncService.addToSyncQueueInTransaction(
@@ -1007,9 +1114,10 @@ export const workoutService = {
     const { name, description, duration } = updatedWorkout;
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutOwned(transaction, userId, workoutId);
         await transaction.runAsync(
-          `UPDATE workouts SET name = ?, description = ?, duration = ? WHERE id = ?`,
-          [name ?? "", description ?? "", duration ?? 0, workoutId],
+          `UPDATE workouts SET name = ?, description = ?, duration = ? WHERE id = ? AND user_id = ?`,
+          [name ?? "", description ?? "", duration ?? 0, workoutId, userId],
         );
 
         await syncService.addToSyncQueueInTransaction(
@@ -1042,9 +1150,10 @@ export const workoutService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutOwned(transaction, userId, workoutId);
         await transaction.runAsync(
-          "UPDATE workouts SET is_completed = ?, completed_at = ? WHERE id = ?",
-          [isCompleted, completed_at, workoutId],
+          "UPDATE workouts SET is_completed = ?, completed_at = ? WHERE id = ? AND user_id = ?",
+          [isCompleted, completed_at, workoutId, userId],
         );
 
         await syncService.addToSyncQueueInTransaction(
@@ -1070,6 +1179,7 @@ export const workoutService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", workout_exercise_id);
         await transaction.runAsync(
           "DELETE FROM exercise_sets WHERE workout_exercise_id = ?",
           [workout_exercise_id],
@@ -1099,9 +1209,11 @@ export const workoutService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutOwned(transaction, userId, workoutId);
         // Remove pending child operations before the workout is deleted.
         await syncService.purgeOrphanedQueueItemsInTransaction(
           transaction,
+          userId,
           workoutId,
         );
 
@@ -1135,7 +1247,7 @@ export const workoutService = {
           `DELETE FROM circuit_rounds WHERE workout_id = ?`,
           [workoutId],
         );
-        await transaction.runAsync(`DELETE FROM workouts WHERE id = ?`, [workoutId]);
+        await transaction.runAsync(`DELETE FROM workouts WHERE id = ? AND user_id = ?`, [workoutId, userId]);
 
         await syncService.addToSyncQueueInTransaction(
           transaction,

@@ -171,6 +171,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
 
   const { isSyncLoading, isProfileSet } = useSync();
   const { user, isLoading: isAuthLoading, isSynced } = useAuth();
+  const workoutFetchGeneration = useRef(0);
 
   useEffect(() => {
     if (isAppInitLoading) return;
@@ -182,24 +183,43 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   }, [isAppInitLoading]);
 
   const fetchWorkouts = async () => {
-    if (!user?.id) return;
-    const workouts = await workoutService.getAllWorkouts(user.id);
-    setWorkouts(workouts);
+    const requestedUserId = user?.id;
+    if (!requestedUserId) {
+      workoutFetchGeneration.current += 1;
+      setWorkouts([]);
+      return;
+    }
+    const generation = ++workoutFetchGeneration.current;
+    const fetchedWorkouts = await workoutService.getAllWorkouts(requestedUserId);
+    if (
+      generation === workoutFetchGeneration.current &&
+      requestedUserId === user?.id
+    ) {
+      setWorkouts(fetchedWorkouts);
+    }
   };
 
   useEffect(() => {
+    workoutFetchGeneration.current += 1;
+    setWorkouts([]);
     if (!user?.id || !isProfileSet) return;
-    fetchWorkouts();
+    void fetchWorkouts();
   }, [user?.id, isProfileSet]);
 
+  const visibleWorkouts = useMemo(() => {
+    if (isAuthLoading || !user?.id) return [];
+    return workouts.filter((workout) => workout.user_id === user.id);
+  }, [workouts, user?.id, isAuthLoading]);
+
   const currentWorkouts = useMemo(() => {
-    return workouts.filter(
+    return visibleWorkouts.filter(
       (workout) => format(workout.scheduled_datetime, "yyyy-MM-dd") === today,
     );
-  }, [workouts]);
+  }, [visibleWorkouts, today]);
 
   // Inserting new workout by date.
   async function insertWorkout(workout: Workout) {
+    if (!user?.id || workout.user_id !== user.id) return;
     setWorkouts((workouts) => {
       const updated = [...workouts, workout];
       return updated.sort((a, b) =>
@@ -631,7 +651,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   return (
     <WorkoutContext.Provider
       value={{
-        workouts,
+        workouts: visibleWorkouts,
         setWorkouts,
         exercises,
         setExercises,

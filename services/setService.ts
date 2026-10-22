@@ -4,14 +4,18 @@ import { syncService } from "@/services/syncService";
 import { getDB } from "./database";
 import { ExerciseSet } from "@/types/interfaces/types";
 import { withLocalTransaction } from "./localTransaction";
+import { assertWorkoutChildDoesNotExist, assertWorkoutChildOwned } from "./localOwnership";
 
 export const setService = {
   insertWorkoutSets: async (
     sets: ExerciseSet[],
     db: SQLite.SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     try {
       for (const set of sets) {
+        await assertWorkoutChildOwned(db, userId, "workout_exercises", set.workout_exercise_id);
+        await assertWorkoutChildDoesNotExist(db, "exercise_sets", set.id);
         await db.runAsync(
           `INSERT INTO exercise_sets
             (
@@ -48,8 +52,15 @@ export const setService = {
   updateWorkoutSet: async (
     set: ExerciseSet,
     db: SQLite.SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     try {
+      const workoutId = await assertWorkoutChildOwned(db, userId, "exercise_sets", set.id);
+      await assertWorkoutChildOwned(db, userId, "workout_exercises", set.workout_exercise_id, workoutId);
+      const existingSet = await db.getFirstAsync<{ workout_exercise_id: string }>(
+        `SELECT workout_exercise_id FROM exercise_sets WHERE id = ?`, [set.id],
+      );
+      if (existingSet?.workout_exercise_id !== set.workout_exercise_id) throw new Error("Set parent cannot be changed");
       await db.runAsync(
         `UPDATE exercise_sets
        SET
@@ -79,16 +90,19 @@ export const setService = {
   },
 
   getWorkoutSets: async (
+    userId: string,
     workoutExerciseId: string,
     db: SQLite.SQLiteDatabase,
   ): Promise<ExerciseSet[]> => {
     try {
       return await db.getAllAsync<ExerciseSet>(
-        `SELECT *
-         FROM exercise_sets
-         WHERE workout_exercise_id = ?
-         ORDER BY set_order`,
-        [workoutExerciseId],
+        `SELECT es.*
+         FROM exercise_sets es
+         JOIN workout_exercises we ON we.id = es.workout_exercise_id
+         JOIN workouts w ON w.id = we.workout_id
+         WHERE es.workout_exercise_id = ? AND w.user_id = ?
+         ORDER BY es.set_order`,
+        [workoutExerciseId, userId],
       );
     } catch (error) {
       console.error("Error getting workout sets:", error);
@@ -96,7 +110,7 @@ export const setService = {
     }
   },
 
-  getSetsByWorkout: async (workoutId: string): Promise<ExerciseSet[]> => {
+  getSetsByWorkout: async (userId: string, workoutId: string): Promise<ExerciseSet[]> => {
     const db = await getDB();
 
     return db.getAllAsync<ExerciseSet>(
@@ -104,13 +118,14 @@ export const setService = {
        FROM exercise_sets es
        JOIN workout_exercises we
          ON es.workout_exercise_id = we.id
-       WHERE we.workout_id = ?
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE we.workout_id = ? AND w.user_id = ?
        ORDER BY we.exercise_order, es.set_order`,
-      [workoutId],
+      [workoutId, userId],
     );
   },
 
-  getSetsByExercise: async (exerciseId: string): Promise<ExerciseSet[]> => {
+  getSetsByExercise: async (userId: string, exerciseId: string): Promise<ExerciseSet[]> => {
     const db = await getDB();
 
     return db.getAllAsync<ExerciseSet>(
@@ -118,23 +133,27 @@ export const setService = {
        FROM exercise_sets es
        JOIN workout_exercises we
          ON es.workout_exercise_id = we.id
-       WHERE we.exercise_id = ?
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE we.exercise_id = ? AND w.user_id = ?
        ORDER BY we.exercise_order, es.set_order`,
-      [exerciseId],
+      [exerciseId, userId],
     );
   },
 
   getSetsByWorkoutExercise: async (
+    userId: string,
     workoutExerciseId: string,
   ): Promise<ExerciseSet[]> => {
     const db = await getDB();
 
     return db.getAllAsync<ExerciseSet>(
-      `SELECT *
-       FROM exercise_sets
-       WHERE workout_exercise_id = ?
-       ORDER BY set_order`,
-      [workoutExerciseId],
+      `SELECT es.*
+       FROM exercise_sets es
+       JOIN workout_exercises we ON we.id = es.workout_exercise_id
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE es.workout_exercise_id = ? AND w.user_id = ?
+       ORDER BY es.set_order`,
+      [workoutExerciseId, userId],
     );
   },
 
@@ -144,6 +163,7 @@ export const setService = {
   ): Promise<string> => {
     const id = Crypto.randomUUID();
     await withLocalTransaction(async (transaction) => {
+      await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id);
       await transaction.runAsync(
       `INSERT INTO exercise_sets
         (
@@ -200,6 +220,8 @@ export const setService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id);
+        await assertWorkoutChildDoesNotExist(transaction, "exercise_sets", set.id);
         await transaction.runAsync(
         `INSERT INTO exercise_sets
           (
@@ -250,6 +272,12 @@ export const setService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        const ownerWorkoutId = await assertWorkoutChildOwned(transaction, userId, "exercise_sets", set.id);
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id, ownerWorkoutId);
+        const existingSet = await transaction.getFirstAsync<{ workout_exercise_id: string }>(
+          `SELECT workout_exercise_id FROM exercise_sets WHERE id = ?`, [set.id],
+        );
+        if (existingSet?.workout_exercise_id !== set.workout_exercise_id) throw new Error("Set parent cannot be changed");
         await transaction.runAsync(
         `UPDATE exercise_sets
          SET
@@ -296,6 +324,14 @@ export const setService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+      for (const set of sets) {
+        const ownerWorkoutId = await assertWorkoutChildOwned(transaction, userId, "exercise_sets", set.id);
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id, ownerWorkoutId);
+        const existingSet = await transaction.getFirstAsync<{ workout_exercise_id: string }>(
+          `SELECT workout_exercise_id FROM exercise_sets WHERE id = ?`, [set.id],
+        );
+        if (existingSet?.workout_exercise_id !== set.workout_exercise_id) throw new Error("Set parent cannot be changed");
+      }
       const statement = await transaction.prepareAsync(
         `UPDATE exercise_sets
          SET
@@ -351,6 +387,7 @@ export const setService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutChildOwned(transaction, userId, "exercise_sets", setId);
         await transaction.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
 
         await syncService.addToSyncQueueInTransaction(
@@ -379,6 +416,12 @@ export const setService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", workoutExerciseId);
+        const setParent = await transaction.getFirstAsync<{ workout_exercise_id: string }>(
+          `SELECT workout_exercise_id FROM exercise_sets WHERE id = ?`, [setId],
+        );
+        if (setParent?.workout_exercise_id !== workoutExerciseId) throw new Error("Set does not belong to the supplied exercise");
+        await assertWorkoutChildOwned(transaction, userId, "exercise_sets", setId);
         await transaction.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
 
         await syncService.addToSyncQueueInTransaction(

@@ -88,7 +88,7 @@ export function CreateWorkoutButton({}) {
 
     // console.log("========== VALIDATION COMPLETE ==========");
 
-    const result = await workoutService.insertWorkout(workout);
+    const result = await workoutService.insertWorkout(workout, user.id);
 
     if (!result.success) {
       console.error("Error inserting workout: ", result.error);

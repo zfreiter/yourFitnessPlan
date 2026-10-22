@@ -39,6 +39,81 @@ function isPostgrestErrorCode(error: unknown, code: string): boolean {
   );
 }
 
+function workoutsSyncedAtKey(userId: string): string {
+  return `${META_KEYS.WORKOUTS_SYNCED_AT}:${userId}`;
+}
+
+function valuesMatchForQueuedInsert(
+  key: string,
+  expected: unknown,
+  actual: unknown,
+): boolean {
+  if (expected === actual) return true;
+  if (["is_completed", "is_warmup", "is_max", "is_finisher"].includes(key)) {
+    const asBoolean = (value: unknown) => value === true || value === 1;
+    if (
+      (expected === false || expected === true || expected === 0 || expected === 1) &&
+      (actual === false || actual === true || actual === 0 || actual === 1)
+    ) {
+      return asBoolean(expected) === asBoolean(actual);
+    }
+  }
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    return expected.length === actual.length && expected.every((value, index) =>
+      valuesMatchForQueuedInsert(key, value, actual[index]),
+    );
+  }
+  if (
+    typeof expected === "object" && expected !== null &&
+    typeof actual === "object" && actual !== null &&
+    !Array.isArray(expected) && !Array.isArray(actual)
+  ) {
+    const expectedEntries = Object.entries(expected);
+    return expectedEntries.length === Object.keys(actual).length &&
+      expectedEntries.every(([childKey, value]) =>
+        valuesMatchForQueuedInsert(childKey, value, (actual as Record<string, unknown>)[childKey]),
+      );
+  }
+  return false;
+}
+
+async function verifyDuplicateInsert(
+  supabase: SupabaseClient,
+  tableName: string,
+  primaryKey: string,
+  payload: Record<string, unknown>,
+): Promise<{ matches: boolean; reason?: string }> {
+  const recordId = payload[primaryKey];
+  if (typeof recordId !== "string" || recordId.length === 0) {
+    return { matches: false, reason: `Insert payload has no ${primaryKey}` };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select("*")
+      .eq(primaryKey, recordId)
+      .limit(1);
+    if (error) return { matches: false, reason: `Could not verify duplicate: ${String(error)}` };
+    if (!Array.isArray(data) || data.length !== 1) {
+      return { matches: false, reason: "No unique matching remote row was found" };
+    }
+
+    const remoteRow = data[0] as Record<string, unknown>;
+    const matches = Object.entries(payload).every(([key, value]) =>
+      valuesMatchForQueuedInsert(key, value, remoteRow[key]),
+    );
+    return matches
+      ? { matches: true }
+      : { matches: false, reason: "The existing remote row differs from the queued payload" };
+  } catch (error) {
+    return {
+      matches: false,
+      reason: error instanceof Error ? error.message : "Duplicate verification request failed",
+    };
+  }
+}
+
 type RemoteRow = Record<string, unknown>;
 
 interface PulledWorkout {
@@ -465,11 +540,12 @@ async function getPendingWorkoutQueueCount(
 
 async function setWorkoutSyncTimestamp(
   transaction: SQLiteDatabase,
+  userId: string,
   timestamp: string,
 ): Promise<void> {
   await transaction.runAsync(
     `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
-    [META_KEYS.WORKOUTS_SYNCED_AT, timestamp],
+    [workoutsSyncedAtKey(userId), timestamp],
   );
 }
 
@@ -539,18 +615,21 @@ export const syncService = {
     );
   },
 
-  purgeOrphanedQueueItems: async (workoutId: string): Promise<void> => {
+  purgeOrphanedQueueItems: async (userId: string, workoutId: string): Promise<void> => {
     const db = await getDB();
     const result = await db.runAsync(
       `DELETE FROM sync_queue 
      WHERE table_name = 'exercise_sets' 
+     AND user_id = ?
      AND synced = 0
      AND record_id IN (
        SELECT id FROM exercise_sets WHERE workout_exercise_id IN (
-         SELECT id FROM workout_exercises WHERE workout_id = ?
+         SELECT we.id FROM workout_exercises we
+         JOIN workouts w ON w.id = we.workout_id
+         WHERE we.workout_id = ? AND w.user_id = ?
        )
      )`,
-      [workoutId],
+      [userId, workoutId, userId],
     );
     console.log(
       `Purged ${result.changes} orphaned exercise_sets queue items for workout ${workoutId}`,
@@ -558,11 +637,14 @@ export const syncService = {
     const result2 = await db.runAsync(
       `DELETE FROM sync_queue 
      WHERE table_name = 'workout_exercises' 
+     AND user_id = ?
      AND synced = 0
      AND record_id IN (
-       SELECT id FROM workout_exercises WHERE workout_id = ?
+       SELECT we.id FROM workout_exercises we
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE we.workout_id = ? AND w.user_id = ?
      )`,
-      [workoutId],
+      [userId, workoutId, userId],
     );
     console.log(
       `Purged ${result2.changes} orphaned workout_exercises queue items for workout ${workoutId}`,
@@ -571,6 +653,7 @@ export const syncService = {
 
   purgeOrphanedQueueItemsInTransaction: async (
     transaction: SQLiteDatabase,
+    userId: string,
     workoutId: string,
   ): Promise<void> => {
     const workoutExercises = await transaction.getAllAsync<{ id: string }>(
@@ -589,11 +672,12 @@ export const syncService = {
     const pendingItems = await transaction.getAllAsync<SyncQueueItem>(
       `SELECT id, user_id, table_name, record_id, operation, data, created_at, synced
        FROM sync_queue
-       WHERE synced = 0
+       WHERE user_id = ? AND synced = 0
          AND table_name IN (
            'workout_exercises', 'exercise_sets', 'cardio_entries',
            'cardio_intervals', 'circuit_rounds'
          )`,
+      [userId],
     );
 
     const workoutExerciseIds = new Set(workoutExercises.map(({ id }) => id));
@@ -667,8 +751,9 @@ export const syncService = {
 
     for (const item of pendingItems) {
       if (targetIds[item.table_name]?.has(item.record_id)) {
-        await transaction.runAsync(`DELETE FROM sync_queue WHERE id = ?`, [
+        await transaction.runAsync(`DELETE FROM sync_queue WHERE id = ? AND user_id = ?`, [
           item.id,
+          userId,
         ]);
       }
     }
@@ -703,7 +788,7 @@ export const syncService = {
         }
         await deletePulledWorkoutsForUser(transaction, userId);
         await insertPulledWorkouts(transaction, remoteWorkouts);
-        await setWorkoutSyncTimestamp(transaction, new Date().toISOString());
+        await setWorkoutSyncTimestamp(transaction, userId, new Date().toISOString());
       });
 
       return { success: true };
@@ -749,12 +834,33 @@ export const syncService = {
       if (pendingItems.length === 0) return { success: true };
 
       console.log("pending items ", pendingItems);
+      const failedCircuitRoundIds = new Set<string>();
+      let duplicateVerificationFailure: string | null = null;
 
       for (const item of pendingItems) {
         const data = JSON.parse(item.data);
         const pk = TABLE_PRIMARY_KEYS[item.table_name] || "id";
 
         try {
+          if (
+            item.table_name === "workout_exercises" &&
+            (item.operation === "insert" || item.operation === "update") &&
+            typeof data.circuit_id === "string"
+          ) {
+            const pendingRound = await db.getFirstAsync<{ id: number }>(
+              `SELECT id FROM sync_queue
+               WHERE user_id = ? AND table_name = 'circuit_rounds'
+                 AND record_id = ? AND synced = 0 LIMIT 1`,
+              [userId, data.circuit_id],
+            );
+            if (failedCircuitRoundIds.has(data.circuit_id) || pendingRound) {
+              console.warn(
+                `Deferring workout exercise ${item.record_id} until circuit round ${data.circuit_id} syncs`,
+              );
+              continue;
+            }
+          }
+
           // Skip orphaned exercise_sets
           if (
             item.table_name === "exercise_sets" &&
@@ -856,15 +962,31 @@ export const syncService = {
             item.operation === "insert" &&
             isPostgrestErrorCode(error, "23505")
           ) {
-            console.log(
-              `Item ${item.id} (${item.table_name}) already exists remotely - marking synced`,
+            const verification = await verifyDuplicateInsert(
+              supabase,
+              item.table_name,
+              pk,
+              data as Record<string, unknown>,
             );
-            await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ?`, [
-              item.id,
-            ]);
-            continue;
+            if (verification.matches) {
+              console.log(
+                `Verified duplicate ${item.table_name} ${item.record_id}; marking synced`,
+              );
+              await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ?`, [
+                item.id,
+              ]);
+              continue;
+            }
+            console.error(
+              `Keeping duplicate insert ${item.id} pending: ${verification.reason ?? "remote data mismatch"}`,
+            );
+            duplicateVerificationFailure =
+              `Could not verify duplicate ${item.table_name} ${item.record_id}: ${verification.reason ?? "remote data mismatch"}`;
           }
 
+          if (item.table_name === "circuit_rounds") {
+            failedCircuitRoundIds.add(item.record_id);
+          }
           console.error(`Failed to sync item ${item.id}:`, error);
 
           // Leave item unsynced so it retries later
@@ -880,6 +1002,9 @@ export const syncService = {
         [userId],
       );
 
+      if (duplicateVerificationFailure) {
+        return { success: false, error: duplicateVerificationFailure };
+      }
       return { success: true };
     } catch (error) {
       console.error("Error pushing to Supabase:", error);
@@ -906,8 +1031,11 @@ export const syncService = {
   ): Promise<void> => {
     const workouts = await fetchWorkoutsFromSupabase(supabase, userId);
     await withLocalTransaction(async (transaction) => {
+      if ((await getPendingWorkoutQueueCount(transaction, userId)) > 0) {
+        throw new Error("Pull cancelled because workout changes became pending during fetch");
+      }
       await insertPulledWorkouts(transaction, workouts);
-      await setWorkoutSyncTimestamp(transaction, new Date().toISOString());
+      await setWorkoutSyncTimestamp(transaction, userId, new Date().toISOString());
     });
     console.log("Pull from Supabase complete");
   },
@@ -946,7 +1074,7 @@ export const syncService = {
       }
 
       // Only pull on first install or new device login
-      const lastSynced = await getMeta(META_KEYS.WORKOUTS_SYNCED_AT);
+      const lastSynced = await getMeta(workoutsSyncedAtKey(userId));
       console.log("Last synced at ", lastSynced);
       if (!lastSynced) {
         const pendingWorkoutRows = await getPendingWorkoutQueueCount(

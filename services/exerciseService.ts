@@ -11,6 +11,7 @@ import { getDB } from "./database";
 import { SQLiteDatabase } from "expo-sqlite";
 import { setService } from "./setService";
 import { withLocalTransaction } from "./localTransaction";
+import { assertWorkoutChildDoesNotExist, assertWorkoutChildOwned, assertWorkoutOwned } from "./localOwnership";
 
 interface ExerciseRow {
   id: string;
@@ -60,12 +61,15 @@ export interface ExerciseService {
   insertWorkoutExercises: (
     exercises: WorkoutExercise[],
     db: SQLiteDatabase,
+    userId: string,
   ) => Promise<void>;
   updateWorkoutExercise: (
     exercise: WorkoutExercise,
     db: SQLiteDatabase,
+    userId: string,
   ) => Promise<void>;
   getWorkoutExercises: (
+    userId: string,
     workoutId: string,
     db: SQLiteDatabase,
   ) => Promise<WorkoutExercise[]>;
@@ -89,9 +93,18 @@ export const exerciseService: ExerciseService = {
   insertWorkoutExercises: async (
     exercises: WorkoutExercise[],
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     try {
       for (const exercise of exercises) {
+        await assertWorkoutOwned(db, userId, exercise.workout_id);
+        await assertWorkoutChildDoesNotExist(db, "workout_exercises", exercise.id);
+        const circuitId = exercise.circuit_id ?? (exercise.group_type === "circuit" ? exercise.group_id : null);
+        if (circuitId) await assertWorkoutChildOwned(db, userId, "circuit_rounds", circuitId, exercise.workout_id);
+        for (const set of exercise.sets ?? []) {
+          if (set.workout_exercise_id !== exercise.id) throw new Error("Set belongs to a different exercise");
+          await assertWorkoutChildDoesNotExist(db, "exercise_sets", set.id);
+        }
         const {
           id,
           workout_id,
@@ -143,7 +156,7 @@ export const exerciseService: ExerciseService = {
           ],
         );
 
-        await setService.insertWorkoutSets(sets, db);
+        await setService.insertWorkoutSets(sets, db, userId);
       }
     } catch (error) {
       console.error("Error inserting workout exercises:", error);
@@ -153,8 +166,12 @@ export const exerciseService: ExerciseService = {
   updateWorkoutExercise: async (
     exercise: WorkoutExercise,
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     try {
+      await assertWorkoutChildOwned(db, userId, "workout_exercises", exercise.id, exercise.workout_id);
+      const circuitId = exercise.circuit_id ?? (exercise.group_type === "circuit" ? exercise.group_id : null);
+      if (circuitId) await assertWorkoutChildOwned(db, userId, "circuit_rounds", circuitId, exercise.workout_id);
       await db.runAsync(
         `UPDATE workout_exercises
        SET
@@ -195,34 +212,36 @@ export const exerciseService: ExerciseService = {
     }
   },
   getWorkoutExercises: async (
+    userId: string,
     workoutId: string,
     db: SQLiteDatabase,
   ): Promise<WorkoutExercise[]> => {
     try {
       const exerciseRows = await db.getAllAsync<WorkoutExerciseRow>(
         `SELECT
-          id,
-          workout_id,
-          exercise_id,
-          exercise_name,
-          valid_units,
-          muscles_targeted,
-          equipment,
-          description,
-          exercise_order,
-          group_id,
-          group_type,
-          round_number,
-          circuit_id
-        FROM workout_exercises
-        WHERE workout_id = ?
-        ORDER BY exercise_order`,
-        [workoutId],
+          we.id,
+          we.workout_id,
+          we.exercise_id,
+          we.exercise_name,
+          we.valid_units,
+          we.muscles_targeted,
+          we.equipment,
+          we.description,
+          we.exercise_order,
+          we.group_id,
+          we.group_type,
+          we.round_number,
+          we.circuit_id
+        FROM workout_exercises we
+        JOIN workouts w ON w.id = we.workout_id
+        WHERE we.workout_id = ? AND w.user_id = ?
+        ORDER BY we.exercise_order`,
+        [workoutId, userId],
       );
 
       return await Promise.all(
         exerciseRows.map(async (row) => {
-          const sets = await setService.getWorkoutSets(row.id, db);
+          const sets = await setService.getWorkoutSets(userId, row.id, db);
 
           let validUnits: ValidUnit[] = [];
 
@@ -495,10 +514,18 @@ export const exerciseService: ExerciseService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        let ownerWorkoutId: string | undefined;
         for (const exercise of exercisesToUpdate) {
+          const currentWorkoutId = await assertWorkoutChildOwned(
+            transaction, userId, "workout_exercises", exercise.id,
+          );
+          if (ownerWorkoutId && ownerWorkoutId !== currentWorkoutId) {
+            throw new Error("Exercises belong to different workouts");
+          }
+          ownerWorkoutId = currentWorkoutId;
           await transaction.runAsync(
-            `UPDATE workout_exercises SET exercise_order = ? WHERE id = ?`,
-            [exercise.exercise_order, exercise.id],
+            `UPDATE workout_exercises SET exercise_order = ? WHERE id = ? AND workout_id = ?`,
+            [exercise.exercise_order, exercise.id, currentWorkoutId],
           );
           await syncService.addToSyncQueueInTransaction(
             transaction,
@@ -527,6 +554,7 @@ export const exerciseService: ExerciseService = {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await withLocalTransaction(async (transaction) => {
+        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", exerciseId);
         await transaction.runAsync(
           `DELETE FROM exercise_sets WHERE workout_exercise_id = ?`,
           [exerciseId],

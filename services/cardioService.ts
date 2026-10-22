@@ -6,6 +6,7 @@ import {
   HeartRateZone,
 } from "@/types/interfaces/types";
 import { SQLiteDatabase } from "expo-sqlite";
+import { assertWorkoutChildDoesNotExist, assertWorkoutChildOwned, assertWorkoutOwned } from "./localOwnership";
 
 interface CardioEntryRow {
   id: string;
@@ -37,9 +38,12 @@ export const cardioService = {
   insertWorkoutCardioEntries: async (
     cardioEntries: CardioEntry[],
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     try {
       for (const cardioEntry of cardioEntries) {
+        await assertWorkoutOwned(db, userId, cardioEntry.workout_id);
+        await assertWorkoutChildDoesNotExist(db, "cardio_entries", cardioEntry.id);
         const {
           id,
           workout_id,
@@ -75,6 +79,8 @@ export const cardioService = {
         );
 
         for (const interval of intervals) {
+          if (interval.cardio_entry_id !== id) throw new Error("Interval belongs to a different cardio entry");
+          await assertWorkoutChildDoesNotExist(db, "cardio_intervals", interval.id);
           const {
             id: intervalId,
             cardio_entry_id,
@@ -109,8 +115,11 @@ export const cardioService = {
   insertWorkoutCardioIntervals: async (
     intervals: CardioInterval[],
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     for (const interval of intervals) {
+      await assertWorkoutChildOwned(db, userId, "cardio_entries", interval.cardio_entry_id);
+      await assertWorkoutChildDoesNotExist(db, "cardio_intervals", interval.id);
       await db.runAsync(
         `INSERT INTO cardio_intervals
          (id, cardio_entry_id, interval_order, work_duration, rest_duration, distance, calories, notes)
@@ -129,26 +138,30 @@ export const cardioService = {
     }
   },
   getWorkoutCardioEntries: async (
+    userId: string,
     workoutId: string,
     db: SQLiteDatabase,
   ): Promise<CardioEntry[]> => {
     try {
       const cardioEntries = await db.getAllAsync<CardioEntryRow>(
-        `SELECT *
-       FROM cardio_entries
-       WHERE workout_id = ?
-       ORDER BY entry_order`,
-        [workoutId],
+        `SELECT ce.*
+         FROM cardio_entries ce
+         JOIN workouts w ON w.id = ce.workout_id
+         WHERE ce.workout_id = ? AND w.user_id = ?
+         ORDER BY ce.entry_order`,
+        [workoutId, userId],
       );
 
       return await Promise.all(
         cardioEntries.map(async (entry) => {
           const intervals = await db.getAllAsync<CardioIntervalRow>(
-            `SELECT *
-           FROM cardio_intervals
-           WHERE cardio_entry_id = ?
-           ORDER BY interval_order`,
-            [entry.id],
+            `SELECT ci.*
+             FROM cardio_intervals ci
+             JOIN cardio_entries ce ON ce.id = ci.cardio_entry_id
+             JOIN workouts w ON w.id = ce.workout_id
+             WHERE ci.cardio_entry_id = ? AND w.user_id = ?
+             ORDER BY ci.interval_order`,
+            [entry.id, userId],
           );
 
           return {
@@ -186,7 +199,9 @@ export const cardioService = {
   updateWorkoutCardioEntry: async (
     entry: CardioEntry,
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
+    await assertWorkoutChildOwned(db, userId, "cardio_entries", entry.id, entry.workout_id);
     await db.runAsync(
       `UPDATE cardio_entries
      SET
@@ -219,7 +234,14 @@ export const cardioService = {
   updateWorkoutCardioInterval: async (
     interval: CardioInterval,
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
+    const workoutId = await assertWorkoutChildOwned(db, userId, "cardio_intervals", interval.id);
+    await assertWorkoutChildOwned(db, userId, "cardio_entries", interval.cardio_entry_id, workoutId);
+    const existingInterval = await db.getFirstAsync<{ cardio_entry_id: string }>(
+      `SELECT cardio_entry_id FROM cardio_intervals WHERE id = ?`, [interval.id],
+    );
+    if (existingInterval?.cardio_entry_id !== interval.cardio_entry_id) throw new Error("Interval parent cannot be changed");
     await db.runAsync(
       `UPDATE cardio_intervals
      SET

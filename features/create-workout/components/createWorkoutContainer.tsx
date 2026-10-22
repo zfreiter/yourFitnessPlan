@@ -153,7 +153,10 @@ export function CreateWorkoutContainer() {
 
   const onSubmit = async (data: Workout) => {
     if (user?.id) {
-      const result = await workoutService.insertWorkout(data, user!.id);
+      const result = await workoutService.insertWorkout(
+        { ...data, user_id: user.id } as Workout,
+        user.id,
+      );
       if (result.success) {
         if (result.data) setWorkouts([...workouts, result.data]);
         reset();

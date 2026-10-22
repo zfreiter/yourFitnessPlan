@@ -1,6 +1,7 @@
 import * as SQLite from "expo-sqlite";
 import { CircuitRound } from "@/types/interfaces/types";
 import { SQLiteDatabase } from "expo-sqlite";
+import { assertWorkoutChildDoesNotExist, assertWorkoutChildOwned, assertWorkoutOwned } from "./localOwnership";
 
 interface CircuitRoundRow {
   id: string;
@@ -14,9 +15,12 @@ export const circuitService = {
   insertWorkoutCircuitRounds: async (
     circuits: CircuitRound[],
     db: SQLite.SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
     try {
       for (const circuit of circuits) {
+        await assertWorkoutOwned(db, userId, circuit.workout_id);
+        await assertWorkoutChildDoesNotExist(db, "circuit_rounds", circuit.id);
         const {
           id,
           workout_id,
@@ -39,16 +43,18 @@ export const circuitService = {
   },
 
   getWorkoutCircuitRounds: async (
+    userId: string,
     workoutId: string,
     db: SQLite.SQLiteDatabase,
   ): Promise<CircuitRound[]> => {
     try {
       const rows = await db.getAllAsync<CircuitRoundRow>(
-        `SELECT *
-         FROM circuit_rounds
-         WHERE workout_id = ?
-         ORDER BY round_number`,
-        [workoutId],
+        `SELECT cr.*
+         FROM circuit_rounds cr
+         JOIN workouts w ON w.id = cr.workout_id
+         WHERE cr.workout_id = ? AND w.user_id = ?
+         ORDER BY cr.round_number`,
+        [workoutId, userId],
       );
 
       return rows.map((row) => ({
@@ -66,7 +72,9 @@ export const circuitService = {
   updateWorkoutCircuitRound: async (
     round: CircuitRound,
     db: SQLiteDatabase,
+    userId: string,
   ): Promise<void> => {
+    await assertWorkoutChildOwned(db, userId, "circuit_rounds", round.id, round.workout_id);
     await db.runAsync(
       `UPDATE circuit_rounds
      SET
