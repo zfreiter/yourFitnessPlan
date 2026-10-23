@@ -23,7 +23,16 @@ export function AddExerciseButton({
         const currentExercises = getValues("exercises");
 
         currentExercises.forEach((ex) => {
-          if (ex.exercise_name !== undefined) appendExercise(ex);
+          if (ex.exercise_name !== undefined) appendExercise({
+            ...ex,
+            sets: ex.sets.map((set) => ({
+              ...set,
+              reps: ex.validUnits?.includes("reps") ? set.reps : undefined,
+              weight: ex.validUnits?.includes("weight") ? set.weight : undefined,
+              time: ex.validUnits?.includes("time") ? set.time : undefined,
+              distance: ex.validUnits?.includes("distance") ? set.distance : undefined,
+            })),
+          });
         });
 
         setModalVisible(false);

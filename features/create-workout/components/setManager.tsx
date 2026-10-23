@@ -3,18 +3,20 @@ import { useColorTheme } from "@/context/colorThemeContext";
 import { useState, useEffect, use } from "react";
 import CustomModal from "@/components/ui/customModal";
 import { UseFieldArrayReplace } from "react-hook-form";
-import { Exercise } from "@/types/common/workoutInterface";
+import { WorkoutExercise, ValidUnit } from "@/types/interfaces/types";
 import * as Crypto from "expo-crypto";
 
 export default function SetManager({
   replace,
   optionsChoice,
+  validUnits,
   chosenExerciseName,
   setCount,
   setSetCount,
 }: {
-  replace: UseFieldArrayReplace<Exercise, "sets">;
+  replace: UseFieldArrayReplace<WorkoutExercise, "sets">;
   optionsChoice: string | null;
+  validUnits: ValidUnit[];
   chosenExerciseName: string;
   setCount: number;
   setSetCount: React.Dispatch<React.SetStateAction<number>>;
@@ -58,10 +60,12 @@ export default function SetManager({
                 Array.from({ length: count }, (_, index) => ({
                   id: Crypto.randomUUID(),
                   workout_exercise_id: "",
-                  reps: 0,
-                  weight: 0,
-                  duration: 0,
-                  distance: 0,
+                  reps: validUnits.includes("reps") ? 0 : undefined,
+                  weight: validUnits.includes("weight") ? 0 : undefined,
+                  time: validUnits.includes("time") ? 0 : undefined,
+                  distance: validUnits.includes("distance") ? 0 : undefined,
+              is_warmup: 0,
+              is_max: 0,
                   set_order: index + 1,
                 })),
               );
@@ -147,10 +151,12 @@ export default function SetManager({
             Array.from({ length: setCount }, (_, index) => ({
               id: Crypto.randomUUID(),
               workout_exercise_id: "",
-              reps: 0,
-              weight: 0,
-              duration: 0,
-              distance: 0,
+              reps: validUnits.includes("reps") ? 0 : undefined,
+              weight: validUnits.includes("weight") ? 0 : undefined,
+              time: validUnits.includes("time") ? 0 : undefined,
+              distance: validUnits.includes("distance") ? 0 : undefined,
+              is_warmup: 0,
+              is_max: 0,
               set_order: index + 1,
             })),
           );

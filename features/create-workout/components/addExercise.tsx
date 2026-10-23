@@ -21,8 +21,7 @@ import {
   useFormContext,
 } from "react-hook-form";
 import { AppButton } from "@/components/button";
-import { ValidUnit } from "@/types/interfaces/types";
-import { Exercise, ExerciseFormData } from "@/types/type";
+import { Exercise, WorkoutExercise, ValidUnit } from "@/types/interfaces/types";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ExerciseControl } from "./exerciseControl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -56,18 +55,14 @@ export function AddExercise({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<Exercise>({
+  } = useForm<WorkoutExercise>({
     defaultValues: {
       id: "",
       exercise_id: "",
       workout_id: "",
       exercise_name: "",
-      exercise_description: "",
-      exercise_difficulty: "",
-      track_reps: 0,
-      track_weight: 0,
-      track_time: 0,
-      track_distance: 0,
+      validUnits: [],
+      description: "",
       sets: [],
     },
     mode: "onChange",
@@ -81,7 +76,7 @@ export function AddExercise({
   const watchSetsLen = watch("sets").length;
 
   const onSubmit = useCallback(
-    (data: Exercise) => {
+    (data: WorkoutExercise) => {
       if (data.exercise_id === "") {
         setError("exercise_id", { message: "Please select an exercise" });
         return;
@@ -90,20 +85,20 @@ export function AddExercise({
       const exerciseId = Crypto.randomUUID();
       const workoutId = methods.getValues("id");
 
-      const newExercise: Exercise = {
+      const newExercise: WorkoutExercise = {
         id: exerciseId,
         workout_id: workoutId,
         exercise_id: data.exercise_id,
         exercise_name: data.exercise_name,
-        exercise_description: data.exercise_description,
-        exercise_difficulty: data.exercise_difficulty,
-        track_reps: data.track_reps,
-        track_weight: data.track_weight,
-        track_time: data.track_time,
-        track_distance: data.track_distance,
+        description: data.description,
+        validUnits: chosenExercise?.validUnits ?? [],
         sets: data.sets.map((set) => ({
           ...set,
           workout_exercise_id: exerciseId,
+          reps: chosenExercise?.validUnits?.includes("reps") ? set.reps : undefined,
+          weight: chosenExercise?.validUnits?.includes("weight") ? set.weight : undefined,
+          time: chosenExercise?.validUnits?.includes("time") ? set.time : undefined,
+          distance: chosenExercise?.validUnits?.includes("distance") ? set.distance : undefined,
         })),
         exercise_order: 0,
       };
@@ -114,12 +109,8 @@ export function AddExercise({
         exercise_id: "",
         workout_id: "",
         exercise_name: "",
-        exercise_description: "",
-        exercise_difficulty: "",
-        track_reps: 0,
-        track_weight: 0,
-        track_time: 0,
-        track_distance: 0,
+      validUnits: [],
+        description: "",
         sets: [],
       });
       setChosenExercise(null);
@@ -132,6 +123,7 @@ export function AddExercise({
 
   const handleExerciseChange = useCallback(
     (itemValue: string, onChange: (value: string) => void) => {
+      const previousExerciseId = getValues("exercise_id");
       onChange(itemValue);
 
       if (itemValue === "NA") {
@@ -140,12 +132,8 @@ export function AddExercise({
         reset({
           exercise_id: "",
           exercise_name: "",
-          exercise_description: "",
-          exercise_difficulty: "",
-          track_reps: 0,
-          track_weight: 0,
-          track_time: 0,
-          track_distance: 0,
+      validUnits: [],
+          description: "",
           sets: [],
         });
         return;
@@ -153,48 +141,31 @@ export function AddExercise({
 
       const foundExercise =
         exercises.find(
-          (exercise) => exercise.exercise_id.toString() === itemValue,
+          (exercise) => exercise.id.toString() === itemValue,
         ) ?? null;
 
       if (!foundExercise) throw new Error("Exercise not found");
 
-      const autoUnit =
-        foundExercise.validUnits?.length === 1
-          ? foundExercise.validUnits[0]
-          : null;
+      const autoUnit = foundExercise.validUnits ?? [];
+
+      if (previousExerciseId === foundExercise.id) {
+        setChosenExercise(foundExercise);
+        setOptionsChoice(autoUnit.length ? autoUnit.join("-") : null);
+        return;
+      }
 
       reset({
-        exercise_id: foundExercise.exercise_id,
-        exercise_name: foundExercise.exercise_name,
-        exercise_description: foundExercise.exercise_description,
-        exercise_difficulty: foundExercise.exercise_difficulty,
-        track_reps: autoUnit?.includes("reps") ? 1 : 0,
-        track_weight: autoUnit?.includes("weight") ? 1 : 0,
-        track_time: autoUnit?.includes("time") ? 1 : 0,
-        track_distance: autoUnit?.includes("distance") ? 1 : 0,
+        exercise_id: foundExercise.id,
+        validUnits: autoUnit,
+        exercise_name: foundExercise.name,
+        description: foundExercise.description,
         sets: [],
       });
 
       setChosenExercise(foundExercise);
-      setOptionsChoice(autoUnit ? autoUnit.join("-") : null);
+      setOptionsChoice(autoUnit.length ? autoUnit.join("-") : null);
     },
-    [exercises, reset],
-  );
-
-  const onOptionChange = useCallback(
-    (option: string) => {
-      const optionValue: ValidUnit[] = option.split("-") as ValidUnit[];
-      setValue("track_reps", optionValue.includes("reps") ? 1 : 0);
-      setValue("track_weight", optionValue.includes("weight") ? 1 : 0);
-      setValue("track_time", optionValue.includes("time") ? 1 : 0);
-      setValue("track_distance", optionValue.includes("distance") ? 1 : 0);
-      setOptionsChoice(option);
-      reset({
-        ...getValues(),
-        sets: [],
-      });
-    },
-    [setValue, replace],
+    [exercises, reset, getValues],
   );
 
   const handleCloseModal = useCallback(() => {
@@ -303,7 +274,7 @@ export function AddExercise({
                           />
                         )}
                         data={exercises.map((e) => ({
-                          label: e.exercise_name,
+                          label: e.name,
                           value: e.id.toString(),
                         }))}
                         fontFamily={theme.fonts.body}
@@ -365,7 +336,6 @@ export function AddExercise({
                 control={control}
                 watchSetsLen={watchSetsLen}
                 optionsChoice={optionsChoice}
-                onOptionChange={onOptionChange}
                 fields={fields}
                 append={append}
                 remove={remove}
@@ -391,14 +361,14 @@ export function AddExercise({
 interface OptionsProps {
   options: string;
   index: number;
-  control: Control<ExerciseFormData>;
+  control: Control<WorkoutExercise>;
 }
 
 export function Options({ options, index, control }: OptionsProps) {
   const { theme } = useColorTheme();
 
   const renderInput = (
-    name: keyof ExerciseFormData["sets"][number],
+    name: ValidUnit,
     placeholder: string,
     accessibilityLabel: string,
   ) => {
@@ -459,12 +429,12 @@ export function Options({ options, index, control }: OptionsProps) {
     case "weight":
       return renderInput("weight", "kg", `Set ${index + 1} weight`);
     case "time":
-      return renderInput("duration", "sec.", `Set ${index + 1} time`);
+      return renderInput("time", "sec.", `Set ${index + 1} time`);
     case "distance":
       return renderInput("distance", "m", `Set ${index + 1} distance`);
     case "time-distance":
       return [
-        renderInput("duration", "sec.", `Set ${index + 1} time`),
+        renderInput("time", "sec.", `Set ${index + 1} time`),
         renderInput("distance", "m", `Set ${index + 1} distance`),
       ];
     case "reps-weight":

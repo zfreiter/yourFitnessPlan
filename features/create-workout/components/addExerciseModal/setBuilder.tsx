@@ -1,4 +1,6 @@
 import { ScrollView, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { useFormContext } from "react-hook-form";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { Control, FieldArrayWithId } from "react-hook-form";
 import { AddExerciseForm, ValidUnit } from "@/types/interfaces/types";
@@ -19,6 +21,16 @@ export function SetBuilder({
   exerciseFields,
 }: SetBuilderProps) {
   const { theme } = useColorTheme();
+  const { setValue } = useFormContext<AddExerciseForm>();
+  const previousEntryMethod = useRef(entryMethodSelector);
+
+  useEffect(() => {
+    if (previousEntryMethod.current === entryMethodSelector) return;
+    previousEntryMethod.current = entryMethodSelector;
+    exerciseFields.forEach((_, index) => {
+      setValue(`exercises.${index}.sets`, [], { shouldDirty: true });
+    });
+  }, [entryMethodSelector, exerciseFields.length, setValue]);
 
   if (entryMethodSelector === "quick_add") {
     return (
@@ -71,7 +83,6 @@ export function SetBuilder({
           <ManualSetField
             exerciseFields={exerciseFields}
             control={control}
-            entryMethodSelector={entryMethodSelector}
           />
         ) : (
           <AutoFillSetField

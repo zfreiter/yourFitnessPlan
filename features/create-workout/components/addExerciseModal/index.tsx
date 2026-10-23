@@ -70,7 +70,7 @@ export function AddExerciseModal({
 
   const {
     fields: exerciseFields,
-    append,
+    replace,
     remove,
   } = useFieldArray({
     control: addExerciseMethods.control,
@@ -144,8 +144,7 @@ export function AddExerciseModal({
               />
               <ExerciseLibraryModal
                 selectedLoggingStyle={selectedLoggingStyle}
-                remove={remove}
-                append={append}
+                replace={replace}
                 workoutId={workoutId}
                 exerciseCount={exerciseCount}
               />
@@ -160,6 +159,7 @@ export function AddExerciseModal({
 
               {exerciseFields.length > 0 && (
                 <SetBuilder
+                  key={exerciseFields.map((field) => field.id).join(":")}
                   entryMethodSelector={entryMethodSelector}
                   selectedLoggingStyle={selectedLoggingStyle}
                   control={addExerciseMethods.control}

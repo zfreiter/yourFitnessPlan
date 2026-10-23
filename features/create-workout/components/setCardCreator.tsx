@@ -1,13 +1,13 @@
 import { View, Text, Pressable, StyleSheet, TextInput } from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useFormContext } from "react-hook-form";
-import { AddExerciseForm } from "@/types/interfaces/types";
+import { AddExerciseForm, ValidUnit } from "@/types/interfaces/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 interface SetCardCreatorProps {
   exerciseIndex: number;
   setIndex: number;
-  validUnits: string[];
+  validUnits: ValidUnit[];
   onRemove?: () => void;
 }
 
@@ -17,16 +17,18 @@ const SET_TYPES = [
   { label: "M", value: "max", title: "Max" },
 ];
 
-const UNIT_LABELS: Record<string, string> = {
+const UNIT_LABELS: Record<ValidUnit, string> = {
   reps: "REPS",
   weight: "WEIGHT",
   distance: "DISTANCE",
+  time: "TIME",
 };
 
-const UNIT_KEYBOARD: Record<string, "numeric" | "decimal-pad"> = {
+const UNIT_KEYBOARD: Record<ValidUnit, "numeric" | "decimal-pad"> = {
   reps: "numeric",
   weight: "decimal-pad",
   distance: "decimal-pad",
+  time: "decimal-pad",
 };
 
 //
@@ -132,7 +134,7 @@ export const SetCardCreator = ({
       {/* Dynamic Unit Inputs */}
       <View style={styles.valuesRow}>
         {validUnits.map((unit) => {
-          const fieldKey = unit as "reps" | "weight" | "distance";
+          const fieldKey = unit;
           const value = watch(
             `exercises.${exerciseIndex}.sets.${setIndex}.${fieldKey}`,
           );

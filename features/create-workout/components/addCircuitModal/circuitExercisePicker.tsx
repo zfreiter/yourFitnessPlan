@@ -88,28 +88,13 @@ export function CircuitExercisePicker({
   const handleConfirm = () => {
     chosenExercises.forEach((ex, index) => {
       const exerciseId = Crypto.randomUUID();
-      console.log("units ", ex.validUnits);
       append({
         id: exerciseId,
         workout_id: workoutId,
         exercise_id: ex.id,
         exercise_name: ex.name,
         description: ex.description,
-        track_reps: ex.validUnits.some((units) => units.includes("reps"))
-          ? 1
-          : 0,
-        track_weight: ex.validUnits.some((units) => units.includes("weight"))
-          ? 1
-          : 0,
-        track_time: ex.validUnits.some((units) => units.includes("time"))
-          ? 1
-          : 0,
-        track_distance: ex.validUnits.some((units) =>
-          units.includes("distance"),
-        )
-          ? 1
-          : 0,
-        validUnits: ex.validUnits,
+        validUnits: ex.validUnits ?? [],
         musclesTargeted: ex.musclesTargeted,
         equipment: ex.equipment,
         exercise_order: exerciseCount + index,
@@ -120,16 +105,16 @@ export function CircuitExercisePicker({
           {
             id: Crypto.randomUUID(),
             workout_exercise_id: exerciseId,
-            reps: ex.validUnits.some((units) => units.includes("reps"))
+            reps: (ex.validUnits ?? []).includes("reps")
               ? 0
               : undefined,
-            weight: ex.validUnits.some((units) => units.includes("weight"))
+            weight: (ex.validUnits ?? []).includes("weight")
               ? 0
               : undefined,
-            time: ex.validUnits.some((units) => units.includes("time"))
+            time: (ex.validUnits ?? []).includes("time")
               ? 0
               : undefined,
-            distance: ex.validUnits.some((units) => units.includes("distance"))
+            distance: (ex.validUnits ?? []).includes("distance")
               ? 0
               : undefined,
             is_warmup: 0,

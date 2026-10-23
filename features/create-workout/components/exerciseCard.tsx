@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Crypto from "expo-crypto";
+import { useEffect } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 
 import {
@@ -25,7 +26,7 @@ export const ExerciseCard = ({
 }: ExerciseCardProps) => {
   const { theme } = useColorTheme();
 
-  const { control } = useFormContext<CreateWorkoutForm>();
+  const { control, getValues, setValue } = useFormContext<CreateWorkoutForm>();
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -41,6 +42,20 @@ export const ExerciseCard = ({
     remove(index);
   };
   const selectedUnits: ValidUnit[] = exercise.validUnits ?? [];
+  const unitKey = selectedUnits.join(",");
+
+  useEffect(() => {
+    const allowed = unitKey.split(",");
+    const units: ValidUnit[] = ["reps", "weight", "time", "distance"];
+    const currentSets = getValues(`exercises.${exerciseOrder}.sets`) ?? [];
+    currentSets.forEach((set, index) => {
+      units.forEach((unit) => {
+        if (!allowed.includes(unit) && set[unit] !== undefined) {
+          setValue(`exercises.${exerciseOrder}.sets.${index}.${unit}`, undefined);
+        }
+      });
+    });
+  }, [unitKey, exerciseOrder, getValues, setValue]);
 
   const borderColor =
     exercise.group_type === "superset"
@@ -227,6 +242,7 @@ export const ExerciseCard = ({
               exerciseOrder={exerciseOrder}
               displayLabel={displayLabel}
               control={control}
+              validUnits={selectedUnits}
               onRemove={() => handleRemoveSet(index)}
             />
           );

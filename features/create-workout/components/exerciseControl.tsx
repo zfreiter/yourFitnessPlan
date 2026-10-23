@@ -1,28 +1,27 @@
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
-type FormValues = Exercise;
+type FormValues = WorkoutExercise;
 
-import { Picker } from "@react-native-picker/picker";
 import {
   Control,
+  Controller,
   FieldArrayWithId,
   UseFieldArrayAppend,
   UseFieldArrayRemove,
   UseFieldArrayReplace,
 } from "react-hook-form";
-import { Exercise } from "@/types/type";
+import { Exercise, WorkoutExercise } from "@/types/interfaces/types";
 import SetManager from "./setManager";
 import RepManager from "./repManager";
 import SetWeightConfigurator from "./SetWeightConfigurator";
 
 interface ExerciseControlProps {
   chosenExercise: Exercise | null;
-  control: Control<Exercise, any, Exercise> | undefined;
+  control: Control<WorkoutExercise> | undefined;
   watchSetsLen: number;
   optionsChoice: string | null;
-  onOptionChange: (itemValue: string) => void;
   fields: FieldArrayWithId<FormValues, "sets", "id">[];
   append: UseFieldArrayAppend<FormValues, "sets">;
   remove: UseFieldArrayRemove;
@@ -31,9 +30,9 @@ interface ExerciseControlProps {
 
 export function ExerciseControl({
   chosenExercise,
+  control,
   watchSetsLen,
   optionsChoice,
-  onOptionChange,
   fields,
   replace,
 }: ExerciseControlProps) {
@@ -60,7 +59,7 @@ export function ExerciseControl({
             },
           ]}
         >
-          {`${chosenExercise.exercise_name}`}
+          {`${chosenExercise.name}`}
         </Text>
 
         <Text
@@ -72,75 +71,45 @@ export function ExerciseControl({
             },
           ]}
         >
-          {chosenExercise.exercise_description}
+          {chosenExercise.description}
         </Text>
       </View>
-
-      {/* Step 2. If the exercise has more than one option we need to give the user the options */}
-      {chosenExercise.validUnits && chosenExercise.validUnits.length > 1 && (
-        <View>
-          <Text
-            style={{
-              fontFamily: theme.fonts.headerBody,
-              color: theme.color.textPrimary,
-            }}
-          >
-            Options
-          </Text>
-          <View
-            style={[
-              styles.pickerContainer,
-              {
-                margin: 0,
-                padding: 0,
-                backgroundColor: theme.color.surface,
-                borderWidth: 1,
-                borderColor: theme.color.accentStrong,
-              },
-            ]}
-          >
-            <Picker
-              mode="dialog"
-              onValueChange={(value: string) => {
-                setIsRepsValid(false);
-                onOptionChange(value);
-              }}
-              accessibilityLabel="Exercise options"
-              accessibilityHint="Select the type of measurement for this exercise"
-              style={[
-                {
-                  height: 50,
-                  backgroundColor: theme.color.surface,
-                  color: theme.color.textPrimary,
-                },
-              ]}
-            >
-              <Picker.Item label="Select option..." value="" />
-              {chosenExercise.validUnits.map((unit, index) => (
-                <Picker.Item
-                  key={index}
-                  label={
-                    Array.isArray(unit) ? unit.join(" and ") : String(unit)
-                  }
-                  value={Array.isArray(unit) ? unit.join("-") : String(unit)}
-                />
-              ))}
-            </Picker>
-          </View>
-        </View>
-      )}
 
       {/* Select set count */}
       {optionsChoice && (
         <SetManager
           replace={replace}
           optionsChoice={optionsChoice}
-          chosenExerciseName={chosenExercise.exercise_name}
+          validUnits={chosenExercise.validUnits ?? []}
+          chosenExerciseName={chosenExercise.name}
           setCount={setCount}
           setSetCount={setSetCount}
         />
       )}
 
+      {fields.map((field, index) => (
+        <View key={field.id} style={{ flexDirection: "row", gap: theme.spacing.md }}>
+          {(chosenExercise.validUnits ?? []).map((unit: "reps" | "weight" | "time" | "distance") => (
+            <Controller
+              key={unit}
+              control={control}
+              name={`sets.${index}.${unit}`}
+              render={({ field: { value, onChange, onBlur } }) => (
+                <View>
+                  <Text style={{ color: theme.color.textSecondary }}>{unit.toUpperCase()}</Text>
+                  <TextInput
+                    style={[styles.setInput, { color: theme.color.textPrimary, backgroundColor: theme.color.input }]}
+                    value={value?.toString() ?? ""}
+                    keyboardType={unit === "reps" ? "numeric" : "decimal-pad"}
+                    onBlur={onBlur}
+                    onChangeText={(text) => onChange(text === "" ? undefined : Number(text))}
+                  />
+                </View>
+              )}
+            />
+          ))}
+        </View>
+      ))}
       {/* Step 3. Set the reps if available */}
       {optionsChoice === "reps-weight" && watchSetsLen > 0 && (
         <RepManager

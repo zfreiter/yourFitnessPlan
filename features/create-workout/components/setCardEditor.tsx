@@ -1,4 +1,4 @@
-import { CreateWorkoutForm, ExerciseSet } from "@/types/interfaces/types";
+import { CreateWorkoutForm, ExerciseSet, ValidUnit } from "@/types/interfaces/types";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { Control, Controller } from "react-hook-form";
 import { Text, View, StyleSheet, TextInput, Pressable } from "react-native";
@@ -11,6 +11,7 @@ interface SetCardEditorProps {
   exerciseOrder: number;
   displayLabel: string | number;
   control: Control<CreateWorkoutForm>;
+  validUnits: ValidUnit[];
   onRemove?: () => void;
 }
 
@@ -20,29 +21,13 @@ export function SetCardEditor({
   exerciseOrder,
   displayLabel,
   control,
+  validUnits,
   onRemove,
 }: SetCardEditorProps) {
   const { theme } = useColorTheme();
 
-  type SetInput = {
-    name: "reps" | "weight" | "distance" | "time";
-    value: number;
-  };
-
-  const inputs: SetInput[] = [
-    set.reps !== undefined && set.reps !== null
-      ? { name: "reps", value: set.reps }
-      : null,
-    set.weight !== undefined && set.weight !== null
-      ? { name: "weight", value: set.weight }
-      : null,
-    set.distance !== undefined && set.distance !== null
-      ? { name: "distance", value: set.distance }
-      : null,
-    set.time !== undefined && set.time !== null
-      ? { name: "time", value: set.time }
-      : null,
-  ].filter((input): input is SetInput => input !== null);
+  const visibleInputs = (["reps", "weight", "distance", "time"] as ValidUnit[])
+    .filter((unit) => validUnits.includes(unit));
 
   return (
     <View style={[styles.row]}>
@@ -72,12 +57,12 @@ export function SetCardEditor({
 
       {/* Inputs */}
       <View style={{ flexDirection: "row", alignItems: "center" }}>
-        {inputs.map((input) => (
-          <View key={input.name} style={styles.inputColumn}>
+        {visibleInputs.map((unit) => (
+          <View key={unit} style={styles.inputColumn}>
             <Controller
               control={control}
               name={
-                `exercises.${exerciseOrder}.sets.${setOrder}.${input.name}` as const
+                `exercises.${exerciseOrder}.sets.${setOrder}.${unit}` as const
               }
               render={({ field: { onChange, value } }) => {
                 return (

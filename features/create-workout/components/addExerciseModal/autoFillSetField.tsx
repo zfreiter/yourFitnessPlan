@@ -7,7 +7,7 @@ import {
 import { Text, View, Pressable, StyleSheet, TextInput } from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 
 interface AutoFillSetFieldProps {
@@ -15,8 +15,8 @@ interface AutoFillSetFieldProps {
   entryMethodSelector: "quick_add" | "manual" | "auto_fill";
 }
 
-const canAutofill = (validUnits: ValidUnit[][] | undefined): boolean => {
-  const combo = validUnits?.[0] ?? [];
+const canAutofill = (validUnits: ValidUnit[] | undefined): boolean => {
+  const combo = validUnits ?? [];
   return combo.includes("reps") && combo.includes("weight");
 };
 
@@ -26,6 +26,7 @@ export function AutoFillSetField({
 }: AutoFillSetFieldProps) {
   const { theme } = useColorTheme();
   const { getValues } = useFormContext<AddExerciseForm>();
+  const previousEntryMethod = useRef(entryMethodSelector);
   const {
     fields: exerciseOneSets,
     replace: replaceExerciseOneSets,
@@ -52,6 +53,8 @@ export function AutoFillSetField({
   const [generated, setGenerated] = useState(false);
 
   useEffect(() => {
+    if (previousEntryMethod.current === entryMethodSelector) return;
+    previousEntryMethod.current = entryMethodSelector;
     removeExerciseOneSet();
     if (isTwoExercises) removeExerciseTwoSet();
     setGenerated(false);
@@ -80,8 +83,18 @@ export function AutoFillSetField({
       };
     });
 
-    replaceExerciseOneSets(sets);
-    if (isTwoExercises) replaceExerciseTwoSets(sets);
+    const setsForExercise = (exerciseIndex: number, supported: boolean) =>
+      sets.map((set) => ({
+        ...set,
+        id: Crypto.randomUUID(),
+        workout_exercise_id: exercises[exerciseIndex].id,
+        reps: supported ? set.reps : undefined,
+        weight: supported ? set.weight : undefined,
+      }));
+
+    replaceExerciseOneSets(setsForExercise(0, exerciseOneCanAutofill));
+    if (isTwoExercises)
+      replaceExerciseTwoSets(setsForExercise(1, exerciseTwoCanAutofill));
     setGenerated(true);
   };
 

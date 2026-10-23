@@ -14,13 +14,13 @@ import { useColorTheme } from "@/context/colorThemeContext";
 import { AddExerciseForm, Exercise, ValidUnit } from "@/types/interfaces/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useWorkout } from "@/context/workoutContext";
-import { UseFieldArrayAppend, UseFieldArrayRemove } from "react-hook-form";
+import { UseFieldArrayReplace, useFormContext } from "react-hook-form";
 import * as Crypto from "expo-crypto";
+import { buildExerciseSelection } from "../../utils/exerciseSelection";
 
 interface ExerciseLibraryModalProps {
   selectedLoggingStyle: string;
-  append: UseFieldArrayAppend<AddExerciseForm, "exercises">;
-  remove: UseFieldArrayRemove;
+  replace: UseFieldArrayReplace<AddExerciseForm, "exercises">;
   workoutId: string;
   exerciseCount: number | undefined;
 }
@@ -65,8 +65,7 @@ const EQUIPMENT_OPTIONS = [
 
 export function ExerciseLibraryModal({
   selectedLoggingStyle,
-  append,
-  remove,
+  replace,
   workoutId,
   exerciseCount,
 }: ExerciseLibraryModalProps) {
@@ -81,9 +80,10 @@ export function ExerciseLibraryModal({
   const [showFilters, setShowFilters] = useState(false);
 
   const { exercises } = useWorkout();
+  const { getValues } = useFormContext<AddExerciseForm>();
 
   const handleExerciseConfirm = (selected: Exercise[]) => {
-    remove();
+    const previousExercises = getValues("exercises");
 
     const groupType: "superset" | "compound_set" | null =
       selectedLoggingStyle === "superset" ||
@@ -91,31 +91,15 @@ export function ExerciseLibraryModal({
         ? selectedLoggingStyle
         : null;
 
-    const groupId =
-      groupType !== null && selected.length > 1 ? Crypto.randomUUID() : null;
-
-    selected.forEach((exercise, index) => {
-      append({
-        id: Crypto.randomUUID(),
-        workout_id: workoutId,
-        exercise_id: exercise.id,
-        exercise_name: exercise.name,
-        description: exercise.description,
-
-        validUnits: [...exercise.validUnits],
-
-        musclesTargeted: [...exercise.musclesTargeted],
-        equipment: [...exercise.equipment],
-
-        exercise_order: (exerciseCount ?? 0) + index,
-
-        group_id: groupId,
-        group_type: groupType,
-        round_number: null,
-
-        sets: [],
-      });
+    const replacement = buildExerciseSelection({
+      selected,
+      previous: previousExercises,
+      workoutId,
+      exerciseOrderStart: exerciseCount ?? 0,
+      groupType,
+      createId: Crypto.randomUUID,
     });
+    replace(replacement);
   };
 
   const filteredExercises = useMemo(() => {
