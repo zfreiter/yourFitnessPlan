@@ -94,13 +94,13 @@ function ActiveWorkoutSessionContent() {
           {workoutType === "strength" && (
             <View style={{ gap: theme.spacing.lg }}>
               <StrengthBuilder />
-              <CardioBuilder isFinisher />
+              <CardioBuilder isFinisher savedDisplay />
             </View>
           )}
 
           {workoutType === "circuit" && <CircuitBuilder />}
 
-          {workoutType === "cardio" && <CardioBuilder />}
+          {workoutType === "cardio" && <CardioBuilder savedDisplay />}
 
           <DurationWheelPicker />
 
@@ -124,8 +124,7 @@ export default function ActiveWorkoutSession({
       name: workout.name,
       description: workout.description ?? "",
       workoutType: workout.workoutType,
-      scheduled_datetime:
-        workout.scheduled_datetime ?? new Date().toISOString(),
+      scheduled_datetime: workout.scheduled_datetime,
       duration: workout.duration,
       perceived_effort: workout.perceived_effort,
       is_completed: workout.is_completed,

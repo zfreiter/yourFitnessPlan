@@ -1,4 +1,4 @@
-import { Workout } from "@/types/type";
+import { Workout } from "@/types/interfaces/types";
 import { View, Text, ScrollView } from "react-native";
 import WorkoutCard from "@/features/home/TodaysWorkout/WorkoutCard";
 import { useColorTheme } from "@/context/colorThemeContext";
@@ -9,7 +9,7 @@ export default function DailyWorkoutSchedule({
 }: {
   currentDay: string | null;
   workoutList: Workout[];
-}): JSX.Element {
+}) {
   const { theme } = useColorTheme();
   const date = new Date(currentDay + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "long", // Full weekday name

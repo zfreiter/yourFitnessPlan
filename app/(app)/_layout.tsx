@@ -1,7 +1,10 @@
+import { useEffect } from "react";
+import { AuthLoadingView } from "@/components/navigation/AuthLoadingView";
+import { traceAuth } from "@/utils/authDiagnostics";
 import { Stack } from "expo-router";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useAuth } from "@/context/authContext";
-import { View, Text, ActivityIndicator, Pressable, Image } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -10,16 +13,18 @@ export default function RootLayout() {
   const { theme } = useColorTheme();
   const insets = useSafeAreaInsets();
 
-  if (!isAuthInitialized) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={theme.color.accent} />
-      </View>
-    );
-  }
+  traceAuth("route-guard", { userId: user?.id ?? null, initialized: isAuthInitialized, decision: !isAuthInitialized ? "wait-auth" : user ? "authenticated" : "guest" });
+
+  useEffect(() => {
+    traceAuth("layout-mount", { decision: "app-stack" });
+    return () => traceAuth("layout-cleanup", { decision: "app-stack" });
+  }, []);
+
+  if (!isAuthInitialized) return <AuthLoadingView />;
 
   return (
     <Stack
+      initialRouteName={user ? "main" : "login"}
       screenOptions={{
         animation: "none",
         contentStyle: {
@@ -123,14 +128,7 @@ export default function RootLayout() {
         />
       </Stack.Protected>
 
-      <Stack.Screen
-        name="loading"
-        options={{
-          title: "Loading",
-          headerTitleStyle: { fontFamily: theme.fonts.heading },
-          headerStyle: { backgroundColor: theme.color.background },
-        }}
-      />
+      <Stack.Protected guard={!user}>
       <Stack.Screen
         name="login"
         options={{
@@ -147,6 +145,9 @@ export default function RootLayout() {
           headerStyle: { backgroundColor: theme.color.background },
         }}
       />
+      </Stack.Protected>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="loading" options={{ headerShown: false }} />
     </Stack>
   );
 }

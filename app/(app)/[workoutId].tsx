@@ -22,25 +22,12 @@ import { Workout } from "@/types/interfaces/types";
 export default function WorkoutDetails() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
   const { workouts, deleteWorkout } = useWorkout();
-  const [workout, setWorkout] = useState<Workout | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const workout = workouts.find(row => row.id === workoutId) ?? null;
   const [menuVisible, setMenuVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const { theme } = useColorTheme();
   const { user } = useAuth();
   const navigation = useNavigation();
-
-  useEffect(() => {
-    const findWorkout = () => {
-      const foundWorkout = workouts.find((w: Workout) => w.id === workoutId);
-      setWorkout(foundWorkout || null);
-      setIsLoading(false);
-    };
-
-    if (workouts.length > 0) {
-      findWorkout();
-    }
-  }, [workouts, workoutId]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -53,22 +40,6 @@ export default function WorkoutDetails() {
     const result = await deleteWorkout(user?.id, workoutId);
     if (result.success) router.back();
   };
-
-  if (isLoading) {
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            padding: theme.spacing.screenPadding,
-            backgroundColor: theme.color.background,
-          },
-        ]}
-      >
-        <Text style={styles.loadingText}>Getting your workout...</Text>
-      </View>
-    );
-  }
 
   if (!workout) {
     return (

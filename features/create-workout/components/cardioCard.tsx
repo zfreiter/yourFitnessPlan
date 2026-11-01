@@ -3,7 +3,7 @@ import { useColorTheme } from "@/context/colorThemeContext";
 import { CardioEntry, CreateWorkoutForm } from "@/types/interfaces/types";
 import React from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Controller, useFormContext, useWatch } from "react-hook-form";
+import { Controller, useFormContext } from "react-hook-form";
 
 interface CardioCardProps {
   entry: CardioEntry;
@@ -14,17 +14,8 @@ interface CardioCardProps {
 export function CardioCard({ entry, entryOrder, onRemove }: CardioCardProps) {
   const { theme } = useColorTheme();
 
-  const { control, unregister } = useFormContext<CreateWorkoutForm>();
-
-  const watchedCardioEntries = useWatch({
-    control,
-    name: "cardio_entries",
-  });
-
-  console.log(
-    "3 CARDIO FORM VALUES:",
-    JSON.stringify(watchedCardioEntries, null, 2),
-  );
+  // Keep registered values when cards unmount or field-array indices change.
+  const { control } = useFormContext<CreateWorkoutForm>();
 
   return (
     <View
@@ -87,12 +78,6 @@ export function CardioCard({ entry, entryOrder, onRemove }: CardioCardProps) {
           control={control}
           name={`cardio_entries.${entryOrder}.duration`}
           render={({ field: { value, onChange, onBlur } }) => {
-            console.log("DURATION CONTROLLER:", {
-              entryId: entry.id,
-              entryOrder,
-              value,
-            });
-
             return (
               <CardioInput
                 label="Duration"
@@ -107,7 +92,6 @@ export function CardioCard({ entry, entryOrder, onRemove }: CardioCardProps) {
 
         <Controller
           control={control}
-          shouldUnregister={true}
           name={`cardio_entries.${entryOrder}.distance`}
           render={({ field: { value, onChange, onBlur } }) => (
             <CardioInput
@@ -122,7 +106,6 @@ export function CardioCard({ entry, entryOrder, onRemove }: CardioCardProps) {
 
         <Controller
           control={control}
-          shouldUnregister={true}
           name={`cardio_entries.${entryOrder}.calories`}
           render={({ field: { value, onChange, onBlur } }) => (
             <CardioInput
@@ -137,11 +120,10 @@ export function CardioCard({ entry, entryOrder, onRemove }: CardioCardProps) {
 
         <Controller
           control={control}
-          shouldUnregister={true}
           name={`cardio_entries.${entryOrder}.heart_rate_avg`}
           render={({ field: { value, onChange, onBlur } }) => (
             <CardioInput
-              label="Avg HR"
+              label="AVG HR (BPM)"
               suffix="bpm"
               value={value}
               onChange={onChange}
@@ -151,6 +133,30 @@ export function CardioCard({ entry, entryOrder, onRemove }: CardioCardProps) {
           )}
         />
       </View>
+
+      {entry.mode === "intervals" && entry.intervals.map((interval, index) => (
+        <View key={interval.id} style={styles.inputs}>
+          <Text style={{ color: theme.color.textSecondary }}>
+            Interval {interval.interval_order}
+          </Text>
+          {(["work_duration", "rest_duration", "distance", "calories"] as const).map((metric) => (
+            <Controller
+              key={metric}
+              control={control}
+              name={`cardio_entries.${entryOrder}.intervals.${index}.${metric}`}
+              render={({ field: { value, onChange, onBlur } }) => (
+                <CardioInput
+                  label={{ work_duration: "Work (sec)", rest_duration: "Rest (sec)", distance: "Distance (km)", calories: "Calories" }[metric]}
+                  value={value}
+                  onChange={(value) => onChange(value ?? undefined)}
+                  onBlur={onBlur}
+                  keyboardType={metric === "distance" ? "decimal-pad" : "numeric"}
+                />
+              )}
+            />
+          ))}
+        </View>
+      ))}
 
       {/* Extra info */}
       {entry.heart_rate_zone && (

@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Link } from "expo-router";
 import { Pressable } from "react-native";
-import { Workout } from "@/types/type";
+import { Workout } from "@/types/interfaces/types";
 import { format, isToday, isTomorrow } from "date-fns";
 import { getColorsByType } from "@/utils/colors";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -27,7 +27,7 @@ export default function WorkoutCard({
     ? format(workout.scheduled_datetime, "EEEE · h:mm aaa")
     : `${dayLabel} · ${timeLabel}`;
 
-  const typeColor = getColorsByType(workout.workoutType).main;
+  const typeColor = getColorsByType(workout.workoutType === "open" ? "Select workout" : workout.workoutType).main;
 
   return (
     <Link

@@ -6,7 +6,7 @@ import {
   ScrollView,
   TextInput,
 } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useColorTheme } from "@/context/colorThemeContext";
 import {
   CardioActivity,
@@ -63,6 +63,7 @@ export function CardioLibrary({
   const [duration, setDuration] = useState<number | undefined>();
   const [distance, setDistance] = useState<number | undefined>();
   const [calories, setCalories] = useState<number | undefined>();
+  const [heartRateAvg, setHeartRateAvg] = useState<number | undefined>();
   const [heartRateZone, setHeartRateZone] = useState<
     HeartRateZone | undefined
   >();
@@ -84,6 +85,7 @@ export function CardioLibrary({
       duration: number | undefined;
       distance: number | undefined;
       calories: number | undefined;
+      heartRateAvg: number | undefined;
       heartRateZone: HeartRateZone | undefined;
       workDuration: number | undefined;
       restDuration: number | undefined;
@@ -156,9 +158,10 @@ export function CardioLibrary({
       workout_id: workoutId,
       activity,
       mode: currentMode,
-      duration: currentDuration || null,
-      distance: currentDistance || null,
-      calories: currentCalories || null,
+      duration: currentDuration ?? null,
+      distance: currentDistance ?? null,
+      calories: currentCalories ?? null,
+      heart_rate_avg: hasOverride("heartRateAvg") ? overrides.heartRateAvg ?? null : heartRateAvg ?? null,
       heart_rate_zone: currentHeartRateZone || null,
       is_finisher: isFinisher ? 1 : 0,
       entry_order: cardioEntriesCount ? cardioEntriesCount + 1 : 1,
@@ -402,6 +405,18 @@ export function CardioLibrary({
               </View>
             </>
           )}
+
+          <View style={styles.fieldsRow}>
+            <NumberField
+              label="AVG HR (BPM)"
+              value={heartRateAvg}
+              onChange={(value) => {
+                setHeartRateAvg(value);
+                reportChange({ heartRateAvg: value });
+              }}
+              theme={theme}
+            />
+          </View>
 
           {/* INTERVAL FIELDS */}
           {mode === "intervals" && (

@@ -1,10 +1,10 @@
-import { AuthProvider } from "@/context/authContext";
+import { AuthProvider, AuthSessionScope } from "@/context/authContext";
 import { WorkoutProvider } from "@/context/workoutContext";
 import { Slot, SplashScreen } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ColorThemeProvider } from "@/context/colorThemeContext";
-import { useResolvedScheme } from "@/hooks/useResolvedScheme";
+import { AppNavigationSurface } from "@/components/navigation/AppNavigationSurface";
 import Toast from "react-native-toast-message";
 import { useEffect, useState } from "react";
 import {
@@ -12,7 +12,7 @@ import {
   Text,
   ActivityIndicator,
   Platform,
-  StatusBar,
+  useColorScheme,
 } from "react-native";
 import { MaxLiftProvider } from "@/context/maxLiftContext";
 import * as Font from "expo-font";
@@ -52,6 +52,7 @@ if (Platform.OS === "android") {
 }
 
 export default function Layout() {
+  const colors = useColorScheme() === "dark" ? tokens.dark : tokens.light;
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,9 +79,6 @@ export default function Layout() {
         console.warn("Prepare failed:", e);
       } finally {
         setIsReady(true);
-        await SplashScreen.hideAsync().catch((e) => {
-          console.warn("Failed to hide splash screen:", e);
-        });
       }
     };
 
@@ -94,15 +92,15 @@ export default function Layout() {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#0B0F0E",
+          backgroundColor: colors.background,
         }}
       >
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <ActivityIndicator size="large" color="#0EA06F" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
-        <Text style={{ marginTop: 20, fontSize: 16 }}>Initializing app...</Text>
+
       </View>
     );
   }
@@ -115,7 +113,7 @@ export default function Layout() {
           justifyContent: "center",
           alignItems: "center",
           padding: 20,
-          backgroundColor: "#fff",
+          backgroundColor: colors.background,
         }}
       >
         <Text style={{ color: "red", fontSize: 16, textAlign: "center" }}>
@@ -125,45 +123,32 @@ export default function Layout() {
     );
   }
 
-  function AppStatusBar() {
-    const resolvedScheme = useResolvedScheme();
-    const isDark = resolvedScheme === "dark";
-
-    return (
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={
-          isDark ? tokens.dark.background : tokens.light.background
-        }
-        translucent={false}
-        animated={false}
-      />
-    );
-  }
-
   return (
     <SafeAreaProvider>
       <AppInitProvider>
         <AuthProvider>
-          <SyncProvider>
-            <ColorThemeProvider>
-              <DataProvider>
-                <ProfileProvider>
-                  <UserPreferenceProvider>
-                    <WorkoutProvider>
-                      <MaxLiftProvider>
-                        <GestureHandlerRootView style={{ flex: 1 }}>
-                          <AppStatusBar />
-                          <Slot />
-                          <Toast />
-                        </GestureHandlerRootView>
-                      </MaxLiftProvider>
-                    </WorkoutProvider>
-                  </UserPreferenceProvider>
-                </ProfileProvider>
-              </DataProvider>
-            </ColorThemeProvider>
-          </SyncProvider>
+          <ColorThemeProvider>
+            <AppNavigationSurface>
+              <AuthSessionScope>
+                <SyncProvider>
+                  <DataProvider>
+                    <ProfileProvider>
+                      <UserPreferenceProvider>
+                        <WorkoutProvider>
+                          <MaxLiftProvider>
+                            <GestureHandlerRootView style={{ flex: 1 }}>
+                              <Slot />
+                              <Toast />
+                            </GestureHandlerRootView>
+                          </MaxLiftProvider>
+                        </WorkoutProvider>
+                      </UserPreferenceProvider>
+                    </ProfileProvider>
+                  </DataProvider>
+                </SyncProvider>
+              </AuthSessionScope>
+            </AppNavigationSurface>
+          </ColorThemeProvider>
         </AuthProvider>
       </AppInitProvider>
     </SafeAreaProvider>

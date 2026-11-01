@@ -11,7 +11,6 @@ import { useColorTheme } from "@/context/colorThemeContext";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Checkbox } from "expo-checkbox";
 import { useSync } from "@/context/SyncContext";
-import { useWorkout } from "@/context/workoutContext";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -20,7 +19,6 @@ export default function RefreshWorkouts() {
   const [isConfirmChecked, setIsConfirmChecked] = useState(false);
   const { theme } = useColorTheme();
   const { refreshWorkouts, isSyncing } = useSync();
-  const { reloadWorkouts } = useWorkout();
 
   const closeModal = () => {
     setModalVisible(false);
@@ -46,8 +44,8 @@ export default function RefreshWorkouts() {
       }
     }
 
-    await refreshWorkouts();
-    await reloadWorkouts();
+    const result = await refreshWorkouts();
+    if (!result.success) return;
     await AsyncStorage.setItem(REFRESH_KEY, Date.now().toString());
     closeModal();
   };

@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSync } from "@/context/SyncContext";
 import { useAuth } from "@/context/authContext";
 import { runDevTransactionVerification } from "@/services/devTransactionVerification";
-import { runDevWorkoutSyncVerification } from "@/services/devWorkoutSyncVerification";
+import { inspectDevWorkoutSync, runDevWorkoutSyncVerification } from "@/services/devWorkoutSyncVerification";
 
 export default function DevTransactionVerificationScreen() {
   const { isSyncLoading, isSyncing } = useSync();
   const { user } = useAuth();
+  const [workoutId, setWorkoutId] = useState("");
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState("Not run yet.");
 
@@ -43,6 +44,32 @@ export default function DevTransactionVerificationScreen() {
           requests. Run on an isolated development install with app sync idle.
         </Text>
       </View>
+
+      <Text>Read-only inspection: enter a workout ID from a [workout-sync] local-committed log. This does not save, sync, refresh, or delete records.</Text>
+      <TextInput
+        accessibilityLabel="Workout ID to inspect"
+        placeholder="Workout ID"
+        value={workoutId}
+        onChangeText={setWorkoutId}
+        autoCapitalize="none"
+        style={{ borderWidth: 1, borderColor: "#777", borderRadius: 8, padding: 12 }}
+      />
+      <Pressable
+        disabled={busy || !user || !workoutId.trim()}
+        onPress={async () => {
+          if (!user) return;
+          setRunning(true);
+          try {
+            setOutput(JSON.stringify(await inspectDevWorkoutSync(user.id, workoutId.trim()), null, 2));
+          } catch (error) {
+            setOutput(error instanceof Error ? error.message : "Inspection failed");
+          } finally { setRunning(false); }
+        }}
+        style={{ padding: 14, borderRadius: 8, backgroundColor: "#147D54" }}
+      >
+        <Text style={{ color: "white", textAlign: "center" }}>Inspect workout (read only)</Text>
+      </Pressable>
+      <Text>The existing fixture checks below create and remove synthetic local records. Use them only on an isolated test install; they never contact Supabase.</Text>
 
       <Pressable
         disabled={busy}

@@ -1,3 +1,5 @@
+import { traceWorkoutSync, syncErrorCode } from "@/utils/workoutSyncDiagnostics";
+import { serializeScheduledDate } from "@/utils/scheduledDate";
 import {
   PerceivedEffort,
   Workout,
@@ -110,7 +112,7 @@ const updateBaseWorkoutInDb = async (
 
   if (changes.scheduled_datetime !== undefined) {
     assignments.push("scheduled_datetime = ?");
-    values.push(changes.scheduled_datetime.replace(" ", "T"));
+    values.push(serializeScheduledDate(changes.scheduled_datetime));
   }
 
   if (changes.duration !== undefined) {
@@ -329,7 +331,6 @@ export const workoutService = {
         throw new Error("Workout owner does not match authenticated user");
       }
 
-      console.log("options ", cardio_entries, circuit_rounds);
       // 1. Write all data in a single transaction
       await withLocalTransaction(async (transaction) => {
         for (const exercise of exercises) {
@@ -366,7 +367,7 @@ export const workoutService = {
             name,
             description || "",
             workoutType,
-            scheduled_datetime.replace(" ", "T"),
+            serializeScheduledDate(scheduled_datetime),
             duration || 0,
             perceived_effort || "easy",
             is_completed ? 1 : 0,
@@ -401,7 +402,7 @@ export const workoutService = {
             name,
             description: description || "",
             type: workoutType,
-            scheduled_datetime: scheduled_datetime.replace(" ", "T"),
+            scheduled_datetime: serializeScheduledDate(scheduled_datetime),
             duration: duration || 0,
             perceived_effort: perceived_effort || "easy",
             is_completed: is_completed ? true : false,
@@ -457,35 +458,8 @@ export const workoutService = {
         );
 
         for (const set of sets) {
-          const {
-            id: setId,
-            workout_exercise_id,
-            reps = 0,
-            weight = 0,
-            time = 0,
-            distance = 0,
-            is_warmup = 0,
-            is_max = 0,
-            set_order = 0,
-          } = set;
-
           await syncService.addToSyncQueueInTransaction(
-            transaction,
-            user_id,
-            "exercise_sets",
-            setId,
-            "insert",
-            {
-              id: setId,
-              workout_exercise_id,
-              reps,
-              weight,
-              time,
-              distance,
-              is_warmup,
-              is_max,
-              set_order,
-            },
+            transaction, user_id, "exercise_sets", set.id, "insert", exerciseSetSyncData(set),
           );
         }
       }
@@ -597,10 +571,11 @@ export const workoutService = {
 
       });
 
+      traceWorkoutSync("local-committed", { tableName: "workouts", recordId: workoutId, operation: "insert" });
       const workout = await workoutService.getWorkoutById(user_id, workoutId);
       return { success: true, data: workout };
     } catch (error) {
-      console.error("Error inserting workout:", error);
+      traceWorkoutSync("local-failed", { tableName: "workouts", recordId: createWorkout.id, operation: "insert", errorCode: syncErrorCode(error) });
       return {
         success: false,
         error:
@@ -785,7 +760,7 @@ export const workoutService = {
             workoutData.type = changes.workout.workoutType;
           }
           if (changes.workout.scheduled_datetime !== undefined) {
-            workoutData.scheduled_datetime = changes.workout.scheduled_datetime.replace(" ", "T");
+            workoutData.scheduled_datetime = serializeScheduledDate(changes.workout.scheduled_datetime);
           }
           if (changes.workout.duration !== undefined) {
             workoutData.duration = changes.workout.duration ?? 0;
@@ -866,6 +841,7 @@ export const workoutService = {
         }
       });
 
+      traceWorkoutSync("local-committed", { tableName: "workouts", recordId: workoutId, operation: "update" });
       const updatedWorkout = await workoutService.getWorkoutById(userId, workoutId);
 
       return {
@@ -873,7 +849,7 @@ export const workoutService = {
         data: updatedWorkout,
       };
     } catch (error) {
-      console.error("Error updating workout:", error);
+      traceWorkoutSync("local-failed", { tableName: "workouts", recordId: workoutId, operation: "update", errorCode: syncErrorCode(error) });
 
       return {
         success: false,
@@ -1065,6 +1041,7 @@ export const workoutService = {
     value: string,
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      if (fieldName === "scheduled_datetime") value = serializeScheduledDate(value);
       const allowedFields = new Set([
         "name", "description", "type", "scheduled_datetime", "duration",
         "perceived_effort", "is_completed", "completed_at",

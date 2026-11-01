@@ -1,3 +1,4 @@
+import { parseScheduledDate } from "@/utils/scheduledDate";
 /** Development-only verification of workout pull and refresh behavior. */
 import * as Crypto from "expo-crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -474,7 +475,7 @@ export async function runDevWorkoutSyncVerification(): Promise<WorkoutSyncVerifi
       writeError: () => new Error("forced push failure"),
     }), f.userId);
     ensure(!result.success, "Refresh succeeded with a failed pending queue write.");
-    ensure(result.error?.includes("still pending sync"), `Refresh failed for an unexpected reason: ${result.error ?? "unknown error"}`);
+    ensure(result.error?.includes("forced push failure"), `Refresh failed for an unexpected reason: ${result.error ?? "unknown error"}`);
     ensure(JSON.stringify(await localRows(database, f)) === JSON.stringify(beforeRows), "Refresh deleted local rows despite pending queue work.");
     ensure(JSON.stringify(await queueRows(database, f)) === JSON.stringify(beforeQueue), "Refresh changed the pending queue row.");
   }));
@@ -664,7 +665,7 @@ export async function runDevWorkoutSyncVerification(): Promise<WorkoutSyncVerifi
         ? new Error("forced circuit round upload failure")
         : null,
     }));
-    ensure(result.success, `Queue processing failed unexpectedly: ${result.error ?? "unknown error"}`);
+    ensure(!result.success && result.error?.includes("forced circuit round upload failure"), "Partial upload failure was not reported to the caller.");
     ensure(writes.some((write) => write.table === "circuit_rounds"), "Circuit round upload was not attempted.");
     ensure(!writes.some((write) => write.table === "workout_exercises"), "Dependent exercise upload was attempted after its round failed.");
     const pending = await database.getFirstAsync<{ count: number }>(
@@ -993,4 +994,44 @@ export async function runDevWorkoutSyncVerification(): Promise<WorkoutSyncVerifi
   }));
 
   return results;
+}
+
+/** Read-only, owner-scoped metadata inspection. Never returns payloads or account information. */
+export async function inspectDevWorkoutSync(userId: string, workoutId: string) {
+  if (!__DEV__) throw new Error("Workout inspection is development-only");
+  const workout = await workoutService.getWorkoutById(userId, workoutId);
+  if (!workout) throw new Error("Workout not found for the signed-in account");
+  const tables = {
+    workouts: [{ id: workout.id }],
+    circuit_rounds: workout.circuit_rounds.map(round => ({ id: round.id, workoutId: round.workout_id })),
+    workout_exercises: workout.exercises.map(exercise => ({ id: exercise.id, workoutId: exercise.workout_id, circuitId: exercise.circuit_id ?? (exercise.group_type === "circuit" ? exercise.group_id : null) })),
+    exercise_sets: workout.exercises.flatMap(exercise => exercise.sets.map(set => ({ id: set.id, exerciseId: set.workout_exercise_id }))),
+    cardio_entries: workout.cardio_entries.map(entry => ({ id: entry.id, workoutId: entry.workout_id })),
+    cardio_intervals: workout.cardio_entries.flatMap(entry => entry.intervals.map(interval => ({ id: interval.id, cardioEntryId: interval.cardio_entry_id }))),
+  };
+  const knownIds = new Set(Object.values(tables).flatMap(rows => rows.map(row => row.id)));
+  const db = await getDB();
+  const queued = await db.getAllAsync<{
+    id: number; table_name: string; record_id: string; operation: string; synced: number; data: string;
+  }>(`SELECT id, table_name, record_id, operation, synced, data FROM sync_queue
+      WHERE user_id = ? AND table_name IN
+      ('workouts', 'circuit_rounds', 'workout_exercises', 'exercise_sets', 'cardio_entries', 'cardio_intervals')
+      ORDER BY id`, [userId]);
+  // Include queued children not present locally, without exposing their payloads.
+  for (let pass = 0; pass < 3; pass++) {
+    for (const row of queued) {
+      try {
+        const payload = JSON.parse(row.data);
+        if ([payload.workout_id, payload.workout_exercise_id, payload.cardio_entry_id].some(id => knownIds.has(id))) knownIds.add(row.record_id);
+      } catch { /* Malformed data is retained in the queue, not executed by this inspector. */ }
+    }
+  }
+  return {
+    workoutId: workout.id,
+    scheduledDateValid: parseScheduledDate(workout.scheduled_datetime) !== null,
+    tables,
+    queue: queued.filter(row => knownIds.has(row.record_id)).map(row => ({
+      queueId: row.id, tableName: row.table_name, recordId: row.record_id, operation: row.operation, synced: row.synced === 1,
+    })),
+  };
 }

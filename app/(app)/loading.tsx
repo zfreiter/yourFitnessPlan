@@ -1,27 +1,19 @@
-// app/loading.tsx
-import { useContext, useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { useRouter } from "expo-router";
-import { AuthContext } from "@/context/authContext";
+import { useEffect } from "react";
+import { Redirect } from "expo-router";
+import { useAuth } from "@/context/authContext";
+import { AuthLoadingView } from "@/components/navigation/AuthLoadingView";
+import { traceAuth } from "@/utils/authDiagnostics";
 
+// Compatibility entry routes share one resolver. Stack guards handle normal
+// login/logout, so neither transition needs to pass through this route.
 export default function LoadingScreen() {
-  const router = useRouter();
-  const { user, isAuthInitialized } = useContext(AuthContext)!;
-
+  const { user, isAuthInitialized } = useAuth();
   useEffect(() => {
-    if (!isAuthInitialized) return;
-
-    // Redirect once auth is ready
-    if (user) {
-      router.replace("/(app)/main/");
-    } else {
-      router.replace("/login");
-    }
-  }, [user, isAuthInitialized]);
-
-  return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" color="#8EDAF5" />
-    </View>
-  );
+    traceAuth("route-mount", { decision: "auth-entry" });
+    return () => traceAuth("route-cleanup", { decision: "auth-entry" });
+  }, []);
+  return <>
+    <AuthLoadingView />
+    {isAuthInitialized && <Redirect href={user ? "/(app)/main/" : "/login"} />}
+  </>;
 }

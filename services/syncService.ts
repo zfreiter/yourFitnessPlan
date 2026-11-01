@@ -1,3 +1,5 @@
+import { traceWorkoutSync, syncErrorCode } from "@/utils/workoutSyncDiagnostics";
+import { serializeScheduledDate, parseScheduledDate } from "@/utils/scheduledDate";
 import NetInfo from "@react-native-community/netinfo";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getDB } from "./database";
@@ -26,9 +28,47 @@ const TABLE_PRIMARY_KEYS: Record<string, string> = {
   user_preferences: "user_id",
 };
 
-// Prevents overlapping pushToSupabase runs (e.g. two screens triggering
-// sync() at the same time), which was causing duplicate-key races.
-let isPushing = false;
+// All public workout operations use one FIFO per user. Internal stages never
+// acquire the coordinator again, so sync -> push cannot deadlock or reject itself.
+const syncGenerations = new Map<string, number>();
+class SyncCancelled extends Error {
+  constructor() { super("Synchronization cancelled because the session changed"); }
+}
+type CheckSession = () => void;
+const keepSession: CheckSession = () => {};
+const operationTails = new Map<string, Promise<void>>();
+const queuedOperations = new Map<string, Promise<unknown>>();
+const operationCounts = new Map<string, number>();
+const activityListeners = new Set<(userId: string, active: boolean) => void>();
+function coordinate<T>(userId: string, kind: string, operation: (checkSession: CheckSession) => Promise<T>): Promise<T> {
+  const generation = syncGenerations.get(userId) ?? 0;
+  const checkSession = () => {
+    if ((syncGenerations.get(userId) ?? 0) !== generation) throw new SyncCancelled();
+  };
+  const key = `${userId}:${generation}:${kind}`;
+  const queued = queuedOperations.get(key);
+  // Requests received before this operation starts share its fresh snapshot.
+  // Requests during execution schedule at most one subsequent run per kind.
+  if (queued) return queued as Promise<T>;
+  operationCounts.set(userId, (operationCounts.get(userId) ?? 0) + 1);
+  activityListeners.forEach(listener => listener(userId, true));
+  const previous = operationTails.get(userId) ?? Promise.resolve();
+  const result = previous.then(() => {
+    queuedOperations.delete(key);
+    checkSession();
+    return operation(checkSession);
+  });
+  queuedOperations.set(key, result);
+  const tail = result.then(() => {}, () => {}).then(() => {
+    const count = (operationCounts.get(userId) ?? 1) - 1;
+    if (count) operationCounts.set(userId, count);
+    else operationCounts.delete(userId);
+    if (operationTails.get(userId) === tail) operationTails.delete(userId);
+    activityListeners.forEach(listener => listener(userId, count > 0));
+  });
+  operationTails.set(userId, tail);
+  return result;
+}
 
 function isPostgrestErrorCode(error: unknown, code: string): boolean {
   return (
@@ -49,6 +89,14 @@ function valuesMatchForQueuedInsert(
   actual: unknown,
 ): boolean {
   if (expected === actual) return true;
+  if (key === "scheduled_datetime" && typeof expected === "string" && typeof actual === "string") {
+    // PostgreSQL emits explicit UTC offsets and pads seconds on timezone-less inputs.
+    const asInstant = (value: string) => parseScheduledDate(
+      /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value.replace(" ", "T")}Z`,
+    )?.getTime();
+    const expectedTime = asInstant(expected);
+    return expectedTime !== undefined && expectedTime === asInstant(actual);
+  }
   if (["is_completed", "is_warmup", "is_max", "is_finisher"].includes(key)) {
     const asBoolean = (value: unknown) => value === true || value === 1;
     if (
@@ -416,7 +464,7 @@ function validateAndMapWorkoutData(raw: unknown, userId: string): PulledWorkout[
       name: requiredString(row, "name", path),
       description: nullableString(row, "description", path),
       type: requiredString(row, "type", path),
-      scheduled_datetime: requiredString(row, "scheduled_datetime", path),
+      scheduled_datetime: serializeScheduledDate(requiredString(row, "scheduled_datetime", path)),
       duration: nullableNumber(row, "duration", path),
       perceived_effort: nullableString(row, "perceived_effort", path),
       is_completed: booleanAsInteger(row, "is_completed", path),
@@ -579,7 +627,7 @@ async function fetchWorkoutsFromSupabase(
   return validateAndMapWorkoutData(rawWorkouts, userId);
 }
 
-export const syncService = {
+const syncStages = {
   isOnline: async (): Promise<boolean> => {
     const state = await NetInfo.fetch();
     return !!state.isConnected && !!state.isInternetReachable;
@@ -598,6 +646,7 @@ export const syncService = {
        VALUES (?, ?, ?, ?, ?, 0)`,
       [userId, tableName, recordId, operation, JSON.stringify(data)],
     );
+    traceWorkoutSync("queue-committed", { tableName, recordId, operation });
   },
 
   addToSyncQueueInTransaction: async (
@@ -613,6 +662,7 @@ export const syncService = {
        VALUES (?, ?, ?, ?, ?, 0)`,
       [userId, tableName, recordId, operation, JSON.stringify(data)],
     );
+    traceWorkoutSync("queue-staged", { tableName, recordId, operation });
   },
 
   purgeOrphanedQueueItems: async (userId: string, workoutId: string): Promise<void> => {
@@ -762,13 +812,15 @@ export const syncService = {
   refreshWorkouts: async (
     supabase: SupabaseClient,
     userId: string,
+    checkSession: CheckSession = keepSession,
   ): Promise<{ success: boolean; error?: string }> => {
     const db = await getDB();
     try {
+      checkSession();
       const online = await syncService.isOnline();
       if (!online) return { success: false, error: "No internet connection" };
 
-      const pushResult = await syncService.pushToSupabase(userId, supabase);
+      const pushResult = await drainUploads(userId, supabase, checkSession);
       if (!pushResult.success) {
         throw new Error(pushResult.error ?? "Could not push pending workout changes");
       }
@@ -783,17 +835,20 @@ export const syncService = {
 
       // Replace the complete dataset and timestamp atomically.
       await withLocalTransaction(async (transaction) => {
+        checkSession();
         if ((await getPendingWorkoutQueueCount(transaction, userId)) > 0) {
           throw new Error("Refresh cancelled because workout changes became pending during fetch");
         }
         await deletePulledWorkoutsForUser(transaction, userId);
         await insertPulledWorkouts(transaction, remoteWorkouts);
+        checkSession();
         await setWorkoutSyncTimestamp(transaction, userId, new Date().toISOString());
       });
 
       return { success: true };
     } catch (error) {
-      console.error("Error refreshing workouts:", error);
+      if (error instanceof SyncCancelled) throw error;
+      traceWorkoutSync("upload-failed", { tableName: "workouts", recordId: "refresh", errorCode: syncErrorCode(error) });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to refresh workouts",
@@ -804,14 +859,8 @@ export const syncService = {
   pushToSupabase: async (
     userId: string,
     supabase: SupabaseClient,
+    checkSession: CheckSession = keepSession,
   ): Promise<{ success: boolean; error?: string }> => {
-    // Guard against concurrent invocations racing on the same queue rows.
-    if (isPushing) {
-      console.log("pushToSupabase already running - skipping overlapping call");
-      return { success: true };
-    }
-    isPushing = true;
-
     try {
       const db = await getDB();
 
@@ -827,92 +876,66 @@ export const syncService = {
            WHEN 'cardio_intervals' THEN 6
            ELSE 7
          END,
-         created_at ASC`,
+         created_at ASC, id ASC`,
         [userId],
       );
 
       if (pendingItems.length === 0) return { success: true };
 
-      console.log("pending items ", pendingItems);
-      const failedCircuitRoundIds = new Set<string>();
-      let duplicateVerificationFailure: string | null = null;
+      const failures: string[] = [];
+      const pendingParents = new Map<string, number>();
+      for (const item of pendingItems) {
+        if (item.operation !== "delete") {
+          const key = `${item.table_name}:${item.record_id}`;
+          pendingParents.set(key, (pendingParents.get(key) ?? 0) + 1);
+        }
+      }
+      const blockedRecords = new Set<string>();
+      const acknowledge = async (item: SyncQueueItem) => {
+        checkSession();
+        await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ?`, [item.id]);
+        const key = `${item.table_name}:${item.record_id}`;
+        pendingParents.set(key, (pendingParents.get(key) ?? 1) - 1);
+      };
+      const parents: Record<string, [string, string]> = {
+        circuit_rounds: ["workouts", "workout_id"],
+        workout_exercises: ["workouts", "workout_id"],
+        exercise_sets: ["workout_exercises", "workout_exercise_id"],
+        cardio_entries: ["workouts", "workout_id"],
+        cardio_intervals: ["cardio_entries", "cardio_entry_id"],
+      };
 
       for (const item of pendingItems) {
+        checkSession();
         const data = JSON.parse(item.data);
         const pk = TABLE_PRIMARY_KEYS[item.table_name] || "id";
 
         try {
-          if (
-            item.table_name === "workout_exercises" &&
-            (item.operation === "insert" || item.operation === "update") &&
-            typeof data.circuit_id === "string"
-          ) {
-            const pendingRound = await db.getFirstAsync<{ id: number }>(
-              `SELECT id FROM sync_queue
-               WHERE user_id = ? AND table_name = 'circuit_rounds'
-                 AND record_id = ? AND synced = 0 LIMIT 1`,
-              [userId, data.circuit_id],
-            );
-            if (failedCircuitRoundIds.has(data.circuit_id) || pendingRound) {
-              console.warn(
-                `Deferring workout exercise ${item.record_id} until circuit round ${data.circuit_id} syncs`,
-              );
-              continue;
+          const recordKey = `${item.table_name}:${item.record_id}`;
+          if (blockedRecords.has(recordKey)) throw new Error("An earlier operation for this record is still pending");
+          if (item.operation !== "delete") {
+            const parent = parents[item.table_name];
+            if (parent && (pendingParents.get(`${parent[0]}:${data[parent[1]]}`) ?? 0) > 0) {
+              throw new Error(`Parent ${parent[0]} ${data[parent[1]]} is still pending`);
+            }
+            if (item.table_name === "workout_exercises" && typeof data.circuit_id === "string" &&
+                (pendingParents.get(`circuit_rounds:${data.circuit_id}`) ?? 0) > 0) {
+              throw new Error(`Circuit round ${data.circuit_id} is still pending`);
+            }
+            // Missing local parents are errors, not successfully synchronized records.
+            if (parent && !await db.getFirstAsync(`SELECT id FROM ${parent[0]} WHERE id = ?`, [data[parent[1]]])) {
+              throw new Error(`Missing local parent ${parent[0]} ${data[parent[1]]}`);
+            }
+            if (item.table_name === "workouts" && data.scheduled_datetime !== undefined) {
+              data.scheduled_datetime = serializeScheduledDate(data.scheduled_datetime);
             }
           }
 
-          // Skip orphaned exercise_sets
-          if (
-            item.table_name === "exercise_sets" &&
-            (item.operation === "insert" || item.operation === "update")
-          ) {
-            const parent = await db.getFirstAsync(
-              `SELECT id FROM workout_exercises WHERE id = ?`,
-              [data.workout_exercise_id],
-            );
-
-            if (!parent) {
-              console.log(
-                `Skipping orphaned exercise_set ${item.id} — parent workout_exercise not found`,
-              );
-
-              await db.runAsync(
-                `UPDATE sync_queue SET synced = 1 WHERE id = ?`,
-                [item.id],
-              );
-
-              continue;
-            }
-          }
-
-          // Skip orphaned workout_exercises
-          if (
-            item.table_name === "workout_exercises" &&
-            (item.operation === "insert" || item.operation === "update")
-          ) {
-            const parent = await db.getFirstAsync(
-              `SELECT id FROM workouts WHERE id = ?`,
-              [data.workout_id],
-            );
-
-            if (!parent) {
-              console.log(
-                `Skipping orphaned workout_exercise ${item.id} — parent workout not found`,
-              );
-
-              await db.runAsync(
-                `UPDATE sync_queue SET synced = 1 WHERE id = ?`,
-                [item.id],
-              );
-
-              continue;
-            }
-          }
-
+          checkSession();
+          traceWorkoutSync("upload-attempt", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id });
           switch (item.operation) {
             case "insert": {
-              // Upsert instead of insert: makes retries/races idempotent
-              // instead of throwing 23505 on an already-synced row.
+              // Inserts are retried safely by verifying duplicate rows below.
               const { error } = await supabase
                 .from(item.table_name)
                 .insert(data);
@@ -949,12 +972,11 @@ export const syncService = {
           }
 
           // Only mark synced after Supabase succeeds
-          await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ?`, [
-            item.id,
-          ]);
+          await acknowledge(item);
 
-          console.log(`Synced ${item.table_name} ${item.id} successfully`);
+          traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id });
         } catch (error) {
+          checkSession();
           // A duplicate-key error on insert means the row already made it
           // to Supabase (e.g. from a prior/overlapping run) - treat as
           // synced rather than retrying forever.
@@ -969,25 +991,18 @@ export const syncService = {
               data as Record<string, unknown>,
             );
             if (verification.matches) {
-              console.log(
-                `Verified duplicate ${item.table_name} ${item.record_id}; marking synced`,
-              );
-              await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ?`, [
-                item.id,
-              ]);
+              await acknowledge(item);
+              traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id });
               continue;
             }
-            console.error(
-              `Keeping duplicate insert ${item.id} pending: ${verification.reason ?? "remote data mismatch"}`,
-            );
-            duplicateVerificationFailure =
-              `Could not verify duplicate ${item.table_name} ${item.record_id}: ${verification.reason ?? "remote data mismatch"}`;
+            error = new Error(`Could not verify duplicate ${item.table_name} ${item.record_id}: ${verification.reason ?? "remote data mismatch"}`);
           }
 
-          if (item.table_name === "circuit_rounds") {
-            failedCircuitRoundIds.add(item.record_id);
-          }
-          console.error(`Failed to sync item ${item.id}:`, error);
+          blockedRecords.add(`${item.table_name}:${item.record_id}`);
+          const detail = error instanceof Error ? error.message :
+            typeof error === "object" && error !== null && "message" in error ? String(error.message) : String(error);
+          failures.push(`${item.table_name} ${item.record_id}: ${detail}`);
+          traceWorkoutSync("upload-failed", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, errorCode: syncErrorCode(error) });
 
           // Leave item unsynced so it retries later
         }
@@ -1002,20 +1017,19 @@ export const syncService = {
         [userId],
       );
 
-      if (duplicateVerificationFailure) {
-        return { success: false, error: duplicateVerificationFailure };
+      if (failures.length) {
+        return { success: false, error: failures.join("; ") };
       }
       return { success: true };
     } catch (error) {
-      console.error("Error pushing to Supabase:", error);
+      if (error instanceof SyncCancelled) throw error;
+      traceWorkoutSync("upload-failed", { tableName: "workouts", recordId: "batch", errorCode: syncErrorCode(error) });
 
       return {
         success: false,
         error:
           error instanceof Error ? error.message : "Failed to push to Supabase",
       };
-    } finally {
-      isPushing = false;
     }
   },
 
@@ -1028,13 +1042,17 @@ export const syncService = {
   pullFromSupabase: async (
     supabase: SupabaseClient,
     userId: string,
+    checkSession: CheckSession = keepSession,
   ): Promise<void> => {
+    checkSession();
     const workouts = await fetchWorkoutsFromSupabase(supabase, userId);
     await withLocalTransaction(async (transaction) => {
+      checkSession();
       if ((await getPendingWorkoutQueueCount(transaction, userId)) > 0) {
         throw new Error("Pull cancelled because workout changes became pending during fetch");
       }
       await insertPulledWorkouts(transaction, workouts);
+      checkSession();
       await setWorkoutSyncTimestamp(transaction, userId, new Date().toISOString());
     });
     console.log("Pull from Supabase complete");
@@ -1057,18 +1075,22 @@ export const syncService = {
   },
 
   // Main sync function - call this on app launch
-  sync: async (supabase: SupabaseClient, userId: string): Promise<void> => {
+  sync: async (supabase: SupabaseClient, userId: string, checkSession: CheckSession = keepSession): Promise<void> => {
+    checkSession();
     try {
       const online = await syncService.isOnline();
       if (!online) {
         console.log("Offline - skipping sync");
+        if ((await getPendingWorkoutQueueCount(await getDB(), userId)) > 0) {
+          throw new Error("Offline: workout changes remain pending sync");
+        }
         return;
       }
 
       console.log("Online - starting sync");
 
       // Always push pending local changes first
-      const pushResult = await syncService.pushToSupabase(userId, supabase);
+      const pushResult = await drainUploads(userId, supabase, checkSession);
       if (!pushResult.success) {
         throw new Error(pushResult.error ?? "Failed to push pending changes");
       }
@@ -1083,19 +1105,61 @@ export const syncService = {
         );
         if (pendingWorkoutRows > 0) {
           console.warn("Initial workout pull deferred until local workout changes sync");
-          return;
+          throw new Error("Workout changes are still pending sync");
         }
         console.log("First sync - pulling from Supabase in syncService...");
-        await syncService.pullFromSupabase(supabase, userId);
+        await syncService.pullFromSupabase(supabase, userId, checkSession);
       }
 
       // Clean up old local data
+      checkSession();
       await syncService.cleanupOldWorkouts(userId);
 
+      if ((await getPendingWorkoutQueueCount(await getDB(), userId)) > 0) {
+        throw new Error("Workout changes are still pending sync");
+      }
       console.log("Sync complete");
     } catch (error) {
-      console.error("Sync failed:", error);
+      if (error instanceof SyncCancelled) throw error;
+      traceWorkoutSync("upload-failed", { tableName: "workouts", recordId: "batch", errorCode: syncErrorCode(error) });
       throw error;
     }
   },
+};
+
+// A successful snapshot may have missed commits made while uploading. Drain
+// fresh snapshots, but stop immediately on failure: failed rows wait for a new
+// explicit request or reconnect rather than triggering an automatic retry loop.
+async function drainUploads(userId: string, supabase: SupabaseClient, checkSession: CheckSession = keepSession) {
+  while (true) {
+    checkSession();
+    if (!await syncService.isOnline()) return { success: false, error: "No internet connection" };
+    const result = await syncStages.pushToSupabase(userId, supabase, checkSession);
+    if (!result.success) return result;
+    const db = await getDB();
+    const pending = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM sync_queue WHERE user_id = ? AND synced = 0", [userId],
+    );
+    if (!pending?.count) return result;
+  }
+}
+
+export const syncService = {
+  ...syncStages,
+  invalidateUserSync: (userId: string) => {
+    syncGenerations.set(userId, (syncGenerations.get(userId) ?? 0) + 1);
+    // Keep the tail until an already-sent request settles. Releasing it early
+    // would let a new session race that request on the same queue records.
+  },
+  isSyncActive: (userId: string) => (operationCounts.get(userId) ?? 0) > 0,
+  subscribeSyncActivity: (listener: (userId: string, active: boolean) => void) => {
+    activityListeners.add(listener);
+    return () => { activityListeners.delete(listener); };
+  },
+  sync: (supabase: SupabaseClient, userId: string) =>
+    coordinate(userId, "sync", check => syncStages.sync(supabase, userId, check)),
+  pushToSupabase: (userId: string, supabase: SupabaseClient) =>
+    coordinate(userId, "push", check => drainUploads(userId, supabase, check)),
+  refreshWorkouts: (supabase: SupabaseClient, userId: string) =>
+    coordinate(userId, "refresh", check => syncStages.refreshWorkouts(supabase, userId, check)),
 };

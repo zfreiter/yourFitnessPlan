@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Text } from "react-native";
 import { Calendar, CalendarList, Agenda } from "react-native-calendars";
 import { StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import DailyWorkoutSchedule from "@/features/calendar/components/DailyWorkoutSchedule";
-import { Workout } from "@/types/type";
+import { Workout } from "@/types/interfaces/types";
 import { colors } from "@/utils/colors";
 import FabButton from "@/components/fabButton";
 import { useColorTheme } from "@/context/colorThemeContext";
@@ -57,9 +57,7 @@ const convertType = (type: string, index: number) => {
 
 export default function CalendarIndex({}) {
   const today = format(new Date(), "yyyy-MM-dd");
-  const [currentDayList, setCurrentDayList] = useState<Workout[]>([]);
   const [currentDay, setCurrentDay] = useState<string>(today);
-  const [markedDates, setMarkedDates] = useState<MarkedDates>({});
   const { workouts, updateCachedMonths } = useWorkout();
   const { theme } = useColorTheme();
   const { user } = useAuth();
@@ -72,7 +70,7 @@ export default function CalendarIndex({}) {
     }, [today]),
   );
 
-  useEffect(() => {
+  const markedDates = useMemo(() => {
     const formatWorkoutDate: MarkedDates = {};
 
     workouts.forEach((workout, index) => {
@@ -85,21 +83,12 @@ export default function CalendarIndex({}) {
       );
     });
 
-    setMarkedDates(formatWorkoutDate);
+    return formatWorkoutDate;
   }, [workouts]);
 
-  useEffect(() => {
-    if (currentDay) {
-      setCurrentDayList(
-        workouts.filter(
-          (workout) =>
-            toLocalDateString(workout.scheduled_datetime) === currentDay,
-        ),
-      );
-    } else {
-      setCurrentDayList([]);
-    }
-  }, [workouts, currentDay]);
+  const currentDayList = useMemo(() => workouts.filter(workout =>
+    toLocalDateString(workout.scheduled_datetime) === currentDay,
+  ), [workouts, currentDay]);
 
   return (
     <View style={{ flex: 1, margin: 0 }}>

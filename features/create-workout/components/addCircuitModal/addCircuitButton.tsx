@@ -49,6 +49,7 @@ export function AddCircuitButton({
       workout_id: workoutId,
       round_number: getValues("rounds"),
       rest_after_round: getValues("restAfterRound"),
+      notes: getValues("notes"),
     });
 
     // // add each workout_exercise set round_number(most likely going to remove this), circuit_id
@@ -62,6 +63,7 @@ export function AddCircuitButton({
         exercise_order: index + 1,
         round_number: getValues("rounds"),
         group_id: circuitId,
+        circuit_id: circuitId,
         group_type: "circuit",
         sets: exercise.sets.map((set) => ({
           ...set,

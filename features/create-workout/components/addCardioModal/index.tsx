@@ -14,11 +14,13 @@ import { CardioLibrary } from "./cardioLibrary";
 import { AddCardioButton } from "./addCardioButton";
 
 interface AddCardioModalProps {
+  isFinisher?: boolean;
   append: UseFieldArrayAppend<CreateWorkoutForm, "cardio_entries">;
   remove: UseFieldArrayRemove;
   cardioEntriesCount: number;
 }
 export default function AddCardioModal({
+  isFinisher = false,
   append,
   remove,
   cardioEntriesCount,
@@ -90,7 +92,7 @@ export default function AddCardioModal({
 
               <CardioLibrary
                 key={cardioLibraryKey}
-                isFinisher={true}
+                isFinisher={isFinisher}
                 workoutId={getValues("id")}
                 cardioEntriesCount={cardioEntriesCount}
                 onEntryChange={setSelectedCardioEntry}

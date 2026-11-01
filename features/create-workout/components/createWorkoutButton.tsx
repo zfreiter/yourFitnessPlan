@@ -36,7 +36,7 @@ const convertFormToWorkout = (
 export function CreateWorkoutButton({}) {
   const { theme } = useColorTheme();
   const { user } = useAuth();
-  const { insertWorkout } = useWorkout();
+  const { insertWorkout, reloadWorkout } = useWorkout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -45,7 +45,6 @@ export function CreateWorkoutButton({}) {
   const hasName = !!name?.trim();
 
   const submitWorkout = async () => {
-    console.log(getValues());
     if (!user?.id) return;
 
     const workout = convertFormToWorkout(getValues(), user?.id);
@@ -96,7 +95,8 @@ export function CreateWorkoutButton({}) {
     }
 
     // update context
-    insertWorkout(workout);
+    if (result.data) insertWorkout(result.data);
+    else await reloadWorkout(workout.id);
     // navigate to home
     router.push("/(app)/main/home");
   };

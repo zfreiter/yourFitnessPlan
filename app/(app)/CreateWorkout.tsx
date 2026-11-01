@@ -1,3 +1,5 @@
+import { useLocalSearchParams } from "expo-router";
+import { initialScheduledDate } from "@/utils/scheduledDate";
 import { useColorTheme } from "@/context/colorThemeContext";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -28,6 +30,7 @@ import DurationWheelPicker from "@/features/create-workout/components/durationWh
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CreateWorkout() {
+  const { date } = useLocalSearchParams<{ date?: string }>();
   const [workoutType, setWorkoutType] =
     useState<WorkoutTypeOptions>("Select workout");
 
@@ -38,7 +41,7 @@ export default function CreateWorkout() {
     name: "",
     workoutType: type,
     duration: 0,
-    scheduled_datetime: new Date().toISOString(),
+    scheduled_datetime: initialScheduledDate(date),
     perceived_effort: "easy",
     is_completed: 0,
     exercises: [],

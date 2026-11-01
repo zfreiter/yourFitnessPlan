@@ -5,7 +5,6 @@ import { CreateCircuitForm, CreateWorkoutForm } from "@/types/interfaces/types";
 import { AddCircuitModal } from "./addCircuitModal";
 import { useWorkoutExercisesFieldArray } from "@/hooks/useCreateWorkoutExercisesFieldArray";
 import { ExerciseCard } from "./exerciseCard";
-import { useEffect } from "react";
 
 export function CircuitBuilder() {
   const { theme } = useColorTheme();
@@ -33,10 +32,6 @@ export function CircuitBuilder() {
       exercises: [],
     },
   });
-
-  useEffect(() => {
-    console.log("fields changed", workoutExercises);
-  }, [workoutExercises]);
 
   return (
     <View style={{ flex: 1 }}>

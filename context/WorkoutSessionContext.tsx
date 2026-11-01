@@ -1,13 +1,15 @@
+import { useWorkout } from "./workoutContext";
 import {
   createContext,
+  useEffect,
+  useRef,
   ReactNode,
   useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { useFormContext, useFormState, useWatch } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 
 import { Workout } from "@/types/interfaces/types";
 import { useAuth } from "@/context/authContext";
@@ -51,12 +53,10 @@ export const WorkoutSessionProvider = ({
 }: WorkoutSessionProviderProps) => {
   const { control, getValues, reset } = useFormContext<Workout>();
   const { user } = useAuth();
+  const { insertWorkout } = useWorkout();
 
-  const { isDirty } = useFormState({
-    control,
-  });
-
-  const oldWorkoutRef = useRef<Workout>(workout);
+  const [baseline, setBaseline] = useState<Workout>(workout);
+  const appliedWorkout = useRef(workout);
 
   // Watch the entire form
   const currentWorkout = useWatch({
@@ -64,22 +64,19 @@ export const WorkoutSessionProvider = ({
   }) as Workout;
 
   const changes = useMemo(
-    () => buildWorkoutChanges(oldWorkoutRef.current, currentWorkout),
-    [currentWorkout],
+    () => buildWorkoutChanges(baseline, currentWorkout),
+    [baseline, currentWorkout],
   );
 
   const isUpdateNeeded = hasWorkoutChanges(changes);
-  console.log("isUpdateNeeded:", isUpdateNeeded);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<Error | null>(null);
 
   const saveWorkout = useCallback(async () => {
-    const currentWorkout = getValues();
+    const currentWorkout = JSON.parse(JSON.stringify(getValues())) as Workout;
 
-    const changes = buildWorkoutChanges(oldWorkoutRef.current, currentWorkout);
+    const changes = buildWorkoutChanges(baseline, currentWorkout);
 
-    console.log("Workout changes:", changes);
-    console.log("Workout changes:", JSON.stringify(changes, null, 2));
     if (!hasWorkoutChanges(changes)) {
       return { success: true };
     }
@@ -105,11 +102,13 @@ export const WorkoutSessionProvider = ({
        * Use the freshly loaded workout as the new source
        * of truth if the service returns it.
        */
-      const savedWorkout = result.data ?? currentWorkout;
+      const savedWorkout = result.data ?? await workoutService.getWorkoutById(user.id, currentWorkout.id);
+      if (!savedWorkout) throw new Error("Workout saved but could not be reloaded from SQLite");
+      insertWorkout(savedWorkout);
 
-      oldWorkoutRef.current = savedWorkout;
-
-      reset(savedWorkout);
+      const editedDuringSave = hasWorkoutChanges(buildWorkoutChanges(currentWorkout, getValues()));
+      setBaseline(savedWorkout);
+      reset(savedWorkout, editedDuringSave ? { keepValues: true } : undefined);
 
       return { success: true };
     } catch (error) {
@@ -122,7 +121,18 @@ export const WorkoutSessionProvider = ({
     } finally {
       setIsSaving(false);
     }
-  }, [getValues, reset, user?.id]);
+  }, [baseline, getValues, reset, user?.id, insertWorkout]);
+
+  useEffect(() => {
+    // Adopt committed external changes only while the session has no unsaved edits.
+    if (appliedWorkout.current === workout) return;
+    if (workout.id === baseline.id && isUpdateNeeded) return;
+    appliedWorkout.current = workout;
+    if (workout.id !== baseline.id || hasWorkoutChanges(buildWorkoutChanges(baseline, workout))) {
+      setBaseline(workout);
+      reset(workout);
+    }
+  }, [workout, baseline, isUpdateNeeded, reset]);
 
   const contextValue = useMemo<WorkoutSessionContextType>(
     () => ({

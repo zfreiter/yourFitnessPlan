@@ -1,0 +1,21 @@
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { ColorThemeProvider } from "../colorThemeContext";
+import { supabase } from "@/lib/supabaseClient";
+jest.mock("react-native", () => ({ useColorScheme: () => "dark" }));
+jest.mock("@/context/authContext", () => ({ useAuth: () => ({ user: { id: "user" } }) }));
+jest.mock("@/context/AppInitContext", () => ({ useAppInit: () => ({ isDbReady: true }) }));
+jest.mock("@react-native-async-storage/async-storage", () => ({ getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn() }));
+jest.mock("@/lib/supabaseClient", () => ({ supabase: { from: jest.fn() } }));
+it("renders route children while remote theme hydration is pending", async () => {
+  let release!: (result: any) => void;
+  const remote = new Promise(resolve => { release = resolve; });
+  const query: any = { select: () => query, eq: () => query, single: () => remote };
+  jest.mocked(supabase.from).mockReturnValue(query);
+  let tree!: TestRenderer.ReactTestRenderer;
+  await act(async () => { tree = TestRenderer.create(<ColorThemeProvider>{React.createElement("route-marker")}</ColorThemeProvider> as any); });
+  expect(tree.root.findAllByType("route-marker" as any)).toHaveLength(1);
+  await act(async () => { release({ data: null, error: new Error("Offline") }); });
+  expect(tree.root.findAllByType("route-marker" as any)).toHaveLength(1);
+  act(() => tree.unmount());
+});

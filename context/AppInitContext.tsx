@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator } from "react-native";
+import { SplashScreen } from "expo-router";
+import { tokens } from "@/utils/colorTheme";
+import { View, Text, ActivityIndicator, useColorScheme } from "react-native";
 import { supabase } from "@/lib/supabaseClient";
 import { getMeta, META_KEYS, setMeta } from "@/utils/appMeta";
 import { getDB, resetDBConnection } from "@/services/database";
@@ -17,9 +19,16 @@ const AppInitContext = createContext<AppInitContextType>({
 });
 
 export function AppInitProvider({ children }: { children: React.ReactNode }) {
+  const colors = useColorScheme() === "dark" ? tokens.dark : tokens.light;
   const [isAppInitLoading, setIsAppInitLoading] = useState(true);
   const [isDbReady, setIsDbReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // An initialization error must remain visible even before the themed app
+  // surface can mount and dismiss the native splash.
+  useEffect(() => {
+    if (error) void SplashScreen.hideAsync().catch(() => {});
+  }, [error]);
 
   const initializeAppInit = async () => {
     setIsAppInitLoading(true);
@@ -121,17 +130,17 @@ export function AppInitProvider({ children }: { children: React.ReactNode }) {
 
   if (isAppInitLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
-        <Text style={{ marginTop: 10 }}>Loading database...</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.accent} />
+
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <Text style={{ color: "red" }}>Database Error: {error}</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <Text style={{ color: colors.danger }}>Database Error: {error}</Text>
       </View>
     );
   }

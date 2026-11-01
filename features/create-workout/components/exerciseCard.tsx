@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Crypto from "expo-crypto";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 
 import {
@@ -44,7 +44,10 @@ export const ExerciseCard = ({
   const selectedUnits: ValidUnit[] = exercise.validUnits ?? [];
   const unitKey = selectedUnits.join(",");
 
+  const previousUnitKey = useRef(unitKey);
   useEffect(() => {
+    if (previousUnitKey.current === unitKey) return;
+    previousUnitKey.current = unitKey;
     const allowed = unitKey.split(",");
     const units: ValidUnit[] = ["reps", "weight", "time", "distance"];
     const currentSets = getValues(`exercises.${exerciseOrder}.sets`) ?? [];

@@ -5,13 +5,15 @@ import { useFormContext, useFieldArray, useWatch } from "react-hook-form";
 import { CardioEntry, CreateWorkoutForm } from "@/types/interfaces/types";
 import AddCardioModal from "./addCardioModal";
 import { CardioCard } from "./cardioCard";
+import { SavedCardioCard } from "@/features/workout-session/components/savedCardioCard";
 
 interface CardioBuilderProps {
   isFinisher?: boolean;
+  savedDisplay?: boolean;
   onAdd?: (entry: CardioEntry) => void;
 }
 
-export function CardioBuilder({ isFinisher, onAdd }: CardioBuilderProps) {
+export function CardioBuilder({ isFinisher, onAdd, savedDisplay = false }: CardioBuilderProps) {
   const { theme } = useColorTheme();
 
   const { control, unregister } = useFormContext<CreateWorkoutForm>();
@@ -37,6 +39,7 @@ export function CardioBuilder({ isFinisher, onAdd }: CardioBuilderProps) {
   return (
     <View style={{ flex: 1 }}>
       <AddCardioModal
+        isFinisher={isFinisher}
         append={appendCardioEntry}
         remove={removeCardioEntry}
         cardioEntriesCount={cardioEntries.length}
@@ -53,9 +56,10 @@ export function CardioBuilder({ isFinisher, onAdd }: CardioBuilderProps) {
 
           if (!entry) return null;
 
+          const Card = savedDisplay ? SavedCardioCard : CardioCard;
           return (
-            <CardioCard
-              key={entry.id}
+            <Card
+              key={field.id}
               entry={entry}
               entryOrder={index}
               onRemove={() => handleRemoveCardioEntry(index)}

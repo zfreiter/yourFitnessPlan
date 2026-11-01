@@ -1,87 +1,26 @@
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Controller, useWatch, useFormContext } from "react-hook-form";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { CreateWorkoutForm } from "@/types/interfaces/types";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useLocalSearchParams } from "expo-router";
+import { parseScheduledDate, changeScheduledDate } from "@/utils/scheduledDate";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import * as Localization from "expo-localization";
-
-const getCurrentDateInLocalTimezone = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const DEFAULT_TIME = "12:00";
-
-const getDatePart = (dateTime: string) =>
-  dateTime && dateTime.includes(" ") ? dateTime.split(" ")[0] : dateTime;
-
-const getTimePart = (dateTime: string) => {
-  if (!dateTime) return DEFAULT_TIME;
-  if (dateTime.includes(" ")) return dateTime.split(" ")[1].slice(0, 5);
-  const candidate = dateTime.slice(0, 5);
-  return /\d{2}:\d{2}/.test(candidate) ? candidate : DEFAULT_TIME;
-};
-
-const combineDateTime = (datePart: string, timePart: string) =>
-  `${datePart} ${timePart}`;
-
-const parseDateInLocalTimezone = (dateString: string) => {
-  if (!dateString) return new Date();
-
-  // Handle ISO format from new Date().toISOString()
-  if (dateString.includes("T")) {
-    return new Date(dateString);
-  }
-
-  // Handle custom format "2024-01-01 12:00"
-  const datePart = getDatePart(dateString) || getCurrentDateInLocalTimezone();
-  const timePart = getTimePart(dateString) || DEFAULT_TIME;
-  return new Date(`${datePart}T${timePart}:00`);
-};
 
 export function DateTimePickerInput() {
   const [inputFieldFocused, setInputFieldFocused] = useState("");
   const [mode, setMode] = useState<"date" | "time">("date");
   const [show, setShow] = useState(false);
   const { theme } = useColorTheme();
-  const { date } = useLocalSearchParams();
-  const {
-    register,
-    control,
-    formState: { errors },
-    setValue,
-  } = useFormContext<CreateWorkoutForm>();
+  const { control } = useFormContext<CreateWorkoutForm>();
 
   const userLocale = Localization.getLocales()[0]?.languageTag || "en-US";
   const userTimeZone = Localization.getCalendars()[0]?.timeZone;
 
   const scheduledDateTime = useWatch({ control, name: "scheduled_datetime" });
 
-  useEffect(() => {
-    register("scheduled_datetime");
-    // Set default to current date and time in local format
-    setValue(
-      "scheduled_datetime",
-      combineDateTime(getCurrentDateInLocalTimezone(), DEFAULT_TIME),
-      { shouldDirty: false, shouldValidate: false, shouldTouch: false },
-    );
-  }, []);
-
-  useEffect(() => {
-    if (date) {
-      setValue(
-        "scheduled_datetime",
-        combineDateTime(date as string, DEFAULT_TIME),
-        { shouldDirty: true, shouldValidate: false, shouldTouch: false },
-      );
-    }
-  }, [date]);
+  const parsedDate = parseScheduledDate(scheduledDateTime);
 
   const openDatePicker = () => {
     setMode("date");
@@ -126,24 +65,20 @@ export function DateTimePickerInput() {
             <Text
               style={[styles.dateValue, { color: theme.color.textPrimary }]}
             >
-              {scheduledDateTime
-                ? parseDateInLocalTimezone(
-                    scheduledDateTime,
-                  ).toLocaleDateString(userLocale, {
+              {parsedDate
+                ? parsedDate.toLocaleDateString(userLocale, {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
                     timeZone: userTimeZone || undefined,
                   })
-                : "Select date"}
+                : scheduledDateTime ? "Invalid scheduled date" : "Select date"}
             </Text>
             <Text
               style={[styles.dateValue, { color: theme.color.textPrimary }]}
             >
-              {scheduledDateTime
-                ? parseDateInLocalTimezone(
-                    scheduledDateTime,
-                  ).toLocaleTimeString(userLocale, {
+              {parsedDate
+                ? parsedDate.toLocaleTimeString(userLocale, {
                     hour: "numeric",
                     minute: "2-digit",
                     hour12: true,
@@ -161,41 +96,20 @@ export function DateTimePickerInput() {
           control={control}
           render={({ field: { onChange, value } }) => (
             <DateTimePicker
-              value={parseDateInLocalTimezone(value)}
+              value={parseScheduledDate(value) ?? new Date(2000, 0, 1, 12)}
               mode={mode}
               is24Hour={false}
               display="default"
-              onChange={(_, selectedDate) => {
-                if (selectedDate) {
-                  if (mode === "date") {
-                    const yyyy = selectedDate.getFullYear();
-                    const mm = String(selectedDate.getMonth() + 1).padStart(
-                      2,
-                      "0",
-                    );
-                    const dd = String(selectedDate.getDate()).padStart(2, "0");
-                    onChange(
-                      combineDateTime(
-                        `${yyyy}-${mm}-${dd}`,
-                        getTimePart(value) || DEFAULT_TIME,
-                      ),
-                    );
-                    setMode("time");
-                  } else {
-                    const hh = String(selectedDate.getHours()).padStart(2, "0");
-                    const min = String(selectedDate.getMinutes()).padStart(
-                      2,
-                      "0",
-                    );
-                    onChange(
-                      combineDateTime(
-                        getDatePart(value) || getCurrentDateInLocalTimezone(),
-                        `${hh}:${min}`,
-                      ),
-                    );
-                    setMode("date");
-                    setShow(false);
-                  }
+              onChange={(event, selectedDate) => {
+                if (event.type !== "set" || !selectedDate) {
+                  setShow(false);
+                  return;
+                }
+                onChange(changeScheduledDate(value, selectedDate, mode));
+                if (mode === "date") setMode("time");
+                else {
+                  setMode("date");
+                  setShow(false);
                 }
               }}
             />

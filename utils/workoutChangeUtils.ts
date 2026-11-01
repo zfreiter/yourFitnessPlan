@@ -1,3 +1,4 @@
+import { parseScheduledDate } from "./scheduledDate";
 import {
   CardioEntry,
   CardioInterval,
@@ -46,7 +47,7 @@ export interface WorkoutChanges {
 function normalizeDateTime(value?: string | null): string | null {
   if (!value) return null;
 
-  return new Date(value.replace(" ", "T")).toISOString();
+  return parseScheduledDate(value)?.toISOString() ?? value;
 }
 
 function getRecordChanges<T extends { id: string }>(
@@ -163,7 +164,7 @@ function getBaseWorkoutChanges(
     changes.name = newWorkout.name;
   }
 
-  if (oldWorkout.description !== newWorkout.description) {
+  if ((oldWorkout.description ?? "") !== (newWorkout.description ?? "")) {
     changes.description = newWorkout.description;
   }
 
@@ -190,7 +191,7 @@ function getBaseWorkoutChanges(
     changes.is_completed = newWorkout.is_completed;
   }
 
-  if (oldWorkout.completed_at !== newWorkout.completed_at) {
+  if ((oldWorkout.completed_at ?? null) !== (newWorkout.completed_at ?? null)) {
     changes.completed_at = newWorkout.completed_at;
   }
 

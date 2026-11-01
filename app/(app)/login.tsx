@@ -11,8 +11,10 @@ import {
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { useAuth } from "@/context/authContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useColorTheme } from "@/context/colorThemeContext";
+import { AuthLoadingView } from "@/components/navigation/AuthLoadingView";
+import { traceAuth } from "@/utils/authDiagnostics";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type FormData = {
@@ -21,7 +23,8 @@ type FormData = {
 };
 
 export default function SignIn() {
-  const { signIn, isLoading, isAuthInitialized } = useAuth();
+  const { signIn, user, isAuthInitialized, error } = useAuth();
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEmailFocused, setIsEmailFocused] = useState<boolean>(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState<boolean>(false);
@@ -42,8 +45,15 @@ export default function SignIn() {
   const onSubmit = async (data: FormData) => {
     const { email, password } = data;
     setIsSubmitting(true);
-    const success = await signIn(email, password);
-    if (!success) setIsSubmitting(false);
+    setSubmitError(null);
+    try {
+      const success = await signIn(email, password);
+      if (!success) setSubmitError("Unable to sign in. Check your credentials and connection.");
+    } catch {
+      setSubmitError("Unable to sign in. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputStyle = (isFocused: boolean) => ({
@@ -56,6 +66,16 @@ export default function SignIn() {
     borderRadius: 8,
     color: theme.color.textPrimary,
   });
+
+  useEffect(() => {
+    traceAuth("route-mount", { decision: "login" });
+    return () => traceAuth("route-cleanup", { decision: "login" });
+  }, []);
+
+  if (isAuthInitialized && user) {
+    traceAuth("login-route", { userId: user.id, decision: "authenticated" });
+    return <AuthLoadingView />;
+  }
 
   return (
     <>
@@ -186,8 +206,10 @@ export default function SignIn() {
             )}
           </View>
 
+          {(error || submitError) && <Text accessibilityRole="alert" style={styles.errorText}>{error || submitError}</Text>}
           {/* Login button */}
           <Pressable
+            disabled={isSubmitting}
             onPress={handleSubmit(onSubmit)}
             style={({ pressed }) => ({
               height: theme.spacing.buttonHeight,

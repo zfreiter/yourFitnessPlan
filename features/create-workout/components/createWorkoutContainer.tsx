@@ -72,7 +72,7 @@ export function CreateWorkoutContainer() {
   const [isFocusedNameInput, setIsFocusedNameInput] = useState(false);
   const [isFocusedDescriptionInput, setIsFocusedDescriptionInput] =
     useState(false);
-  const { workouts, setWorkouts, exercises } = useWorkout();
+  const { insertWorkout, reloadWorkout, exercises } = useWorkout();
 
   const { bottom } = useSafeAreaInsets();
 
@@ -158,7 +158,8 @@ export function CreateWorkoutContainer() {
         user.id,
       );
       if (result.success) {
-        if (result.data) setWorkouts([...workouts, result.data]);
+        if (result.data) insertWorkout(result.data);
+        else await reloadWorkout(data.id);
         reset();
         router.back();
       } else {

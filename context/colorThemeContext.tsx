@@ -67,6 +67,7 @@ type ThemeTokens = {
 
 interface ColorThemeContextType {
   theme: ThemeTokens;
+  isThemeReady: boolean;
   themePreference: ColorThemePreference;
   updateThemePreference: (value: ColorThemePreference) => Promise<void>;
 }
@@ -83,18 +84,21 @@ export function ColorThemeProvider({ children }: { children: ReactNode }) {
 
   const [themePreference, setThemePreference] =
     useState<ColorThemePreference>("system");
-  const [isLoaded, setIsLoaded] = useState(false);
 
   // 🔥 Load theme on startup
+  const [isThemeReady, setThemeReady] = useState(false);
+
   useEffect(() => {
+    let cancelled = false;
     const loadTheme = async () => {
       try {
         // 1. Check AsyncStorage first
         const saved = await AsyncStorage.getItem("theme");
+        if (cancelled) return;
+        setThemeReady(true);
 
         if (saved === "light" || saved === "dark" || saved === "system") {
           setThemePreference(saved);
-          setIsLoaded(true);
           return;
         }
 
@@ -106,25 +110,24 @@ export function ColorThemeProvider({ children }: { children: ReactNode }) {
             .eq("user_id", user.id)
             .single();
 
+          if (cancelled) return;
           if (error) throw error;
 
           const theme = data?.theme ?? "system";
 
           setThemePreference(theme);
           await AsyncStorage.setItem("theme", theme);
-        } else {
-          setThemePreference("system");
         }
       } catch (error) {
+        if (cancelled) return;
+        setThemeReady(true);
         console.error("Error loading theme:", error);
-        setThemePreference("system");
-      } finally {
-        setIsLoaded(true);
       }
     };
 
     loadTheme();
-  }, [isDbReady, user]);
+    return () => { cancelled = true; };
+  }, [isDbReady, user?.id]);
 
   // 🔥 Public function to update theme (used anywhere)
   const updateThemePreference = async (value: ColorThemePreference) => {
@@ -162,12 +165,11 @@ export function ColorThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [scheme]);
 
-  // Prevent flicker
-  if (!isLoaded) return null;
+  // Render the system theme immediately; remote preferences must not block routing.
 
   return (
     <ThemeContext.Provider
-      value={{ theme, themePreference, updateThemePreference }}
+      value={{ theme, themePreference, updateThemePreference, isThemeReady }}
     >
       {children}
     </ThemeContext.Provider>
