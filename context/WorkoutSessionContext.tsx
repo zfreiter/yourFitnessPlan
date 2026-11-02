@@ -1,3 +1,4 @@
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
 import { useWorkout } from "./workoutContext";
 import {
   createContext,
@@ -52,7 +53,8 @@ export const WorkoutSessionProvider = ({
   workout,
 }: WorkoutSessionProviderProps) => {
   const { control, getValues, reset } = useFormContext<Workout>();
-  const { user } = useAuth();
+  const { user, sessionKey } = useAuth();
+  const isCurrent = useSessionLifetime();
   const { insertWorkout } = useWorkout();
 
   const [baseline, setBaseline] = useState<Workout>(workout);
@@ -72,7 +74,13 @@ export const WorkoutSessionProvider = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<Error | null>(null);
 
+  useEffect(() => {
+    setIsSaving(false);
+    setSaveError(null);
+  }, [sessionKey, user?.id]);
+
   const saveWorkout = useCallback(async () => {
+    if (!isCurrent()) return { success: false };
     const currentWorkout = JSON.parse(JSON.stringify(getValues())) as Workout;
 
     const changes = buildWorkoutChanges(baseline, currentWorkout);
@@ -94,6 +102,7 @@ export const WorkoutSessionProvider = ({
         changes,
       );
 
+      if (!isCurrent()) return { success: false };
       if (!result.success) {
         throw new Error(result.error ?? "Failed to update workout");
       }
@@ -104,6 +113,7 @@ export const WorkoutSessionProvider = ({
        */
       const savedWorkout = result.data ?? await workoutService.getWorkoutById(user.id, currentWorkout.id);
       if (!savedWorkout) throw new Error("Workout saved but could not be reloaded from SQLite");
+      if (!isCurrent()) return { success: false };
       insertWorkout(savedWorkout);
 
       const editedDuringSave = hasWorkoutChanges(buildWorkoutChanges(currentWorkout, getValues()));
@@ -115,13 +125,13 @@ export const WorkoutSessionProvider = ({
       const normalizedError =
         error instanceof Error ? error : new Error("Failed to update workout");
 
-      setSaveError(normalizedError);
+      if (isCurrent()) setSaveError(normalizedError);
 
       return { success: false };
     } finally {
-      setIsSaving(false);
+      if (isCurrent()) setIsSaving(false);
     }
-  }, [baseline, getValues, reset, user?.id, insertWorkout]);
+  }, [baseline, getValues, reset, user?.id, insertWorkout, isCurrent]);
 
   useEffect(() => {
     // Adopt committed external changes only while the session has no unsaved edits.

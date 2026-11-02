@@ -1,3 +1,4 @@
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
 import {
   createContext,
   useEffect,
@@ -43,7 +44,8 @@ export const UserPreferenceProvider = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [userPreferences, setUserPreferences] =
     useState<UserPreferences | null>(null);
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, sessionKey, isLoading: isAuthLoading } = useAuth();
+  const isCurrent = useSessionLifetime();
 
   async function updateUserPreferences(
     updatedPreferences: UserPreferencesUpdate,
@@ -52,14 +54,15 @@ export const UserPreferenceProvider = ({
     const response =
       await userPreferenceService.updateUserPreferences(updatedPreferences);
 
-    if (response) {
+    if (response && isCurrent()) {
       setUserPreferences(updatedPreferences as UserPreferences);
     }
     return response;
   }
 
   useEffect(() => {
-    if (isAuthLoading || !user) return;
+    setUserPreferences(null);
+    if (isAuthLoading || !user) { setIsLoading(false); return; }
     setIsLoading(true);
     const getUserPreferences = async () => {
       try {
@@ -67,7 +70,7 @@ export const UserPreferenceProvider = ({
           await userPreferenceService.getUserPreferences(user.id);
 
         if (result !== null) {
-          setUserPreferences(result);
+          if (isCurrent()) setUserPreferences(result);
         } else {
           const { data, error } = await supabase
             .from("user_preferences")
@@ -77,22 +80,22 @@ export const UserPreferenceProvider = ({
 
           if (data) {
             await userPreferenceService.cacheUserPreferences(data);
-            setUserPreferences(data);
+            if (isCurrent()) setUserPreferences(data);
           }
         }
       } catch (error: unknown) {
         console.log("Error in userPreferenceContext ", error);
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     };
 
     getUserPreferences();
-  }, [user, isAuthLoading]);
+  }, [user, isAuthLoading, sessionKey, isCurrent]);
 
   return (
     <UserPreferenceContext.Provider
-      value={{ isLoading, updateUserPreferences, userPreferences }}
+      value={{ isLoading, updateUserPreferences, userPreferences: user && userPreferences?.user_id === user.id ? userPreferences : null }}
     >
       {children}
     </UserPreferenceContext.Provider>

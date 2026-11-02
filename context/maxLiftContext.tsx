@@ -1,3 +1,4 @@
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
 import {
   createContext,
   useContext,
@@ -28,7 +29,8 @@ const MaxLiftContext = createContext<MaxLiftContextType>({
 });
 
 export function MaxLiftProvider({ children }: PropsWithChildren) {
-  const { isLoading, user } = useAuth();
+  const { isLoading, user, sessionKey } = useAuth();
+  const isCurrent = useSessionLifetime();
   const { isLoading: isProfileLoading } = useProfile();
   const [exerciseMaxes, setExerciseMaxes] = useState<
     Record<string, TrainingMax>
@@ -52,16 +54,17 @@ export function MaxLiftProvider({ children }: PropsWithChildren) {
       touchedFields,
     );
     console.log("resuts ", result);
-    if (result.success) {
+    if (result.success && isCurrent()) {
       const updated = await maxLiftService.getCurrentMaxLifts(userId);
-      setExerciseMaxes(toMaxesMap(updated));
+      if (isCurrent()) setExerciseMaxes(toMaxesMap(updated));
     }
 
     return result;
   }
 
   useEffect(() => {
-    if (isLoading || isProfileLoading || !user) return;
+    setExerciseMaxes({});
+    if (isLoading || isProfileLoading || !user) { setMaxLiftLoading(false); return; }
 
     const loadMaxLifts = async () => {
       setMaxLiftLoading(true);
@@ -71,7 +74,7 @@ export function MaxLiftProvider({ children }: PropsWithChildren) {
         const cached = await maxLiftService.getCurrentMaxLifts(user.id);
 
         if (cached.length > 0) {
-          setExerciseMaxes(toMaxesMap(cached));
+          if (isCurrent()) setExerciseMaxes(toMaxesMap(cached));
         } else {
           // 2. Fall back to Supabase view for current training maxes
           const { data, error } = await supabase
@@ -81,7 +84,7 @@ export function MaxLiftProvider({ children }: PropsWithChildren) {
 
           if (data && data.length > 0) {
             await maxLiftService.cacheMaxLifts(data);
-            setExerciseMaxes(toMaxesMap(data));
+            if (isCurrent()) setExerciseMaxes(toMaxesMap(data));
           }
 
           if (error) {
@@ -91,18 +94,18 @@ export function MaxLiftProvider({ children }: PropsWithChildren) {
       } catch (error) {
         console.log("Error in MaxLiftContext loadMaxLifts ", error);
       } finally {
-        setMaxLiftLoading(false);
+        if (isCurrent()) setMaxLiftLoading(false);
       }
     };
 
     loadMaxLifts();
-  }, [isLoading, isProfileLoading, user]);
+  }, [isLoading, isProfileLoading, user, sessionKey, isCurrent]);
 
   return (
     <MaxLiftContext.Provider
       value={{
         isMaxLiftLoading,
-        exerciseMaxes,
+        exerciseMaxes: user ? Object.fromEntries(Object.entries(exerciseMaxes).filter(([, max]) => max.user_id === user.id)) : {},
         insertMaxLifts,
       }}
     >

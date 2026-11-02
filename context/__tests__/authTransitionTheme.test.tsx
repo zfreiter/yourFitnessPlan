@@ -58,7 +58,7 @@ it.each(["dark", "light"] as const)("preserves %s backgrounds across repeated lo
     await act(async () => { emit(null); });
     expect(surface()).toBe(originalSurface);
   }
-  expect(childMounts).toBe(originalMounts + 6);
+  expect(childMounts).toBe(originalMounts);
   expect(new Set(frames)).toEqual(new Set([tokens[mode].background]));
   expect(surface().props.style.backgroundColor).toBe(tokens[mode].background);
   expect(tree.root.findAllByType("Text" as any)).toHaveLength(0);

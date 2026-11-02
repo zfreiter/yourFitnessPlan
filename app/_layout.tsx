@@ -4,6 +4,8 @@ import { Slot, SplashScreen } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ColorThemeProvider } from "@/context/colorThemeContext";
+import { UiLifecycleDiagnostics } from "@/components/navigation/UiLifecycleDiagnostics";
+import { traceUi } from "@/utils/uiDiagnostics";
 import { AppNavigationSurface } from "@/components/navigation/AppNavigationSurface";
 import Toast from "react-native-toast-message";
 import { useEffect, useState } from "react";
@@ -129,24 +131,25 @@ export default function Layout() {
         <AuthProvider>
           <ColorThemeProvider>
             <AppNavigationSurface>
-              <AuthSessionScope>
-                <SyncProvider>
-                  <DataProvider>
-                    <ProfileProvider>
-                      <UserPreferenceProvider>
-                        <WorkoutProvider>
-                          <MaxLiftProvider>
-                            <GestureHandlerRootView style={{ flex: 1 }}>
+              <GestureHandlerRootView style={{ flex: 1 }} onTouchStart={() => traceUi("app", "touch-start")}>
+                <AuthSessionScope>
+                  <SyncProvider>
+                    <DataProvider>
+                      <ProfileProvider>
+                        <UserPreferenceProvider>
+                          <WorkoutProvider>
+                            <MaxLiftProvider>
+                              <UiLifecycleDiagnostics />
                               <Slot />
                               <Toast />
-                            </GestureHandlerRootView>
-                          </MaxLiftProvider>
-                        </WorkoutProvider>
-                      </UserPreferenceProvider>
-                    </ProfileProvider>
-                  </DataProvider>
-                </SyncProvider>
-              </AuthSessionScope>
+                            </MaxLiftProvider>
+                          </WorkoutProvider>
+                        </UserPreferenceProvider>
+                      </ProfileProvider>
+                    </DataProvider>
+                  </SyncProvider>
+                </AuthSessionScope>
+              </GestureHandlerRootView>
             </AppNavigationSurface>
           </ColorThemeProvider>
         </AuthProvider>

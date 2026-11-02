@@ -4,6 +4,9 @@ import { AuthProvider, AuthSessionScope, useAuth } from "../authContext";
 import { SyncProvider, useSync } from "../SyncContext";
 import { WorkoutProvider, useWorkout } from "../workoutContext";
 import RootLayout from "@/app/(app)/_layout";
+import FabButton from "@/components/fabButton";
+import SettingsScreen from "@/app/(app)/main/settings/index";
+import WorkoutCard from "@/features/home/TodaysWorkout/WorkoutCard";
 import SignIn from "@/app/(app)/login";
 import { supabase } from "@/lib/supabaseClient";
 import { syncService } from "@/services/syncService";
@@ -29,19 +32,30 @@ jest.mock("@/services/exerciseService", () => ({ exerciseService: { getExercises
 jest.mock("@/services/setService", () => ({ setService: {} }));
 jest.mock("@/services/database", () => ({}));
 jest.mock("@react-native-community/netinfo", () => ({ addEventListener: () => () => {} }));
-jest.mock("react-native", () => ({ Text: "Text", View: "View", Pressable: "Pressable", TextInput: "TextInput", Modal: "Modal", ActivityIndicator: "ActivityIndicator", Image: "Image", StyleSheet: { create: (value: any) => value } }));
+jest.mock("react-native", () => ({ Text: "Text", View: "View", Pressable: "Pressable", TextInput: "TextInput", Modal: "Modal", ActivityIndicator: "ActivityIndicator", Image: "Image", StyleSheet: { create: (value: any) => value, flatten: (value: any) => Object.assign({}, ...value) } }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView", useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) }));
+jest.mock("@expo/vector-icons/MaterialIcons", () => () => null);
+jest.mock("@expo/vector-icons/MaterialCommunityIcons", () => () => null);
+const mockPush = jest.fn();
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("expo-router", () => {
   const React = require("react");
   const Stack: any = ({ children, ...props }: any) => React.createElement("Stack", props, children);
   Stack.Protected = ({ guard, children }: any) => guard ? children : null;
   Stack.Screen = (props: any) => React.createElement("Screen", props);
-  return { Stack, Redirect: (props: any) => React.createElement("Redirect", props), router: { push: jest.fn() } };
+  const Link = ({ children, onPress, href }: any) => React.cloneElement(children, {
+    onPress: (event: any = {}) => { children.props.onPress?.(event); onPress?.(event); if (!event.defaultPrevented) mockPush(href); },
+  });
+  return { Stack, Link, useRouter: () => ({ push: mockPush }), Redirect: (props: any) => React.createElement("Redirect", props), router: { push: mockPush } };
 });
 
 let auth!: ReturnType<typeof useAuth>, sync!: ReturnType<typeof useSync>, workouts!: ReturnType<typeof useWorkout>;
 let mounts = 0, cleanups = 0;
+function Controls() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <><FabButton /><SettingsScreen /><WorkoutCard workout={{ id: "workout", name: "Local", user_id: user.id, workoutType: "strength", scheduled_datetime: "2030-01-01T12:00", is_completed: 0, exercises: [], cardio_entries: [], circuit_rounds: [] }} /></>;
+}
 function Probe() {
   auth = useAuth(); sync = useSync(); workouts = useWorkout();
   React.useEffect(() => { mounts++; return () => { cleanups++; }; }, []);
@@ -52,7 +66,7 @@ let tree: TestRenderer.ReactTestRenderer;
 async function mount(initial: any = null) {
   mockSession = initial;
   await act(async () => { tree = TestRenderer.create(
-    <AuthProvider><AuthSessionScope><SyncProvider><WorkoutProvider><Probe /><SignIn /><RootLayout /></WorkoutProvider></SyncProvider></AuthSessionScope></AuthProvider> as any,
+    <AuthProvider><AuthSessionScope><SyncProvider><WorkoutProvider><Probe /><SignIn /><RootLayout /><Controls /></WorkoutProvider></SyncProvider></AuthSessionScope></AuthProvider> as any,
   ); });
 }
 async function login(id = "user") { await act(async () => { expect(await auth.signIn(id, "test-password")).toBe(true); }); }
@@ -92,7 +106,7 @@ it.each(["user", "other-user"])("signs out and immediately signs in as %s withou
   expect(auth.user?.id).toBe(id); expect(auth.isLoading).toBe(false);
   expect(authenticatedRoutes()[0].props.name).toBe("main");
   expect(workouts.workouts.map(row => row.user_id)).toEqual([id]);
-  expect(mounts).toBe(initializedMounts + 2); expect(cleanups).toBe(initializedCleanups + 2);
+  expect(mounts).toBe(initializedMounts); expect(cleanups).toBe(initializedCleanups);
   const routes = tree.root.findAllByType("Screen" as any).map(node => node.props.name);
   expect(routes).toContain("main"); expect(routes).not.toContain("login");
   expect(tree.root.findByType("Stack" as any).props.initialRouteName).toBe("main");
@@ -167,4 +181,51 @@ it("does not publish a late sign-in response after a sign-out event", async () =
   await act(async () => { mockListener("SIGNED_IN", session("user")); mockListener("SIGNED_OUT", null); });
   await act(async () => { held.release(); expect(await signingIn).toBe(false); });
   expect(auth.user).toBeNull(); expect(auth.isLoading).toBe(false);
+});
+
+async function exerciseNavigationControls() {
+  const pressables = tree.root.findAllByType("Pressable" as any);
+  const findText = (text: string) => pressables.find(node => node.findAllByType("Text" as any).some(child => child.props.children === text))!;
+  mockPush.mockClear();
+  await act(async () => {
+    findText("+").props.onPress({ defaultPrevented: false });
+    findText("Account").props.onPress();
+    findText("Local").props.onPress({ defaultPrevented: false });
+  });
+  expect(mockPush).toHaveBeenCalledWith({ pathname: "/CreateWorkout", params: { date: undefined } });
+  expect(mockPush).toHaveBeenCalledWith("./settings/account");
+  expect(mockPush).toHaveBeenCalledWith({ pathname: "/[workoutId]", params: { workoutId: "workout" } });
+  expect(pressables.filter(node => node.props.disabled === true)).toHaveLength(0);
+}
+it("runs immediate Home/create/settings navigation during pending sync and repeated login cycles", async () => {
+  const held = gate(); jest.mocked(syncService.sync).mockReturnValue(held.promise);
+  await mount();
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await login();
+    expect(sync.isSyncing).toBe(true);
+    await exerciseNavigationControls();
+    expect(tree.root.findAllByType("Modal" as any)).toHaveLength(0);
+    await logout();
+    expect(workouts.workouts).toEqual([]);
+  }
+  await act(async () => { held.release(); });
+  expect(mounts).toBe(1); expect(cleanups).toBe(0);
+});
+it("runs navigation callbacks after remote synchronization fails", async () => {
+  jest.mocked(syncService.sync).mockRejectedValue(new Error("Remote unavailable"));
+  await mount(); await login();
+  await exerciseNavigationControls();
+});
+it("rejects a previous session's delayed workout snapshot after same-account re-login", async () => {
+  let release!: (rows: any) => void;
+  jest.mocked(workoutService.getAllWorkouts).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  await mount(session("user"));
+  const oldSetter = workouts.setWorkouts;
+  await logout(); await login();
+  const rows = workouts.workouts;
+  act(() => oldSetter([]));
+  expect(workouts.workouts).toEqual(rows);
+  await act(async () => { release([{ id: "stale", user_id: "user", scheduled_datetime: "2030-01-01" }]); });
+  expect(workouts.workouts).toEqual(rows);
+  expect(workouts.workouts.some(row => row.id === "stale")).toBe(false);
 });

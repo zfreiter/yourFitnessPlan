@@ -23,18 +23,19 @@ export function useAuth(): AuthContextType {
   return value;
 }
 
-function SessionScope({ children, userId }: { children: ReactNode; userId: string | null }) {
+function SessionScope({ children, userId, sessionKey }: { children: ReactNode; userId: string | null; sessionKey: number }) {
   useEffect(() => {
     traceAuth("user-providers-initialize", { userId });
     return () => traceAuth("user-providers-cleanup", { userId });
-  }, []);
+  }, [sessionKey]);
   return <>{children}</>;
 }
 
-// Reset user data without remounting the app's theme and navigation backdrop.
+// Session effects reset user data in place. Never key the navigator or gesture
+// root: remounting them can leave native screens attached to stale navigation.
 export function AuthSessionScope({ children }: { children: ReactNode }) {
   const { sessionKey, user } = useAuth();
-  return <SessionScope key={sessionKey} userId={user?.id ?? null}>{children}</SessionScope>;
+  return <SessionScope sessionKey={sessionKey} userId={user?.id ?? null}>{children}</SessionScope>;
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

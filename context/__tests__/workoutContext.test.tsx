@@ -10,7 +10,7 @@ import { CreateWorkoutButton } from "@/features/create-workout/components/create
 import TodaysWorkout from "@/features/home/TodaysWorkout/TodaysWorkout";
 import CalendarIndex from "@/features/calendar/components/calendar";
 
-const mockAuth = { user: { id: "user" }, isLoading: false, isSynced: true };
+const mockAuth = { sessionKey: 0, user: { id: "user" }, isLoading: false, isSynced: true };
 const mockSync = { workoutRevision: 0, isSyncLoading: false, isProfileSet: true };
 jest.mock("@/context/authContext", () => ({ useAuth: () => mockAuth }));
 jest.mock("@/context/AppInitContext", () => ({ useAppInit: () => ({ isAppInitLoading: false }) }));
@@ -54,7 +54,7 @@ async function mount(children: React.ReactNode = null) {
 }
 function texts(tree: TestRenderer.ReactTestRenderer) { return tree.root.findAllByType("Text" as any).map(node => node.props.children); }
 beforeEach(() => {
-  mockAuth.user = { id: "user" }; mockSync.workoutRevision = 0; renders = 0;
+  mockAuth.sessionKey = 0; mockAuth.user = { id: "user" }; mockSync.workoutRevision = 0; renders = 0;
   jest.mocked(workoutService.getAllWorkouts).mockResolvedValue([]);
   jest.mocked(exerciseService.getExercises).mockResolvedValue([]);
 });
@@ -235,4 +235,21 @@ it("prevents a late month-cache read from resurrecting a deleted workout", async
   act(() => { reading = api.updateCachedMonths("user", { month: "01", year: "2100" }); });
   await act(async () => { await api.deleteWorkout("user", stored.id); month.resolve([stored]); await reading; });
   expect(api.workouts).toEqual([]);
+});
+
+it("ignores a previous session's completed save without resetting the current form", async () => {
+  const stored = fixture();
+  jest.mocked(workoutService.getAllWorkouts).mockResolvedValue([stored]);
+  const commit = deferred<any>();
+  jest.mocked(workoutService.updateWorkout).mockReturnValue(commit.promise);
+  const tree = await mount(<Session workout={stored} />);
+  act(() => form.setValue("name", "Old session edit"));
+  let saving!: Promise<{ success: boolean }>;
+  act(() => { saving = session.saveWorkout(); });
+  mockAuth.sessionKey++;
+  await act(async () => { tree.update(<WorkoutProvider><Probe /><Session workout={stored} /></WorkoutProvider> as any); });
+  act(() => form.setValue("name", "New session edit"));
+  await act(async () => { commit.resolve({ success: true, data: { ...stored, name: "Old session edit" } }); expect((await saving).success).toBe(false); });
+  expect(form.getValues("name")).toBe("New session edit");
+  expect(session.isSaving).toBe(false); expect(session.saveError).toBeNull();
 });

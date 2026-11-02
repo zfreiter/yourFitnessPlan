@@ -1,3 +1,4 @@
+import { traceUi } from "@/utils/uiDiagnostics";
 import { useAuth } from "@/context/authContext";
 import { AntDesign } from "@expo/vector-icons";
 import { router, Tabs } from "expo-router";
@@ -15,6 +16,11 @@ export default function MainLayoutTabs() {
     <HomeProvider>
       <Tabs
         backBehavior="history"
+        screenListeners={({ route }) => ({
+          tabPress: event => traceUi("tabs", "tab-press", { destination: route.name, prevented: event.defaultPrevented }),
+          focus: () => traceUi("tabs", "focus", { destination: route.name }),
+          blur: () => traceUi("tabs", "blur", { destination: route.name }),
+        })}
         screenOptions={{
           tabBarActiveTintColor: theme.color.accent,
           headerShown: true,

@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { traceUi, uiPressEvents } from "@/utils/uiDiagnostics";
 import { Link } from "expo-router";
 import { useColorTheme } from "@/context/colorThemeContext";
 
@@ -17,9 +18,12 @@ export default function FabButton({ today }: FabButtonProps) {
           date: today,
         },
       }}
+      onPress={event => traceUi("create-workout-link", "navigation-request", { destination: "/CreateWorkout", prevented: event.defaultPrevented })}
       asChild
     >
       <Pressable
+        {...uiPressEvents("create-workout-link")}
+        onPress={() => traceUi("create-workout-link", "press")}
         style={StyleSheet.flatten([
           styles.fab,
           { backgroundColor: theme.color.accentStrong },

@@ -1,3 +1,4 @@
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
 import {
   createContext,
   useEffect,
@@ -6,7 +7,7 @@ import {
   useContext,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { ProfileInterface } from "@/types/user/type";
+import { ProfileInterface } from "@/types/interfaces/types";
 import { useAuth } from "./authContext";
 import { profileService, ProfileUpdate } from "@/services/profileService";
 import { useSync } from "@/context/SyncContext";
@@ -35,14 +36,15 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [profile, setProfile] = useState<ProfileInterface | null>(null);
   const { isProfileSet } = useSync();
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, sessionKey, isLoading: isAuthLoading } = useAuth();
+  const isCurrent = useSessionLifetime();
 
   async function updateProfile(
     updatedProfile: ProfileUpdate,
   ): Promise<boolean> {
     const response = await profileService.updateProfile(updatedProfile);
 
-    if (response) {
+    if (response && isCurrent()) {
       setProfile(updatedProfile as ProfileInterface);
     }
 
@@ -50,7 +52,8 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
   }
 
   useEffect(() => {
-    if (!isProfileSet || !user) return;
+    setProfile(null);
+    if (!isProfileSet || !user) { setIsLoading(false); return; }
     setIsLoading(true);
 
     const loadProfile = async () => {
@@ -60,7 +63,7 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
 
         if (cached !== null) {
           console.log("Loaded profile from cache");
-          setProfile(cached);
+          if (isCurrent()) setProfile(cached);
         } else {
           console.log("No cached profile found, fetching from Supabase...");
           // 2. Fall back to Supabase
@@ -72,7 +75,7 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
 
           if (data) {
             await profileService.cacheProfile(data);
-            setProfile(data);
+            if (isCurrent()) setProfile(data);
           }
 
           if (error) {
@@ -83,15 +86,15 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
         console.log("Error in ProfileContext ", error);
       } finally {
         console.log("Profile loading complete, setting isLoading to false");
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     };
 
     loadProfile();
-  }, [user, isProfileSet]);
+  }, [user, isProfileSet, sessionKey, isCurrent]);
 
   return (
-    <ProfileContext.Provider value={{ isLoading, profile, updateProfile }}>
+    <ProfileContext.Provider value={{ isLoading, profile: user && profile?.id === user.id ? profile : null, updateProfile }}>
       {children}
     </ProfileContext.Provider>
   );

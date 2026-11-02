@@ -1,3 +1,4 @@
+import { traceUi, runUiAction, uiPressEvents } from "@/utils/uiDiagnostics";
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { useAuth } from "@/context/authContext";
 import { useRouter } from "expo-router";
@@ -38,7 +39,8 @@ export default function Index() {
       {links.map((link, index) => (
         <Pressable
           key={`${link.title}-${index}`}
-          onPress={() => router.push(link.path)}
+          {...uiPressEvents(`settings.${link.title}`)}
+          onPress={() => runUiAction(`settings.${link.title}`, () => router.push(link.path), { destination: link.path })}
           style={({ pressed }) => [
             styles.row,
             {
@@ -77,7 +79,8 @@ export default function Index() {
               : theme.color.surface,
           },
         ]}
-        onPress={async () => await signOut()}
+        {...uiPressEvents("settings.sign-out")}
+        onPress={() => runUiAction("settings.sign-out", signOut)}
       >
         <Text style={[styles.signOutText, { color: theme.color.danger }]}>
           Sign Out

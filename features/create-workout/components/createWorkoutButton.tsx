@@ -1,3 +1,4 @@
+import { traceUi, runUiAction, uiPressEvents } from "@/utils/uiDiagnostics";
 import { Text, Pressable, StyleSheet } from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,7 +46,7 @@ export function CreateWorkoutButton({}) {
   const hasName = !!name?.trim();
 
   const submitWorkout = async () => {
-    if (!user?.id) return;
+    if (!user?.id) { traceUi("create-workout", "guard", { reason: "no-user" }); return; }
 
     const workout = convertFormToWorkout(getValues(), user?.id);
     // console.log("workout ", JSON.stringify(workout, null, 2));
@@ -87,9 +88,10 @@ export function CreateWorkoutButton({}) {
 
     // console.log("========== VALIDATION COMPLETE ==========");
 
-    const result = await workoutService.insertWorkout(workout, user.id);
+    const result = await runUiAction("create-workout.sqlite", () => workoutService.insertWorkout(workout, user.id));
 
     if (!result.success) {
+      traceUi("create-workout", "failed");
       console.error("Error inserting workout: ", result.error);
       return;
     }
@@ -98,12 +100,13 @@ export function CreateWorkoutButton({}) {
     if (result.data) insertWorkout(result.data);
     else await reloadWorkout(workout.id);
     // navigate to home
-    router.push("/(app)/main/home");
+    runUiAction("create-workout.navigation", () => router.push("/(app)/main/home"), { destination: "/(app)/main/home" });
   };
 
   return (
     <Pressable
-      onPress={submitWorkout}
+      {...uiPressEvents("create-workout")}
+      onPress={() => runUiAction("create-workout", submitWorkout)}
       disabled={!hasName}
       style={({ pressed }) => [
         styles.button,

@@ -1,3 +1,4 @@
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
 import { parseScheduledDate } from "@/utils/scheduledDate";
 import { buildWorkoutChanges } from "@/utils/workoutChangeUtils";
 import { exerciseService } from "@/services/exerciseService";
@@ -138,14 +139,16 @@ function addMonths(date: { month: string; year: string }, count: number) {
 }
 
 export function WorkoutProvider({ children }: PropsWithChildren) {
+  const isCurrent = useSessionLifetime();
   const [workouts, setWorkoutState] = useState<Workout[]>([]);
   const dataRevision = useRef(0);
   const recordRevision = useRef(new Map<string, number>());
   const snapshotRevision = useRef(0);
   const setWorkouts = useCallback<Dispatch<SetStateAction<Workout[]>>>((value) => {
+    if (!isCurrent()) return;
     dataRevision.current += 1;
     setWorkoutState(value);
-  }, []);
+  }, [isCurrent]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const { isAppInitLoading } = useAppInit();
   const today = format(new Date(), "yyyy-MM-dd");
@@ -181,7 +184,8 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   }, [earliestCachedMonth]);
 
   const { workoutRevision } = useSync();
-  const { user, isLoading: isAuthLoading, isSynced } = useAuth();
+  const { user, sessionKey, isLoading: isAuthLoading } = useAuth();
+  const scopeKey = `${sessionKey}:${user?.id ?? ""}`;
   const workoutFetchGeneration = useRef(0);
   const activeUserId = useRef(user?.id);
   activeUserId.current = user?.id;
@@ -208,22 +212,22 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     for (;;) {
       const revision = dataRevision.current;
       const fetched = await workoutService.getAllWorkouts(requestedUserId);
-      if (generation !== workoutFetchGeneration.current || requestedUserId !== activeUserId.current) return;
+      if (!isCurrent() || generation !== workoutFetchGeneration.current || requestedUserId !== activeUserId.current) return;
       if (revision !== dataRevision.current) continue;
       snapshotRevision.current += 1;
       dataRevision.current += 1;
       setWorkoutState(fetched);
       return;
     }
-  }, []);
+  }, [isCurrent]);
 
   // Publish a hydrated, committed record; an existing ID is replaced rather than duplicated.
   const insertWorkout = useCallback((workout: Workout) => {
-    if (!activeUserId.current || workout.user_id !== activeUserId.current) return;
+    if (!isCurrent() || !activeUserId.current || workout.user_id !== activeUserId.current) return;
     recordRevision.current.set(workout.id, (recordRevision.current.get(workout.id) ?? 0) + 1);
     setWorkouts(previous => [...previous.filter(row => row.id !== workout.id), { ...workout }]
       .sort((a, b) => a.scheduled_datetime.localeCompare(b.scheduled_datetime)));
-  }, [setWorkouts]);
+  }, [setWorkouts, isCurrent]);
 
   const reloadWorkout = useCallback(async (workoutId: string) => {
     const owner = activeUserId.current;
@@ -233,20 +237,24 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     recordRevision.current.set(workoutId, revision);
     const snapshot = snapshotRevision.current;
     const workout = await workoutService.getWorkoutById(owner, workoutId);
-    if (owner !== activeUserId.current || recordRevision.current.get(workoutId) !== revision || snapshot !== snapshotRevision.current) return;
+    if (!isCurrent() || owner !== activeUserId.current || recordRevision.current.get(workoutId) !== revision || snapshot !== snapshotRevision.current) return;
     if (workout) insertWorkout(workout);
-  }, [insertWorkout]);
+  }, [insertWorkout, isCurrent]);
 
   useEffect(() => {
-    if (loadedUserId.current !== user?.id) {
-      loadedUserId.current = user?.id;
+    if (loadedUserId.current !== scopeKey) {
+      loadedUserId.current = scopeKey;
       workoutFetchGeneration.current += 1;
       recordRevision.current.clear();
+      earliestCachedMonthRef.current = addMonths(currentMonth, -1);
+      latestCachedMonthRef.current = addMonths(currentMonth, 2);
+      setEarliestCachedMonth(earliestCachedMonthRef.current);
+      setLatestCachedMonth(latestCachedMonthRef.current);
       setWorkouts([]);
     }
     if (!user?.id || isAuthLoading || isAppInitLoading) return;
-    void fetchWorkouts();
-  }, [user?.id, isAuthLoading, isAppInitLoading, workoutRevision, fetchWorkouts, setWorkouts]);
+    void fetchWorkouts().catch(error => console.error("Workout hydration failed", error));
+  }, [user?.id, sessionKey, isAuthLoading, isAppInitLoading, workoutRevision, fetchWorkouts, setWorkouts]);
 
   const visibleWorkouts = useMemo(() => {
     if (isAuthLoading || !user?.id) return [];
@@ -269,7 +277,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     workoutId: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      if (userId !== activeUserId.current) return { success: false, error: "Workout owner changed" };
+      if (!isCurrent() || userId !== activeUserId.current) return { success: false, error: "Workout owner changed" };
       const stored = await workoutService.getWorkoutById(userId, workoutId);
       if (!stored) return { success: false, error: "Workout not found" };
       const updated: Workout = {
@@ -296,7 +304,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     currentIndex: number,
     direction: ExerciseDirection,
   ) {
-    if (userId !== activeUserId.current) return;
+    if (!isCurrent() || userId !== activeUserId.current) return;
     const result = await workoutService.reorderWorkoutExercise(userId, exercises, currentIndex, direction);
     if (result.success) await reloadWorkout(workoutId);
   }
@@ -306,7 +314,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   }
 
   async function deleteWorkoutExercise(userId: string, exerciseId: string) {
-    if (userId !== activeUserId.current) return;
+    if (!isCurrent() || userId !== activeUserId.current) return;
     const affected = workouts.filter(workout => workout.exercises.some(exercise => exercise.id === exerciseId));
     const result = await workoutService.deleteWorkoutExercise(userId, exerciseId);
     if (result.success) await Promise.all(affected.map(workout => reloadWorkout(workout.id)));
@@ -419,7 +427,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     newSet: ExerciseSet,
     workoutId: string,
   ): Promise<{ success: boolean }> {
-    if (userId !== activeUserId.current) return { success: false };
+    if (!isCurrent() || userId !== activeUserId.current) return { success: false };
     const result = await setService.insertSet(userId, newSet);
     if (result.success) await reloadWorkout(workoutId);
     return { success: result.success };
@@ -431,20 +439,20 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     exerciseId: string,
     workoutId: string,
   ): Promise<{ success: boolean }> {
-    if (userId !== activeUserId.current) return { success: false };
+    if (!isCurrent() || userId !== activeUserId.current) return { success: false };
     const result = await setService.deleteSet(userId, setId);
     if (result.success) await reloadWorkout(workoutId);
     return { success: result.success };
   }
 
   async function deleteWorkout(userId: string, workoutIdToDelete: string) {
-    if (userId !== activeUserId.current) return { success: false, error: "Workout owner changed" };
+    if (!isCurrent() || userId !== activeUserId.current) return { success: false, error: "Workout owner changed" };
     const result = await workoutService.deleteWorkout(
       userId,
       workoutIdToDelete,
     );
 
-    if (result.success && userId === activeUserId.current) {
+    if (result.success && isCurrent() && userId === activeUserId.current) {
       recordRevision.current.set(workoutIdToDelete, (recordRevision.current.get(workoutIdToDelete) ?? 0) + 1);
       setWorkouts(previous => previous.filter(workout => workout.id !== workoutIdToDelete));
     }
@@ -455,7 +463,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     userId: string,
     targetMonth: { month: string; year: string },
   ) {
-    if (userId !== activeUserId.current) return;
+    if (!isCurrent() || userId !== activeUserId.current) return;
     const revision = dataRevision.current;
     const targetDate = new Date(`${targetMonth.year}-${targetMonth.month}-01`);
     const latestDate = new Date(
@@ -488,7 +496,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         endFetch,
       );
 
-      if (userId !== activeUserId.current) return;
+      if (!isCurrent() || userId !== activeUserId.current) return;
       if (revision !== dataRevision.current) { await fetchWorkouts(); return; }
       setWorkouts((prev) => {
         const existingIds = new Set(prev.map((w) => w.id));
@@ -529,7 +537,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         endFetch,
       );
 
-      if (userId !== activeUserId.current) return;
+      if (!isCurrent() || userId !== activeUserId.current) return;
       if (revision !== dataRevision.current) { await fetchWorkouts(); return; }
       setWorkouts((prev) => {
         const existingIds = new Set(prev.map((w) => w.id));

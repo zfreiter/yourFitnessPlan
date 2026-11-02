@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from "react-native";
+import { traceUi } from "@/utils/uiDiagnostics";
 import { Link } from "expo-router";
 import { Pressable } from "react-native";
 import { Workout } from "@/types/interfaces/types";
@@ -32,11 +33,14 @@ export default function WorkoutCard({
   return (
     <Link
       href={{ pathname: "/[workoutId]", params: { workoutId: workout.id } }}
+      onPress={event => traceUi("home-workout", "navigation-request", { destination: "/[workoutId]", prevented: event.defaultPrevented })}
       asChild
     >
       <Pressable
-        onPressIn={() => setIsPressed(true)}
-        onPressOut={() => setIsPressed(false)}
+        onFocus={() => traceUi("home-workout", "focus")}
+        onPress={() => traceUi("home-workout", "press")}
+        onPressIn={() => { traceUi("home-workout", "press-in"); setIsPressed(true); }}
+        onPressOut={() => { traceUi("home-workout", "press-out"); setIsPressed(false); }}
         style={[
           styles.card,
           {

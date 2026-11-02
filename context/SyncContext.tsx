@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
 import NetInfo from "@react-native-community/netinfo";
 import { Text } from "react-native";
 import { supabase } from "@/lib/supabaseClient";
@@ -34,25 +35,32 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [workoutRevision, setWorkoutRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { isDbReady } = useAppInit();
-  const { user } = useAuth();
+  const { user, sessionKey } = useAuth();
+  const isCurrent = useSessionLifetime();
+  const scopeKey = `${sessionKey}:${user?.id ?? ""}`;
   activeUser.current = user?.id;
-  const isProfileSet = !!user && profileUserId === user.id;
-  const requests = user ? requestsByUser[user.id] ?? 0 : 0;
+  const isProfileSet = !!user && profileUserId === scopeKey;
+  const requests = user ? requestsByUser[scopeKey] ?? 0 : 0;
   const isSyncLoading = profileLoading || requests > 0 || isSyncing;
   const changeRequests = (delta: number) => {
     if (!user) return;
-    const userId = user.id;
-    setRequestsByUser(counts => ({ ...counts, [userId]: (counts[userId] ?? 0) + delta }));
+    const key = scopeKey;
+    setRequestsByUser(counts => {
+      const next = { ...counts, [key]: (counts[key] ?? 0) + delta };
+      if (next[key] <= 0) delete next[key];
+      return next;
+    });
   };
   const begin = () => changeRequests(1);
   const end = () => changeRequests(-1);
 
   useEffect(() => {
+    setError(null);
     setIsSyncing(user ? syncService.isSyncActive(user.id) : false);
     return syncService.subscribeSyncActivity((userId, active) => {
-      if (activeUser.current === userId) setIsSyncing(active);
+      if (isCurrent() && activeUser.current === userId) setIsSyncing(active);
     });
-  }, [user?.id]);
+  }, [user?.id, sessionKey]);
 
   // In SyncContext, accept an optional callback
   const refreshWorkouts = async (onComplete?: () => Promise<void>) => {
@@ -62,14 +70,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       const result = await syncService.refreshWorkouts(supabase, user.id);
-      if (activeUser.current !== requestUser) return { success: false, error: "User changed" };
+      if (!isCurrent() || activeUser.current !== requestUser) return { success: false, error: "User changed" };
       if (!result.success) throw new Error(result.error);
       setWorkoutRevision(revision => revision + 1);
       await onComplete?.();
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Refresh failed";
-      if (activeUser.current === requestUser) setError(message);
+      if (isCurrent() && activeUser.current === requestUser) setError(message);
       return { success: false, error: message };
     } finally {
       end();
@@ -85,31 +93,31 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       const profile = await profileService.getProfile(user.id);
 
-      if (activeUser.current !== requestUser) return;
+      if (!isCurrent() || activeUser.current !== requestUser) return;
       if (profile) {
-        setProfileUserId(requestUser);
+        setProfileUserId(scopeKey);
       } else {
         console.log(
           "No profile found for user, getting profile from Supabase...",
         );
         const data = await profileService.fetchAndCacheProfile(user.id);
-        if (activeUser.current !== requestUser) return;
+        if (!isCurrent() || activeUser.current !== requestUser) return;
         if (data) {
-          setProfileUserId(requestUser);
+          setProfileUserId(scopeKey);
         } else {
           console.log("No profile found for user in Supabase either");
         }
       }
     } catch (err) {
       console.error("Profile initialization error:", err);
-      if (activeUser.current === requestUser) setError(
+      if (isCurrent() && activeUser.current === requestUser) setError(
         err instanceof Error ? err.message : "Profile initialization error",
       );
     } finally {
       console.log(
         "Profile initialization complete, setting isProfileSet and isSyncLoading",
       );
-      if (activeUser.current === requestUser) setProfileLoading(false);
+      if (isCurrent() && activeUser.current === requestUser) setProfileLoading(false);
     }
   };
 
@@ -125,12 +133,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
 
       await syncService.sync(supabase, user?.id);
-      if (activeUser.current !== requestUser) return;
+      if (!isCurrent() || activeUser.current !== requestUser) return;
       setWorkoutRevision(revision => revision + 1);
       setError(null);
     } catch (err) {
       console.error("Sync error:", err);
-      if (activeUser.current === requestUser) setError(err instanceof Error ? err.message : "Sync error");
+      if (isCurrent() && activeUser.current === requestUser) setError(err instanceof Error ? err.message : "Sync error");
     } finally {
       end();
     }
@@ -141,14 +149,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!isDbReady) return;
     console.log("Initializing profile on app start...");
     initalizeProfile();
-  }, [isDbReady, user?.id]);
+  }, [isDbReady, user?.id, sessionKey]);
 
   // Sync Workout data on app init if user is already signed in and db is ready (e.g. after app restart)
   useEffect(() => {
     if (!isDbReady || !user || !isProfileSet) return;
     console.log("Initializing sync on app start...");
     initializeSync();
-  }, [isDbReady, user?.id, isProfileSet]);
+  }, [isDbReady, user?.id, sessionKey, isProfileSet]);
 
   useEffect(() => {
     if (!isDbReady || !user || !isProfileSet) return;
@@ -161,7 +169,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (wasOnline === false && online) void initializeSync();
       wasOnline = online;
     });
-  }, [isDbReady, user?.id, isProfileSet]);
+  }, [isDbReady, user?.id, sessionKey, isProfileSet]);
 
   return (
     <SyncContext.Provider
