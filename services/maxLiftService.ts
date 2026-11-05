@@ -3,7 +3,7 @@ import * as Crypto from "expo-crypto";
 import { syncService } from "@/services/syncService";
 import { getDB } from "@/services/database";
 import { format } from "date-fns";
-import { ExerciseMax } from "@/types/interfaces/types";
+import type { TrainingMax } from "@/types/interfaces/types";
 import { supabase } from "@/lib/supabaseClient";
 
 export const maxLiftService = {
@@ -82,7 +82,7 @@ export const maxLiftService = {
    * Bulk insert maxes from Supabase into local SQLite cache.
    * Uses INSERT OR IGNORE to avoid duplicates.
    */
-  cacheMaxLifts: async (maxLifts: ExerciseMax[]): Promise<boolean> => {
+  cacheMaxLifts: async (maxLifts: TrainingMax[]): Promise<boolean> => {
     const db = await getDB();
     try {
       await db.withTransactionAsync(async () => {
@@ -111,10 +111,10 @@ export const maxLiftService = {
 
   getAllMaxLifts: async (userId: string) => {},
 
-  getCurrentMaxLifts: async (userId: string): Promise<ExerciseMax[]> => {
+  getCurrentMaxLifts: async (userId: string): Promise<TrainingMax[]> => {
     const db = await getDB();
     try {
-      const currentMaxLifts: ExerciseMax[] = await db.getAllAsync(
+      const currentMaxLifts: TrainingMax[] = await db.getAllAsync(
         `SELECT * FROM training_max_history t1
          WHERE user_id = ?
          AND tested_date = (

@@ -1,4 +1,5 @@
 import React from "react";
+import { Pressable, Text, TextInput } from "react-native";
 import TestRenderer, { act } from "react-test-renderer";
 import { FormProvider, useForm } from "react-hook-form";
 import { CardioLibrary } from "../addCardioModal/cardioLibrary";
@@ -19,13 +20,13 @@ async function mount(element: React.ReactElement) {
   return tree;
 }
 function press(tree: TestRenderer.ReactTestRenderer, label: string) {
-  const button = tree.root.findAllByType("Pressable").find(node => node.findAllByType("Text").some(text => text.props.children === label));
+  const button = tree.root.findAll(node => Object.is(node.type, Pressable)).find(node => node.findAll(node => Object.is(node.type, Text)).some(text => text.props.children === label));
   expect(button).toBeDefined();
   act(() => button!.props.onPress());
 }
 function enter(tree: TestRenderer.ReactTestRenderer, label: string, value: string) {
-  const text = tree.root.findAllByType("Text").find(node => node.props.children === label)!;
-  const input = text.parent!.findByType("TextInput");
+  const text = tree.root.findAll(node => Object.is(node.type, Text)).find(node => node.props.children === label)!;
+  const input = text.parent!.find(node => Object.is(node.type, TextInput));
   act(() => input.props.onChangeText(value));
 }
 
@@ -71,7 +72,7 @@ it("retains edits through removal, unmount and reopen without changing record ID
     return <FormProvider {...api}>{visible && <CardioBuilder />}</FormProvider>;
   }
   const tree = await mount(<Harness visible />);
-  act(() => tree.root.findAllByType("Pressable").filter(node => node.props.hitSlop === 8)[0].props.onPress());
+  act(() => tree.root.findAll(node => Object.is(node.type, Pressable)).filter(node => node.props.hitSlop === 8)[0].props.onPress());
   enter(tree, "Calories", "345");
   enter(tree, "AVG HR (BPM)", "155");
   enter(tree, "Work (sec)", "55");

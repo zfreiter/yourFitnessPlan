@@ -1,5 +1,5 @@
 import { supabase } from "../supabaseClient";
-import { UserPreferencesUpdate } from "@/types/user/type";
+import type { UserPreferencesUpdate } from "@/types/interfaces/types";
 
 export const updateUserPreferences = async (
   preferences: UserPreferencesUpdate,

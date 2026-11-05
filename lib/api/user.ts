@@ -1,5 +1,5 @@
 import { supabase } from "../supabaseClient";
-import { ProfileUpdate, ProfileUpdateFunction } from "@/types/user/type";
+import type { ProfileUpdate, ProfileUpdateFunction } from "@/types/interfaces/types";
 
 export const updateUser = async (
   user: ProfileUpdate,

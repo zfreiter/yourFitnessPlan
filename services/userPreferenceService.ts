@@ -1,6 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import { syncService } from "@/services/syncService";
-import { UserPreferences, UserPreferencesUpdate } from "@/types/user/type";
+import type { UserPreferences, UserPreferencesUpdate } from "@/types/interfaces/types";
 import { getDB } from "./database";
 
 interface UserPreferenceServiceInterface {

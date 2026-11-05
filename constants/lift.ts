@@ -1,6 +1,6 @@
-import { Exercise } from "@/types/interfaces/types";
+import type { SampleExercise } from "./fixtureTypes";
 
-export const lifts: Exercise[] = [
+export const lifts: SampleExercise[] = [
   {
     id: "1",
     name: "Bench Press",

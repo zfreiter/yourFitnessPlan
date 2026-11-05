@@ -1,5 +1,5 @@
 import { syncService } from "@/services/syncService";
-import { ProfileInterface } from "@/types/user/type";
+import type { ProfileInterface } from "@/types/interfaces/types";
 import { getDB } from "./database";
 import { supabase } from "@/lib/supabaseClient";
 

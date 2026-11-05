@@ -10,8 +10,11 @@ import { useColorTheme } from "@/context/colorThemeContext";
 import { useState } from "react";
 import Toast from "react-native-toast-message";
 import { useForm, Controller } from "react-hook-form";
-import { ProfileUpdate, ProfileInterface } from "@/types/user/type";
+import type { ProfileUpdate, ProfileInterface } from "@/types/interfaces/types";
 import { useProfile } from "@/context/profileContext";
+
+// Preserve the creation timestamp carried through the profile form on save.
+type ProfileFormData = ProfileUpdate & Pick<ProfileInterface, "created_at">;
 
 export default function Profile() {
   const { profile, updateProfile } = useProfile();
@@ -24,7 +27,7 @@ export default function Profile() {
     handleSubmit,
     reset,
     formState: { isDirty },
-  } = useForm<ProfileUpdate>({
+  } = useForm<ProfileFormData>({
     defaultValues: {
       id: profile?.id,
       age: profile?.age || null,
@@ -38,7 +41,7 @@ export default function Profile() {
     },
   });
 
-  const onSubmit = async (data: ProfileUpdate) => {
+  const onSubmit = async (data: ProfileFormData) => {
     setIsSaving(true);
     try {
       const updatedUser: ProfileInterface = {

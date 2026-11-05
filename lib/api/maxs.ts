@@ -1,10 +1,10 @@
 import { supabase } from "../supabaseClient";
-import { ExerciseMax } from "@/types/interfaces/types";
+import type { TrainingMax } from "@/types/interfaces/types";
 
 // 1. Get CURRENT maxes (one per exercise)
 export async function getCurrentMaxes(
   userId: string,
-): Promise<{ data: ExerciseMax[] | null; error: any }> {
+): Promise<{ data: TrainingMax[] | null; error: any }> {
   try {
     const { data, error } = await supabase
       .from("current_training_maxes")
@@ -25,7 +25,7 @@ export async function getCurrentMaxes(
 // 2. Get ALL history (for charts/progress tracking)
 export async function getMaxHistory(
   userId: string,
-): Promise<{ data: ExerciseMax[] | null; error: any }> {
+): Promise<{ data: TrainingMax[] | null; error: any }> {
   try {
     const { data, error } = await supabase
       .from("training_max_history")
@@ -47,7 +47,7 @@ export async function getMaxHistory(
 export async function getExerciseHistory(
   userId: string,
   exerciseName: string,
-): Promise<{ data: ExerciseMax[] | null; error: any }> {
+): Promise<{ data: TrainingMax[] | null; error: any }> {
   try {
     const { data, error } = await supabase
       .from("training_max_history")
