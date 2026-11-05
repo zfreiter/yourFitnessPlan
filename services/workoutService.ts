@@ -1,3 +1,4 @@
+import { queueOwnedWorkoutDeletion } from "./workoutDeletionOwnership";
 import { traceWorkoutSync, syncErrorCode } from "@/utils/workoutSyncDiagnostics";
 import { serializeScheduledDate } from "@/utils/scheduledDate";
 import {
@@ -1224,16 +1225,8 @@ export const workoutService = {
           `DELETE FROM circuit_rounds WHERE workout_id = ?`,
           [workoutId],
         );
+        await queueOwnedWorkoutDeletion(transaction, userId, workoutId);
         await transaction.runAsync(`DELETE FROM workouts WHERE id = ? AND user_id = ?`, [workoutId, userId]);
-
-        await syncService.addToSyncQueueInTransaction(
-          transaction,
-          userId,
-          "workouts",
-          workoutId,
-          "delete",
-          { id: workoutId },
-        );
       });
 
       return { success: true };

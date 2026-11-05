@@ -1,0 +1,143 @@
+{
+  "administratorEvidence": {
+    "source": "User-confirmed Supabase SQL Editor verification",
+    "projectRef": "bojjxwudhkvcjipglwps",
+    "role": "postgres",
+    "rolbypassrls": true,
+    "bothWorkoutIdsGloballyAbsent": true
+  },
+  "recovery": {
+    "state": "completed",
+    "runtimeProjectRef": "bojjxwudhkvcjipglwps",
+    "authenticatedUserId": "a47d200f-2dde-4b20-bc4a-c1008ed338d7",
+    "pendingBefore": 4,
+    "targetRows": [
+      {
+        "id": 287,
+        "userId": "a47d200f-2dde-4b20-bc4a-c1008ed338d7",
+        "table": "workouts",
+        "recordId": "bf480eef-6ead-4965-a0af-fcd96972a40b",
+        "operation": "insert",
+        "synced": 0
+      },
+      {
+        "id": 288,
+        "userId": "a47d200f-2dde-4b20-bc4a-c1008ed338d7",
+        "table": "workouts",
+        "recordId": "bf480eef-6ead-4965-a0af-fcd96972a40b",
+        "operation": "delete",
+        "synced": 0
+      },
+      {
+        "id": 289,
+        "userId": "a47d200f-2dde-4b20-bc4a-c1008ed338d7",
+        "table": "workouts",
+        "recordId": "55cd68e8-9616-4c52-8dcc-cfb45cd76e0f",
+        "operation": "insert",
+        "synced": 0
+      },
+      {
+        "id": 290,
+        "userId": "a47d200f-2dde-4b20-bc4a-c1008ed338d7",
+        "table": "workouts",
+        "recordId": "55cd68e8-9616-4c52-8dcc-cfb45cd76e0f",
+        "operation": "delete",
+        "synced": 0
+      }
+    ],
+    "unrelatedQueueRows": 66,
+    "canceledQueueIds": [
+      287,
+      288,
+      289,
+      290
+    ],
+    "canceledCount": 4,
+    "remainingPending": 0,
+    "unrelatedRowsPreserved": true,
+    "remoteWrites": 0
+  },
+  "restartedAndroid": {
+    "state": "completed",
+    "projectRef": "bojjxwudhkvcjipglwps",
+    "authenticatedUserId": "a47d200f-2dde-4b20-bc4a-c1008ed338d7",
+    "legacyQueueRows": 0,
+    "remainingPending": 0,
+    "syncActive": false,
+    "lastWorkoutPull": "2026-10-22T17:40:20.659Z"
+  },
+  "startupConsole": {
+    "target": "aab2e23ecb6e593e61c24c7a2bc66fc1ed70b09f-1",
+    "completed": true,
+    "events": [
+      {
+        "message": "Initializing sync on app start..."
+      },
+      {
+        "message": "[workout-sync]"
+      },
+      {
+        "message": "Online - starting sync"
+      },
+      {
+        "message": "[workout-sync]"
+      },
+      {
+        "message": "Sync complete"
+      },
+      {
+        "message": "[workout-sync]"
+      }
+    ]
+  },
+  "liveSupabaseValidation": {
+    "state": "completed",
+    "projectRef": "bojjxwudhkvcjipglwps",
+    "workoutId": "823a058a-722e-41ec-9f02-f42b53670a58",
+    "results": [
+      {
+        "check": "uploaded-owned-remote-workout",
+        "passed": true
+      },
+      {
+        "check": "local-deletion-and-durable-receipt",
+        "passed": true,
+        "deleteQueueId": 296
+      },
+      {
+        "check": "remote-deletion-and-acknowledgment",
+        "passed": true
+      },
+      {
+        "check": "repeat-manual-refresh",
+        "passed": true
+      }
+    ],
+    "fixtureQueue": [
+      {
+        "id": 295,
+        "operation": "insert",
+        "synced": 1
+      },
+      {
+        "id": 296,
+        "operation": "delete",
+        "synced": 1
+      }
+    ],
+    "legacyQueueRows": 0,
+    "remainingPending": 0,
+    "remoteWorkoutDeleted": true,
+    "newDeleteAcknowledged": true
+  },
+  "regressions": {
+    "suites": 3,
+    "passed": 83,
+    "newRecoveryTests": 20
+  },
+  "typeScript": {
+    "baselineDiagnostics": 154,
+    "currentDiagnostics": 154,
+    "introduced": []
+  }
+}

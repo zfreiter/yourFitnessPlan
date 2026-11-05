@@ -1,3 +1,4 @@
+import NetInfo from "@react-native-community/netinfo";
 import React, { useEffect } from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { SyncProvider, useSync } from "../SyncContext";
@@ -49,6 +50,7 @@ it("keeps the provider and committed workouts mounted after a failed remote sync
   expect(workouts.workouts).toEqual(localRows); expect(mounts).toBe(1);
   act(() => workouts.insertWorkout({ ...fixture(), name: "Offline edit" }));
   expect(workouts.workouts[0].name).toBe("Offline edit");
+  expect(syncService.sync).toHaveBeenCalledTimes(1);
   expect(tree.root.findAllByType("Text" as any).some(node => node.props.children === "Push rejected")).toBe(true);
   expect(mounts).toBe(1);
 });
@@ -85,24 +87,37 @@ it("keeps both flags active until all overlapping provider requests settle", asy
   await act(async () => { finishFirst(); });
   expect(sync.isSyncing).toBe(false); expect(sync.isSyncLoading).toBe(false);
 });
-it("ignores initial online snapshot and syncs on reconnect", async () => {
+it("syncs at startup but never subscribes for reconnect uploads", async () => {
   await mount();
-  await act(async () => { mockNetworkListener({ isConnected: true, isInternetReachable: true }); });
+  await act(async () => { mockNetworkListener?.({ isConnected: true, isInternetReachable: true }); });
   expect(syncService.sync).toHaveBeenCalledTimes(1);
   await act(async () => {
-    mockNetworkListener({ isConnected: false, isInternetReachable: false });
-    mockNetworkListener({ isConnected: true, isInternetReachable: true });
+    mockNetworkListener?.({ isConnected: false, isInternetReachable: false });
+    mockNetworkListener?.({ isConnected: true, isInternetReachable: true });
   });
-  expect(syncService.sync).toHaveBeenCalledTimes(2);
+  expect(syncService.sync).toHaveBeenCalledTimes(1);
+  expect(NetInfo.addEventListener).not.toHaveBeenCalled();
 });
 
 it("keeps startup loading active when the initial online event arrives", async () => {
   let finish!: () => void;
   jest.mocked(syncService.sync).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   await mount();
-  await act(async () => { mockNetworkListener({ isConnected: true, isInternetReachable: true }); });
+  await act(async () => { mockNetworkListener?.({ isConnected: true, isInternetReachable: true }); });
   expect(syncService.sync).toHaveBeenCalledTimes(1);
   expect(sync.isSyncing).toBe(true); expect(sync.isSyncLoading).toBe(true);
   await act(async () => { finish(); });
   expect(sync.isSyncing).toBe(false); expect(sync.isSyncLoading).toBe(false);
+});
+
+it("does not let stale refresh or startup callbacks request sync after switching accounts", async () => {
+  await mount();
+  const oldRefresh = sync.refreshWorkouts, oldReset = sync.resetSync;
+  mockUser.id = "other";
+  try {
+    await act(async () => { tree.update(<SyncProvider><WorkoutProvider><Probe /></WorkoutProvider></SyncProvider> as Parameters<typeof tree.update>[0]); });
+    jest.mocked(syncService.sync).mockClear(); jest.mocked(syncService.refreshWorkouts).mockClear();
+    await act(async () => { expect((await oldRefresh()).success).toBe(false); await oldReset(); });
+    expect(syncService.sync).not.toHaveBeenCalled(); expect(syncService.refreshWorkouts).not.toHaveBeenCalled();
+  } finally { mockUser.id = "user"; }
 });

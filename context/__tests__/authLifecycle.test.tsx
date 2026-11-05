@@ -24,7 +24,7 @@ jest.mock("@/context/AppInitContext", () => ({ useAppInit: () => ({ isDbReady: t
 jest.mock("@/context/colorThemeContext", () => ({ useColorTheme: () => ({ theme: { color: {}, spacing: {}, fonts: {} } }) }));
 jest.mock("@/services/profileService", () => ({ profileService: { getProfile: jest.fn(async (id) => ({ id })) } }));
 jest.mock("@/services/syncService", () => ({ syncService: {
-  sync: jest.fn(), refreshWorkouts: jest.fn(), invalidateUserSync: jest.fn(),
+  sync: jest.fn(), refreshWorkouts: jest.fn(), setAuthenticatedUser: jest.fn(), invalidateUserSync: jest.fn(),
   isSyncActive: () => false, subscribeSyncActivity: () => () => {},
 } }));
 jest.mock("@/services/workoutService", () => ({ workoutService: { getAllWorkouts: jest.fn() } }));

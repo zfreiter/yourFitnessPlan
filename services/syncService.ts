@@ -1,3 +1,4 @@
+import { workoutDeletionReceiptKey, workoutDeletionReceiptValue } from "./workoutDeletionOwnership";
 import { traceWorkoutSync, syncErrorCode } from "@/utils/workoutSyncDiagnostics";
 import { serializeScheduledDate, parseScheduledDate } from "@/utils/scheduledDate";
 import NetInfo from "@react-native-community/netinfo";
@@ -30,6 +31,7 @@ const TABLE_PRIMARY_KEYS: Record<string, string> = {
 
 // All public workout operations use one FIFO per user. Internal stages never
 // acquire the coordinator again, so sync -> push cannot deadlock or reject itself.
+let authenticatedOwner: string | null | undefined;
 const syncGenerations = new Map<string, number>();
 class SyncCancelled extends Error {
   constructor() { super("Synchronization cancelled because the session changed"); }
@@ -43,7 +45,7 @@ const activityListeners = new Set<(userId: string, active: boolean) => void>();
 function coordinate<T>(userId: string, kind: string, operation: (checkSession: CheckSession) => Promise<T>): Promise<T> {
   const generation = syncGenerations.get(userId) ?? 0;
   const checkSession = () => {
-    if ((syncGenerations.get(userId) ?? 0) !== generation) throw new SyncCancelled();
+    if ((authenticatedOwner !== undefined && authenticatedOwner !== userId) || (syncGenerations.get(userId) ?? 0) !== generation) throw new SyncCancelled();
   };
   const key = `${userId}:${generation}:${kind}`;
   const queued = queuedOperations.get(key);
@@ -56,7 +58,11 @@ function coordinate<T>(userId: string, kind: string, operation: (checkSession: C
   const result = previous.then(() => {
     queuedOperations.delete(key);
     checkSession();
-    return operation(checkSession);
+    traceWorkoutSync("sync-started", { tableName: "workouts", recordId: kind, userId });
+    return operation(checkSession).then(result => {
+      traceWorkoutSync("sync-completed", { tableName: "workouts", recordId: kind, userId });
+      return result;
+    });
   });
   queuedOperations.set(key, result);
   const tail = result.then(() => {}, () => {}).then(() => {
@@ -600,10 +606,12 @@ async function setWorkoutSyncTimestamp(
 async function fetchWorkoutsFromSupabase(
   supabase: SupabaseClient,
   userId: string,
+  checkSession: CheckSession = keepSession,
 ): Promise<PulledWorkout[]> {
   const pageSize = 500;
   const rawWorkouts: unknown[] = [];
   for (let from = 0; ; from += pageSize) {
+    checkSession();
     const { data, error } = await supabase
       .from("workouts")
       .select(`
@@ -616,6 +624,7 @@ async function fetchWorkoutsFromSupabase(
       .order("scheduled_datetime", { ascending: true })
       .order("id", { ascending: true })
       .range(from, from + pageSize - 1);
+    checkSession();
 
     if (error) throw error;
     if (data == null) break;
@@ -625,6 +634,83 @@ async function fetchWorkoutsFromSupabase(
   }
 
   return validateAndMapWorkoutData(rawWorkouts, userId);
+}
+
+// Resolve both the existing record and any new parent in an update. Never infer
+// ownership from the current login or repair legacy queue labels automatically.
+async function validateUploadOwner(db: SQLiteDatabase, supabase: SupabaseClient,
+  item: SyncQueueItem, data: Record<string, unknown>, userId: string, check: CheckSession) {
+  const relations: Record<string, [string, string]> = {
+    workout_exercises: ["workouts", "workout_id"], circuit_rounds: ["workouts", "workout_id"],
+    cardio_entries: ["workouts", "workout_id"], exercise_sets: ["workout_exercises", "workout_exercise_id"],
+    cardio_intervals: ["cardio_entries", "cardio_entry_id"],
+  };
+  async function localOwner(table: string, id: unknown): Promise<string | undefined> {
+    if (typeof id !== "string") return undefined;
+    const row = await db.getFirstAsync<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+    if (!row) return undefined;
+    if (table === "workouts") return row.user_id as string;
+    const parent = relations[table];
+    return parent ? localOwner(parent[0], row[parent[1]]) : undefined;
+  }
+  if (item.table_name === "user_preferences") {
+    if (data.user_id !== userId) throw new Error("Queue payload owner mismatch");
+    return;
+  }
+  const existingOwner = await localOwner(item.table_name, item.record_id);
+  if (existingOwner !== undefined && existingOwner !== userId) throw new Error("Local record owner mismatch");
+  if (data.user_id !== undefined && data.user_id !== userId) throw new Error("Queue payload owner mismatch");
+  if (item.operation === "delete") {
+    // Deleted local rows have no trustworthy parent chain. Verify the remote
+    // relationship, including for legacy ID-only tombstones, before deleting.
+    let relation = "user_id";
+    let table = item.table_name;
+    const path: string[] = [];
+    while (relations[table]) { table = relations[table][0]; path.push(table); }
+    for (const parent of [...path].reverse()) relation = `${parent}!inner(${relation})`;
+    check();
+    const { data: rows, error } = await supabase.from(item.table_name).select(relation).eq("id", item.record_id).limit(1);
+    check();
+    if (error) throw error;
+    if (!Array.isArray(rows)) throw new Error("Could not verify deleted record ownership");
+    if (!rows.length) {
+      if (item.table_name === "workouts") {
+        const receipt = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM app_meta WHERE key = ?", [workoutDeletionReceiptKey(item.id)],
+        );
+        if (receipt?.value === workoutDeletionReceiptValue(userId, item.record_id)) return "already-absent";
+      }
+      throw new Error("Remote delete ownership is unavailable; operation retained for review");
+    }
+    let row: unknown = rows[0];
+    for (const parent of path) {
+      row = typeof row === "object" && row !== null ? (row as Record<string, unknown>)[parent] : undefined;
+    }
+    if (typeof row !== "object" || row === null || (row as Record<string, unknown>).user_id !== userId) throw new Error("Remote delete owner mismatch");
+    if (item.table_name === "workouts") {
+      // Recover legacy ID-only deletions from an authenticated remote owner read.
+      // Persist before the request so a lost response can be retried idempotently.
+      await withLocalTransaction(async transaction => {
+        check();
+        await transaction.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
+          workoutDeletionReceiptKey(item.id), workoutDeletionReceiptValue(userId, item.record_id),
+        ]);
+        check();
+      });
+    }
+    return;
+  }
+  const parent = relations[item.table_name];
+  if (parent) {
+    const existing = await db.getFirstAsync<Record<string, unknown>>(`SELECT * FROM ${item.table_name} WHERE id = ?`, [item.record_id]);
+    const owner = await localOwner(parent[0], data[parent[1]] ?? existing?.[parent[1]]);
+    if (owner !== userId) throw new Error("Missing local parent or parent owner mismatch");
+  } else if (existingOwner !== userId) throw new Error("Missing local workout or owner mismatch");
+  if (typeof data.circuit_id === "string") {
+    const round = await db.getFirstAsync<{ workout_id: string }>("SELECT workout_id FROM circuit_rounds WHERE id = ?", [data.circuit_id]);
+    if (!round || round.workout_id !== data.workout_id || await localOwner("workouts", round.workout_id) !== userId)
+      throw new Error("Circuit round owner or workout mismatch");
+  }
 }
 
 const syncStages = {
@@ -831,7 +917,7 @@ const syncStages = {
 
       // Fetch and validate before the transaction so network failures leave
       // the existing local workout dataset untouched.
-      const remoteWorkouts = await fetchWorkoutsFromSupabase(supabase, userId);
+      const remoteWorkouts = await fetchWorkoutsFromSupabase(supabase, userId, checkSession);
 
       // Replace the complete dataset and timestamp atomically.
       await withLocalTransaction(async (transaction) => {
@@ -880,8 +966,22 @@ const syncStages = {
         [userId],
       );
 
+      traceWorkoutSync("queue-selected", { tableName: "workouts", recordId: "batch", userId, pendingCount: pendingItems.length });
       if (pendingItems.length === 0) return { success: true };
 
+      // A terminal deletion supersedes earlier writes for that workout. Keep
+      // them pending until the deletion itself is authorized and acknowledged.
+      const terminalDeletes = new Map<string, number>();
+      for (const item of pendingItems) {
+        if (item.table_name === "workouts" && item.operation === "delete") {
+          try {
+            if (JSON.parse(item.data)?.id === item.record_id)
+              terminalDeletes.set(item.record_id, Math.max(terminalDeletes.get(item.record_id) ?? 0, item.id));
+          } catch { /* Malformed tombstones cannot supersede valid operations. */ }
+        }
+      }
+      const superseded = (item: SyncQueueItem) => item.table_name === "workouts" &&
+        item.id < (terminalDeletes.get(item.record_id) ?? 0);
       const failures: string[] = [];
       const pendingParents = new Map<string, number>();
       for (const item of pendingItems) {
@@ -893,7 +993,25 @@ const syncStages = {
       const blockedRecords = new Set<string>();
       const acknowledge = async (item: SyncQueueItem) => {
         checkSession();
-        await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ?`, [item.id]);
+        if (item.table_name === "workouts" && item.operation === "delete") {
+          await withLocalTransaction(async transaction => {
+            checkSession();
+            await transaction.runAsync(
+              `UPDATE sync_queue SET synced = 1 WHERE user_id = ? AND table_name = 'workouts'
+               AND record_id = ? AND id <= ? AND synced = 0`, [userId, item.record_id, item.id],
+            );
+            // Remove receipts only for acknowledged operations of this owner.
+            await transaction.runAsync(
+              `DELETE FROM app_meta WHERE value = ? AND key IN (
+                 SELECT 'workout-delete-owner:' || id FROM sync_queue
+                 WHERE user_id = ? AND table_name = 'workouts' AND record_id = ? AND id <= ? AND synced = 1
+               )`, [workoutDeletionReceiptValue(userId, item.record_id), userId, item.record_id, item.id],
+            );
+            checkSession();
+          });
+        } else {
+          await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ? AND user_id = ? AND synced = 0`, [item.id, userId]);
+        }
         const key = `${item.table_name}:${item.record_id}`;
         pendingParents.set(key, (pendingParents.get(key) ?? 1) - 1);
       };
@@ -907,10 +1025,19 @@ const syncStages = {
 
       for (const item of pendingItems) {
         checkSession();
+        if (superseded(item)) continue;
         const data = JSON.parse(item.data);
         const pk = TABLE_PRIMARY_KEYS[item.table_name] || "id";
 
         try {
+          if (item.user_id !== userId || !TABLE_PRIMARY_KEYS[item.table_name] ||
+              !data || data[pk] !== item.record_id) throw new Error("Invalid queue ownership or record identity");
+          const validation = await validateUploadOwner(db, supabase, item, data, userId, checkSession);
+          if (validation === "already-absent") {
+            await acknowledge(item);
+            traceWorkoutSync("delete-already-absent", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
+            continue;
+          }
           const recordKey = `${item.table_name}:${item.record_id}`;
           if (blockedRecords.has(recordKey)) throw new Error("An earlier operation for this record is still pending");
           if (item.operation !== "delete") {
@@ -932,7 +1059,7 @@ const syncStages = {
           }
 
           checkSession();
-          traceWorkoutSync("upload-attempt", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id });
+          traceWorkoutSync("upload-attempt", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
           switch (item.operation) {
             case "insert": {
               // Inserts are retried safely by verifying duplicate rows below.
@@ -957,12 +1084,16 @@ const syncStages = {
             }
 
             case "delete": {
-              const { error } = await supabase
-                .from(item.table_name)
-                .delete()
-                .eq(pk, data[pk]);
-
-              if (error) throw error;
+              if (item.table_name === "workouts") {
+                const { data: deleted, error } = await supabase.from("workouts").delete()
+                  .eq("id", item.record_id).eq("user_id", userId).select("id");
+                if (error) throw error;
+                if (!Array.isArray(deleted) || !deleted.some(row => row.id === item.record_id))
+                  throw new Error("Workout deletion was not confirmed; operation remains pending");
+              } else {
+                const { error } = await supabase.from(item.table_name).delete().eq(pk, data[pk]);
+                if (error) throw error;
+              }
 
               break;
             }
@@ -974,7 +1105,7 @@ const syncStages = {
           // Only mark synced after Supabase succeeds
           await acknowledge(item);
 
-          traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id });
+          traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
         } catch (error) {
           checkSession();
           // A duplicate-key error on insert means the row already made it
@@ -992,7 +1123,7 @@ const syncStages = {
             );
             if (verification.matches) {
               await acknowledge(item);
-              traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id });
+              traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
               continue;
             }
             error = new Error(`Could not verify duplicate ${item.table_name} ${item.record_id}: ${verification.reason ?? "remote data mismatch"}`);
@@ -1002,13 +1133,14 @@ const syncStages = {
           const detail = error instanceof Error ? error.message :
             typeof error === "object" && error !== null && "message" in error ? String(error.message) : String(error);
           failures.push(`${item.table_name} ${item.record_id}: ${detail}`);
-          traceWorkoutSync("upload-failed", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, errorCode: syncErrorCode(error) });
+          traceWorkoutSync("upload-failed", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id, errorCode: syncErrorCode(error) });
 
           // Leave item unsynced so it retries later
         }
       }
 
       // Cleanup old synced items
+      checkSession();
       await db.runAsync(
         `DELETE FROM sync_queue 
        WHERE synced = 1 
@@ -1045,7 +1177,7 @@ const syncStages = {
     checkSession: CheckSession = keepSession,
   ): Promise<void> => {
     checkSession();
-    const workouts = await fetchWorkoutsFromSupabase(supabase, userId);
+    const workouts = await fetchWorkoutsFromSupabase(supabase, userId, checkSession);
     await withLocalTransaction(async (transaction) => {
       checkSession();
       if ((await getPendingWorkoutQueueCount(transaction, userId)) > 0) {
@@ -1129,7 +1261,7 @@ const syncStages = {
 
 // A successful snapshot may have missed commits made while uploading. Drain
 // fresh snapshots, but stop immediately on failure: failed rows wait for a new
-// explicit request or reconnect rather than triggering an automatic retry loop.
+// explicit request rather than triggering an automatic retry loop.
 async function drainUploads(userId: string, supabase: SupabaseClient, checkSession: CheckSession = keepSession) {
   while (true) {
     checkSession();
@@ -1146,6 +1278,10 @@ async function drainUploads(userId: string, supabase: SupabaseClient, checkSessi
 
 export const syncService = {
   ...syncStages,
+  setAuthenticatedUser: (userId: string | null) => {
+    if (authenticatedOwner && authenticatedOwner !== userId) syncService.invalidateUserSync(authenticatedOwner);
+    authenticatedOwner = userId;
+  },
   invalidateUserSync: (userId: string) => {
     syncGenerations.set(userId, (syncGenerations.get(userId) ?? 0) + 1);
     // Keep the tail until an already-sent request settles. Releasing it early

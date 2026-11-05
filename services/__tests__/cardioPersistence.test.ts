@@ -29,6 +29,8 @@ function database() {
       }
     }),
     getFirstAsync: jest.fn(async (sql: string, values: any[]) => {
+      const record = sql.match(/SELECT \* FROM (\w+) WHERE id = \?/);
+      if (record) return tables[record[1]]?.find(row => row.id === values[0]) ?? null;
       if (sql.includes("COUNT")) return { count: 0 };
       if (sql.includes("SELECT cardio_entry_id")) return tables.cardio_intervals.find(row => row.id === values[0]);
       return tables.workouts?.[0] ?? null;

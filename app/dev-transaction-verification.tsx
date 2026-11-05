@@ -1,3 +1,5 @@
+import { inspectDevWorkoutDeletion } from "@/services/devWorkoutDeletionInspection";
+import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSync } from "@/context/SyncContext";
@@ -69,6 +71,22 @@ export default function DevTransactionVerificationScreen() {
       >
         <Text style={{ color: "white", textAlign: "center" }}>Inspect workout (read only)</Text>
       </Pressable>
+      <Pressable
+        disabled={busy || !user || !workoutId.trim()}
+        onPress={async () => {
+          if (!user) return;
+          setRunning(true);
+          try {
+            setOutput(JSON.stringify(await inspectDevWorkoutDeletion(supabase, user.id, workoutId.trim()), null, 2));
+          } catch (error) {
+            setOutput(error instanceof Error ? error.message : "Deletion inspection failed");
+          } finally { setRunning(false); }
+        }}
+        style={{ padding: 14, borderRadius: 8, backgroundColor: "#147D54" }}
+      >
+        <Text style={{ color: "white", textAlign: "center" }}>Inspect deletion (read only)</Text>
+      </Pressable>
+      <Text>Deletion inspection reads local queue metadata and the authenticated remote workout owner. It supports deleted workouts and never saves, uploads, acknowledges, or deletes records.</Text>
       <Text>The existing fixture checks below create and remove synthetic local records. Use them only on an isolated test install; they never contact Supabase.</Text>
 
       <Pressable

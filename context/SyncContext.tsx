@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSessionLifetime } from "@/hooks/useSessionLifetime";
-import NetInfo from "@react-native-community/netinfo";
 import { Text } from "react-native";
 import { supabase } from "@/lib/supabaseClient";
 import { syncService } from "@/services/syncService";
@@ -64,7 +63,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // In SyncContext, accept an optional callback
   const refreshWorkouts = async (onComplete?: () => Promise<void>) => {
-    if (!user) return { success: false, error: "Not signed in" };
+    if (!user || !isCurrent()) return { success: false, error: "Not signed in" };
     begin();
     const requestUser = user.id;
     try {
@@ -122,7 +121,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   };
 
   const initializeSync = async () => {
-    if (!user || !isProfileSet) {
+    if (!user || !isProfileSet || !isCurrent()) {
       console.log("Cannot initialize sync, user or profile not set");
       return;
     }
@@ -158,18 +157,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     initializeSync();
   }, [isDbReady, user?.id, sessionKey, isProfileSet]);
 
-  useEffect(() => {
-    if (!isDbReady || !user || !isProfileSet) return;
-    // NetInfo emits an initial snapshot; startup already handles that request.
-    let wasOnline: boolean | undefined;
-    return NetInfo.addEventListener(state => {
-      // Unknown reachability is not a disconnect/reconnect transition.
-      if (state.isConnected !== false && state.isInternetReachable == null) return;
-      const online = !!state.isConnected && state.isInternetReachable === true;
-      if (wasOnline === false && online) void initializeSync();
-      wasOnline = online;
-    });
-  }, [isDbReady, user?.id, sessionKey, isProfileSet]);
 
   return (
     <SyncContext.Provider

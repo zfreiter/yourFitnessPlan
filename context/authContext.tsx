@@ -53,6 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // auth lock. Profile hydration belongs to the user-scoped providers below.
   const publishSession = (session: Session | null) => {
     const nextOwner = session?.user.id ?? null;
+    syncService.setAuthenticatedUser(nextOwner);
     if (owner.current !== nextOwner) {
       if (owner.current) syncService.invalidateUserSync(owner.current);
       if (nextOwner === null) loginAttempt.current++;
@@ -83,6 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
     return () => {
       mounted.current = false;
+      syncService.setAuthenticatedUser(null);
       revision.current++;
       loginAttempt.current++;
       if (owner.current) syncService.invalidateUserSync(owner.current);

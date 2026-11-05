@@ -13,7 +13,7 @@ let mockSystemScheme = "light";
 jest.mock("react-native", () => ({ View: "View", StatusBar: "StatusBar", ActivityIndicator: "ActivityIndicator", useColorScheme: () => mockSystemScheme }));
 jest.mock("@react-native-async-storage/async-storage", () => ({ getItem: jest.fn(), setItem: jest.fn() }));
 jest.mock("@/lib/supabaseClient", () => ({ supabase: { auth: { onAuthStateChange: jest.fn() }, from: jest.fn() } }));
-jest.mock("@/services/syncService", () => ({ syncService: { invalidateUserSync: jest.fn() } }));
+jest.mock("@/services/syncService", () => ({ syncService: { setAuthenticatedUser: jest.fn(), invalidateUserSync: jest.fn() } }));
 jest.mock("react-native-toast-message", () => ({ __esModule: true, default: { show: jest.fn() } }));
 jest.mock("@/context/AppInitContext", () => ({ useAppInit: () => ({ isDbReady: true }) }));
 jest.mock("expo-router", () => ({ SplashScreen: { hideAsync: jest.fn().mockResolvedValue(undefined) }, Redirect: (props: any) => require("react").createElement("Redirect", props) }));
