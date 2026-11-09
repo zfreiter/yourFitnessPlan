@@ -1,6 +1,11 @@
+import { registerLocalCreation } from "./uploadLifecycle";
+import { hydrationRead, mapSequential } from "@/utils/workoutHydration";
 import { queueOwnedWorkoutDeletion } from "./workoutDeletionOwnership";
+import { queueOwnedDeletion, queueExerciseDeletion } from "./ownedDeletion";
 import { traceWorkoutSync, syncErrorCode } from "@/utils/workoutSyncDiagnostics";
 import { serializeScheduledDate } from "@/utils/scheduledDate";
+import { normalizeExerciseOrder } from "@/utils/exerciseOrdering";
+import { assertNoEmptyCircuits } from "@/utils/circuitValidation";
 import {
   PerceivedEffort,
   Workout,
@@ -39,15 +44,31 @@ interface WorkoutDataRow {
   completed_at: string | null;
 }
 
+export interface WorkoutSaveResult {
+  success: boolean;
+  data?: Workout | null;
+  error?: string;
+  reloadError?: string;
+}
+
+// Persistence has already committed. A failed read must never invite another write.
+async function reloadCommittedWorkout(userId: string, workoutId: string): Promise<WorkoutSaveResult> {
+  try {
+    const data = await workoutService.getWorkoutById(userId, workoutId);
+    if (!data) throw new Error("Committed workout could not be loaded");
+    return { success: true, data };
+  } catch {
+    return { success: true, data: null, reloadError: "Workout saved. Reload failed. Retry loading your workout." };
+  }
+}
+
 const hydrateWorkout = async (
   row: WorkoutDataRow,
   db: SQLiteDatabase,
 ): Promise<Workout> => {
-  const [exercises, cardio_entries, circuit_rounds] = await Promise.all([
-    exerciseService.getWorkoutExercises(row.user_id, row.id, db),
-    cardioService.getWorkoutCardioEntries(row.user_id, row.id, db),
-    circuitService.getWorkoutCircuitRounds(row.user_id, row.id, db),
-  ]);
+  const exercises = await hydrationRead(row.id, "exercises-and-sets", () => exerciseService.getWorkoutExercises(row.user_id, row.id, db));
+  const cardio_entries = await hydrationRead(row.id, "cardio-entries-and-intervals", () => cardioService.getWorkoutCardioEntries(row.user_id, row.id, db));
+  const circuit_rounds = await hydrationRead(row.id, "circuit-rounds", () => circuitService.getWorkoutCircuitRounds(row.user_id, row.id, db));
 
   return {
     id: row.id,
@@ -70,7 +91,7 @@ const hydrateWorkouts = async (
   rows: WorkoutDataRow[],
   db: SQLiteDatabase,
 ): Promise<Workout[]> => {
-  return Promise.all(rows.map((row) => hydrateWorkout(row, db)));
+  return mapSequential(rows, row => hydrateWorkout(row, db));
 };
 
 type BaseWorkoutChanges = Partial<
@@ -310,8 +331,10 @@ export const workoutService = {
   insertWorkout: async (
     createWorkout: Workout,
     authenticatedUserId: string,
-  ): Promise<{ success: boolean; data?: Workout | null; error?: string }> => {
+  ): Promise<WorkoutSaveResult> => {
     try {
+      createWorkout = { ...createWorkout, exercises: normalizeExerciseOrder(createWorkout.exercises) };
+      assertNoEmptyCircuits(createWorkout.exercises, createWorkout.circuit_rounds);
       const {
         id: workoutId,
         user_id,
@@ -341,6 +364,9 @@ export const workoutService = {
           if (circuitId && !circuit_rounds.some((round) => round.id === circuitId && round.workout_id === workoutId)) {
             throw new Error("Circuit exercise references a round outside this workout");
           }
+          if (circuitId && circuit_rounds.find(round => round.id === circuitId)?.round_number !== exercise.round_number) {
+            throw new Error("Circuit exercise round count does not match its circuit");
+          }
           for (const set of exercise.sets ?? []) {
             if (set.workout_exercise_id !== exercise.id) throw new Error("Set belongs to a different exercise");
             await assertWorkoutChildDoesNotExist(transaction, "exercise_sets", set.id);
@@ -359,6 +385,7 @@ export const workoutService = {
           await assertWorkoutChildDoesNotExist(transaction, "circuit_rounds", round.id);
         }
         // Insert workout
+        await registerLocalCreation(transaction, authenticatedUserId, "workouts", workoutId);
         await transaction.runAsync(
           `INSERT INTO workouts (id, user_id, name, description, type, scheduled_datetime, duration, perceived_effort, is_completed, completed_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -573,8 +600,6 @@ export const workoutService = {
       });
 
       traceWorkoutSync("local-committed", { tableName: "workouts", recordId: workoutId, operation: "insert" });
-      const workout = await workoutService.getWorkoutById(user_id, workoutId);
-      return { success: true, data: workout };
     } catch (error) {
       traceWorkoutSync("local-failed", { tableName: "workouts", recordId: createWorkout.id, operation: "insert", errorCode: syncErrorCode(error) });
       return {
@@ -583,19 +608,51 @@ export const workoutService = {
           error instanceof Error ? error.message : "Failed to insert workout",
       };
     }
+    return reloadCommittedWorkout(authenticatedUserId, createWorkout.id);
   },
   updateWorkout: async (
     userId: string,
     workoutId: string,
     changes: WorkoutChanges,
-  ): Promise<{
-    success: boolean;
-    data?: Workout | null;
-    error?: string;
-  }> => {
+  ): Promise<WorkoutSaveResult> => {
     try {
       await withLocalTransaction(async (transaction) => {
         await assertWorkoutOwned(transaction, userId, workoutId);
+        // Validate the entire resulting list, not just the changed rows. This
+        // catches split groups and normalizes survivors after deletion atomically.
+        if (changes.exercisesToInsert.length || changes.exercisesToUpdate.length || changes.exerciseIdsToDelete.length ||
+            changes.circuitRoundsToInsert.length || changes.circuitRoundsToUpdate.length || changes.circuitRoundIdsToDelete.length) {
+          for (const exercise of changes.exercisesToUpdate) {
+            await assertWorkoutChildOwned(transaction, userId, "workout_exercises", exercise.id, workoutId);
+            if (exercise.workout_id !== workoutId) throw new Error("Exercise belongs to a different workout");
+          }
+          const current = await exerciseService.getWorkoutExercises(userId, workoutId, transaction);
+          const deleted = new Set(changes.exerciseIdsToDelete);
+          const updates = new Map(changes.exercisesToUpdate.map(exercise => [exercise.id, exercise]));
+          if (updates.size !== changes.exercisesToUpdate.length) throw new Error("Duplicate exercise update IDs");
+          const next = normalizeExerciseOrder([
+            ...current.filter(exercise => !deleted.has(exercise.id)).map(exercise => updates.get(exercise.id) ?? exercise),
+            ...changes.exercisesToInsert,
+          ].sort((a, b) => a.exercise_order - b.exercise_order));
+          const rounds = await circuitService.getWorkoutCircuitRounds(userId, workoutId, transaction);
+          const roundMap = new Map(rounds.map(round => [round.id, round]));
+          changes.circuitRoundIdsToDelete.forEach(id => roundMap.delete(id));
+          [...changes.circuitRoundsToInsert, ...changes.circuitRoundsToUpdate].forEach(round => roundMap.set(round.id, round));
+          assertNoEmptyCircuits(next, [...roundMap.values()]);
+          for (const exercise of next) {
+            if (exercise.group_type === "circuit" &&
+                roundMap.get(exercise.circuit_id!)?.round_number !== exercise.round_number) {
+              throw new Error("Circuit exercise round count does not match its circuit");
+            }
+          }
+          const inserted = new Set(changes.exercisesToInsert.map(exercise => exercise.id));
+          changes = {
+            ...changes,
+            exercisesToInsert: next.filter(exercise => inserted.has(exercise.id)),
+            exercisesToUpdate: next.filter(exercise => !inserted.has(exercise.id) &&
+              (updates.has(exercise.id) || current.find(row => row.id === exercise.id)?.exercise_order !== exercise.exercise_order)),
+          };
+        }
         for (const id of changes.exerciseIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "workout_exercises", id, workoutId);
         for (const id of changes.setIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "exercise_sets", id, workoutId);
         for (const id of changes.cardioEntryIdsToDelete) await assertWorkoutChildOwned(transaction, userId, "cardio_entries", id, workoutId);
@@ -650,6 +707,11 @@ export const workoutService = {
         }
 
         // Deletes: children first
+        for (const id of changes.setIdsToDelete) await queueOwnedDeletion(transaction, userId, "exercise_sets", id);
+        for (const id of changes.exerciseIdsToDelete) await queueExerciseDeletion(transaction, userId, id);
+        for (const id of changes.circuitRoundIdsToDelete) await queueOwnedDeletion(transaction, userId, "circuit_rounds", id);
+        for (const id of changes.cardioIntervalIdsToDelete) await queueOwnedDeletion(transaction, userId, "cardio_intervals", id);
+        for (const id of changes.cardioEntryIdsToDelete) await queueOwnedDeletion(transaction, userId, "cardio_entries", id);
         for (const setId of changes.setIdsToDelete) {
           await transaction.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
         }
@@ -667,6 +729,7 @@ export const workoutService = {
         }
 
         for (const exerciseId of changes.exerciseIdsToDelete) {
+          await transaction.runAsync("DELETE FROM exercise_sets WHERE workout_exercise_id = ?", [exerciseId]);
           await transaction.runAsync(`DELETE FROM workout_exercises WHERE id = ?`, [
             exerciseId,
           ]);
@@ -787,22 +850,6 @@ export const workoutService = {
           }
         }
 
-        for (const id of changes.setIdsToDelete) {
-          await syncService.addToSyncQueueInTransaction(transaction, userId, "exercise_sets", id, "delete", { id });
-        }
-        for (const id of changes.cardioIntervalIdsToDelete) {
-          await syncService.addToSyncQueueInTransaction(transaction, userId, "cardio_intervals", id, "delete", { id });
-        }
-        for (const id of changes.cardioEntryIdsToDelete) {
-          await syncService.addToSyncQueueInTransaction(transaction, userId, "cardio_entries", id, "delete", { id });
-        }
-        for (const id of changes.exerciseIdsToDelete) {
-          await syncService.addToSyncQueueInTransaction(transaction, userId, "workout_exercises", id, "delete", { id });
-        }
-        for (const id of changes.circuitRoundIdsToDelete) {
-          await syncService.addToSyncQueueInTransaction(transaction, userId, "circuit_rounds", id, "delete", { id });
-        }
-
         for (const exercise of changes.exercisesToUpdate) {
           await syncService.addToSyncQueueInTransaction(transaction, userId, "workout_exercises", exercise.id, "update", workoutExerciseSyncData(exercise));
         }
@@ -843,12 +890,6 @@ export const workoutService = {
       });
 
       traceWorkoutSync("local-committed", { tableName: "workouts", recordId: workoutId, operation: "update" });
-      const updatedWorkout = await workoutService.getWorkoutById(userId, workoutId);
-
-      return {
-        success: true,
-        data: updatedWorkout,
-      };
     } catch (error) {
       traceWorkoutSync("local-failed", { tableName: "workouts", recordId: workoutId, operation: "update", errorCode: syncErrorCode(error) });
 
@@ -858,6 +899,7 @@ export const workoutService = {
           error instanceof Error ? error.message : "Failed to update workout",
       };
     }
+    return reloadCommittedWorkout(userId, workoutId);
   },
   updateWorkoutNewExercise: async (
     userId: string,
@@ -922,53 +964,16 @@ export const workoutService = {
     }
   },
 
+  /** @deprecated Save the complete form through updateWorkout instead. */
   reorderWorkoutExercise: async (
-    userId: string,
-    exercises: WorkoutExercise[],
-    currentIndex: number,
-    direction: "up" | "down",
-  ): Promise<{ success: boolean; error?: string }> => {
-    const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-
-    const current = exercises[currentIndex];
-    const swap = exercises[swapIndex];
-
-    try {
-      await withLocalTransaction(async (transaction) => {
-        const ownerWorkoutId = await assertWorkoutChildOwned(transaction, userId, "workout_exercises", current.id);
-        await assertWorkoutChildOwned(transaction, userId, "workout_exercises", swap.id, ownerWorkoutId);
-        await transaction.runAsync(
-          "UPDATE workout_exercises SET exercise_order = ? WHERE id = ?",
-          [swap.exercise_order, current.id],
-        );
-        await transaction.runAsync(
-          "UPDATE workout_exercises SET exercise_order = ? WHERE id = ?",
-          [current.exercise_order, swap.id],
-        );
-        await syncService.addToSyncQueueInTransaction(
-          transaction,
-          userId,
-          "workout_exercises",
-          current.id,
-          "update",
-          { id: current.id, exercise_order: current.exercise_order },
-        );
-        await syncService.addToSyncQueueInTransaction(
-          transaction,
-          userId,
-          "workout_exercises",
-          swap.id,
-          "update",
-          { id: swap.id, exercise_order: swap.exercise_order },
-        );
-      });
-
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: "Failed to reorder exercises" };
-    }
-  },
-
+    _userId: string,
+    _exercises: WorkoutExercise[],
+    _currentIndex: number,
+    _direction: "up" | "down",
+  ): Promise<{ success: boolean; error?: string }> => ({
+    success: false,
+    error: "Direct reordering is retired; save exercise ordering through updateWorkout",
+  }),
   updateWorkoutType: async (
     userId: string,
     workoutId: string,
@@ -1158,6 +1163,7 @@ export const workoutService = {
     try {
       await withLocalTransaction(async (transaction) => {
         await assertWorkoutChildOwned(transaction, userId, "workout_exercises", workout_exercise_id);
+        await queueExerciseDeletion(transaction, userId, workout_exercise_id);
         await transaction.runAsync(
           "DELETE FROM exercise_sets WHERE workout_exercise_id = ?",
           [workout_exercise_id],
@@ -1165,14 +1171,6 @@ export const workoutService = {
         await transaction.runAsync("DELETE FROM workout_exercises WHERE id = ?", [
           workout_exercise_id,
         ]);
-        await syncService.addToSyncQueueInTransaction(
-          transaction,
-          userId,
-          "workout_exercises",
-          workout_exercise_id,
-          "delete",
-          { id: workout_exercise_id },
-        );
       });
 
       return { success: true };
@@ -1188,13 +1186,20 @@ export const workoutService = {
     try {
       await withLocalTransaction(async (transaction) => {
         await assertWorkoutOwned(transaction, userId, workoutId);
-        // Remove pending child operations before the workout is deleted.
-        await syncService.purgeOrphanedQueueItemsInTransaction(
-          transaction,
-          userId,
-          workoutId,
-        );
-
+        // Capture every surviving child before deleting any parent. Older
+        // child tombstones and their evidence remain intact for later retries.
+        for (const exercise of await transaction.getAllAsync<{ id: string }>("SELECT id FROM workout_exercises WHERE workout_id = ?", [workoutId])) {
+          await queueExerciseDeletion(transaction, userId, exercise.id);
+        }
+        for (const entry of await transaction.getAllAsync<{ id: string }>("SELECT id FROM cardio_entries WHERE workout_id = ?", [workoutId])) {
+          for (const interval of await transaction.getAllAsync<{ id: string }>("SELECT id FROM cardio_intervals WHERE cardio_entry_id = ?", [entry.id])) {
+            await queueOwnedDeletion(transaction, userId, "cardio_intervals", interval.id);
+          }
+          await queueOwnedDeletion(transaction, userId, "cardio_entries", entry.id);
+        }
+        for (const round of await transaction.getAllAsync<{ id: string }>("SELECT id FROM circuit_rounds WHERE workout_id = ?", [workoutId])) {
+          await queueOwnedDeletion(transaction, userId, "circuit_rounds", round.id);
+        }
         // Exclusive transactions use a separate SQLite connection, where
         // foreign-key enforcement may not be enabled. Delete children
         // explicitly so workout deletion has the same result on every DB
@@ -1269,8 +1274,7 @@ export const workoutService = {
 
       return hydrateWorkouts(rows, db);
     } catch (error) {
-      console.error("Error fetching workouts by month:", error);
-      return [];
+      throw error;
     }
   },
 };

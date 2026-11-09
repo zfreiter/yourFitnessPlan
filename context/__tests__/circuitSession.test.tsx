@@ -1,4 +1,6 @@
 import React from "react";
+import * as Crypto from "expo-crypto";
+import { useWorkoutExercisesFieldArray } from "@/hooks/useCreateWorkoutExercisesFieldArray";
 import TestRenderer, { act } from "react-test-renderer";
 import { FormProvider, useForm } from "react-hook-form";
 import { Workout } from "@/types/interfaces/types";
@@ -17,7 +19,7 @@ jest.mock("expo-router", () => ({ useLocalSearchParams: () => ({ date: "2099-01-
 jest.mock("@expo/vector-icons/AntDesign", () => () => null);
 jest.mock("@expo/vector-icons/Ionicons", () => () => null);
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("expo-crypto", () => ({ randomUUID: () => "generated-id" }));
+jest.mock("expo-crypto", () => ({ __esModule: true, randomUUID: () => "generated-id" }));
 jest.mock("@/features/create-workout/components/addCircuitModal", () => ({ AddCircuitModal: () => null }));
 jest.mock("@/context/workoutContext", () => ({ useWorkout: () => ({ insertWorkout: jest.fn(), reloadWorkout: jest.fn() }) }));
 jest.mock("@/context/authContext", () => ({ useAuth: () => ({ user: { id: "user" } }) }));
@@ -132,9 +134,10 @@ it("adds circuit notes and explicit round relationships without touching the sch
   };
   function Harness() {
     form = useForm<Workout>({ defaultValues: { ...fixture(), exercises: [], circuit_rounds: [] } });
+    const circuit = useForm({ defaultValues: draft });
     return <FormProvider {...form}><AddCircuitButton workoutId="workout"
-      setModalVisible={jest.fn()} reset={jest.fn()}
-      getValues={((key: keyof typeof draft) => draft[key]) as any}
+      control={circuit.control} setModalVisible={jest.fn()} reset={circuit.reset}
+      getValues={circuit.getValues}
       appendExercise={((exercise: any) => form.setValue("exercises", [...form.getValues("exercises"), exercise])) as any}
     /></FormProvider>;
   }
@@ -145,4 +148,40 @@ it("adds circuit notes and explicit round relationships without touching the sch
   expect(form.getValues("scheduled_datetime")).toBe(fixture().scheduled_datetime);
   expect(form.getValues("circuit_rounds.0")).toMatchObject({ id: "generated-id", notes: "Keep steady", round_number: 3, rest_after_round: 45 });
   expect(form.getValues("exercises.0")).toMatchObject({ circuit_id: "generated-id", group_id: "generated-id", round_number: 3 });
+});
+
+it("appends multiple circuits through the active field-array path with unique global order", async () => {
+  let form!: ReturnType<typeof useForm<Workout>>;
+  let reopen!: () => void;
+  let count = 0;
+  const uuid = jest.spyOn(Crypto, "randomUUID").mockImplementation(() => `circuit-test-${++count}`);
+  const draft = { rounds: 3, restAfterRound: 45, notes: "Circuit", exercises: fixture().exercises };
+  function Button() {
+    const { append } = useWorkoutExercisesFieldArray();
+    const circuit = useForm({ defaultValues: draft });
+    return <AddCircuitButton workoutId="workout" control={circuit.control} setModalVisible={jest.fn()} reset={circuit.reset}
+      getValues={circuit.getValues} appendExercise={append} />;
+  }
+  function Harness() {
+    form = useForm<Workout>({ defaultValues: fixture() });
+    const [session, setSession] = React.useState(0);
+    reopen = () => setSession(value => value + 1);
+    return <FormProvider {...form}><Button key={session} /></FormProvider>;
+  }
+  let tree!: TestRenderer.ReactTestRenderer;
+  try {
+    await act(async () => { tree = TestRenderer.create(<Harness /> as Parameters<typeof TestRenderer.create>[0]); });
+    trees.push(tree);
+    act(() => tree.root.findByType(host("Pressable")).props.onPress());
+    act(() => reopen());
+    act(() => tree.root.findByType(host("Pressable")).props.onPress());
+    const exercises = form.getValues("exercises");
+    expect(exercises.map(exercise => exercise.exercise_order)).toEqual([0, 1, 2]);
+    expect(new Set(exercises.map(exercise => exercise.circuit_id)).size).toBe(3);
+    for (const exercise of exercises) {
+      expect(exercise.group_id).toBe(exercise.circuit_id);
+      expect(exercise.round_number).toBe(3);
+      expect(exercise.sets[0].workout_exercise_id).toBe(exercise.id);
+    }
+  } finally { uuid.mockRestore(); }
 });

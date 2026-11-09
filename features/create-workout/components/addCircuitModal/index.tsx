@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useColorTheme } from "@/context/colorThemeContext";
 import {
   Control,
@@ -18,11 +18,10 @@ import {
   useFormContext,
   UseFormGetValues,
   UseFormReset,
-  useWatch,
 } from "react-hook-form";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CreateCircuitForm, CreateWorkoutForm } from "@/types/interfaces/types";
+import { CircuitRound, CreateCircuitForm, CreateWorkoutForm } from "@/types/interfaces/types";
 import { CircuitSettings } from "./circuitSettings";
 import { CircuitExercisePicker } from "./circuitExercisePicker";
 import { ExerciseSetFields } from "./exerciseSetFields";
@@ -34,6 +33,8 @@ interface AddcircuitModalProps {
   reset: UseFormReset<CreateCircuitForm>;
   getCircuitValues: UseFormGetValues<CreateCircuitForm>;
   appendExercise: UseFieldArrayAppend<CreateWorkoutForm, "exercises">;
+  emptyCircuit?: CircuitRound;
+  onClosed?: () => void;
 }
 
 export function AddCircuitModal({
@@ -41,6 +42,8 @@ export function AddCircuitModal({
   reset,
   getCircuitValues,
   appendExercise,
+  emptyCircuit,
+  onClosed,
 }: AddcircuitModalProps) {
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const { theme } = useColorTheme();
@@ -57,10 +60,25 @@ export function AddCircuitModal({
 
   const [currentRound, setCurrentRound] = useState(1);
 
+  useEffect(() => {
+    if (!emptyCircuit) return;
+    reset({ rounds: emptyCircuit.round_number, restAfterRound: emptyCircuit.rest_after_round, notes: emptyCircuit.notes ?? "", exercises: [] });
+    setModalVisible(true);
+  }, [emptyCircuit, reset]);
+
+  const closeModal = () => {
+    reset();
+    setModalVisible(false);
+    onClosed?.();
+  };
+
   return (
     <View style={{ flex: 1, gap: 0 }}>
       <Pressable
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+          reset(emptyCircuit ? { rounds: emptyCircuit.round_number, restAfterRound: emptyCircuit.rest_after_round, notes: emptyCircuit.notes ?? "", exercises: [] } : undefined);
+          setModalVisible(true);
+        }}
         style={({ pressed }) => [
           styles.button,
           pressed && styles.pressed,
@@ -74,7 +92,7 @@ export function AddCircuitModal({
         <Text>+ Circuit</Text>
       </Pressable>
 
-      <Modal animationType="slide" transparent={true} visible={modalVisible}>
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={closeModal}>
         <SafeAreaView
           style={{
             flex: 1,
@@ -94,7 +112,7 @@ export function AddCircuitModal({
             >
               <Pressable
                 style={{ alignSelf: "flex-end", marginTop: 10 }}
-                onPress={() => setModalVisible(false)}
+                onPress={closeModal}
               >
                 <MaterialIcons
                   name="cancel"
@@ -129,11 +147,17 @@ export function AddCircuitModal({
               </ScrollView>
 
               <AddCircuitButton
-                setModalVisible={setModalVisible}
+                control={control}
+                setModalVisible={visible => {
+                  setModalVisible(visible);
+                  if (visible === false) onClosed?.();
+                }}
                 reset={reset}
+                modalVisible={modalVisible}
                 getValues={getCircuitValues}
                 workoutId={workoutId}
                 appendExercise={appendExercise}
+                circuitId={emptyCircuit?.id}
               />
             </View>
           </KeyboardAvoidingView>

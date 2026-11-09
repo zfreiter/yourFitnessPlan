@@ -1,4 +1,5 @@
-import { workoutDeletionReceiptKey, workoutDeletionReceiptValue } from "./workoutDeletionOwnership";
+import { claimUpload, confirmUpload, recordRemotePresence } from "./uploadLifecycle";
+import { deletionEvidenceKey, deletionParents, DeletionEvidence, readDeletionEvidence } from "./ownedDeletion";
 import { traceWorkoutSync, syncErrorCode } from "@/utils/workoutSyncDiagnostics";
 import { serializeScheduledDate, parseScheduledDate } from "@/utils/scheduledDate";
 import NetInfo from "@react-native-community/netinfo";
@@ -487,6 +488,7 @@ async function insertPulledWorkouts(
   workouts: PulledWorkout[],
 ): Promise<void> {
   for (const workout of workouts) {
+    await recordRemotePresence(transaction, workout.user_id, "workouts", workout.id);
     await transaction.runAsync(
       `INSERT OR IGNORE INTO workouts
        (id, user_id, name, description, type, scheduled_datetime, duration, perceived_effort, is_completed, completed_at)
@@ -498,6 +500,7 @@ async function insertPulledWorkouts(
 
     // circuit_id is an FK to circuit_rounds, so insert rounds before exercises.
     for (const round of workout.circuit_rounds) {
+      await recordRemotePresence(transaction, workout.user_id, "circuit_rounds", round.id);
       await transaction.runAsync(
         `INSERT OR IGNORE INTO circuit_rounds
          (id, workout_id, round_number, rest_after_round, notes) VALUES (?, ?, ?, ?, ?)`,
@@ -506,6 +509,7 @@ async function insertPulledWorkouts(
     }
 
     for (const exercise of workout.workout_exercises) {
+      await recordRemotePresence(transaction, workout.user_id, "workout_exercises", exercise.id);
       await transaction.runAsync(
         `INSERT OR IGNORE INTO workout_exercises
          (id, workout_id, exercise_id, exercise_name, valid_units, muscles_targeted,
@@ -517,6 +521,7 @@ async function insertPulledWorkouts(
           exercise.group_type, exercise.round_number, exercise.circuit_id],
       );
       for (const set of exercise.exercise_sets) {
+        await recordRemotePresence(transaction, workout.user_id, "exercise_sets", set.id);
         await transaction.runAsync(
           `INSERT OR IGNORE INTO exercise_sets
            (id, workout_exercise_id, reps, weight, time, distance, is_warmup, is_max, set_order)
@@ -528,6 +533,7 @@ async function insertPulledWorkouts(
     }
 
     for (const entry of workout.cardio_entries) {
+      await recordRemotePresence(transaction, workout.user_id, "cardio_entries", entry.id);
       await transaction.runAsync(
         `INSERT OR IGNORE INTO cardio_entries
          (id, workout_id, activity, mode, duration, distance, calories, heart_rate_avg,
@@ -538,6 +544,7 @@ async function insertPulledWorkouts(
           entry.is_finisher, entry.entry_order, entry.notes],
       );
       for (const interval of entry.cardio_intervals) {
+        await recordRemotePresence(transaction, workout.user_id, "cardio_intervals", interval.id);
         await transaction.runAsync(
           `INSERT OR IGNORE INTO cardio_intervals
            (id, cardio_entry_id, interval_order, work_duration, rest_duration, distance, calories, notes)
@@ -550,6 +557,7 @@ async function insertPulledWorkouts(
     }
   }
 }
+
 
 async function deletePulledWorkoutsForUser(
   transaction: SQLiteDatabase,
@@ -660,26 +668,28 @@ async function validateUploadOwner(db: SQLiteDatabase, supabase: SupabaseClient,
   const existingOwner = await localOwner(item.table_name, item.record_id);
   if (existingOwner !== undefined && existingOwner !== userId) throw new Error("Local record owner mismatch");
   if (data.user_id !== undefined && data.user_id !== userId) throw new Error("Queue payload owner mismatch");
+  const terminalEvidence = await readDeletionEvidence(db, userId, item.table_name, item.record_id);
+  if (item.operation !== "delete" && terminalEvidence) {
+    throw new Error("Record has a terminal deletion; later writes require review");
+  }
   if (item.operation === "delete") {
     // Deleted local rows have no trustworthy parent chain. Verify the remote
     // relationship, including for legacy ID-only tombstones, before deleting.
-    let relation = "user_id";
+    let relation = "id,user_id";
     let table = item.table_name;
     const path: string[] = [];
     while (relations[table]) { table = relations[table][0]; path.push(table); }
-    for (const parent of [...path].reverse()) relation = `${parent}!inner(${relation})`;
+    for (const parent of [...path].reverse()) relation = `id,${parent}!inner(${relation})`;
     check();
     const { data: rows, error } = await supabase.from(item.table_name).select(relation).eq("id", item.record_id).limit(1);
     check();
     if (error) throw error;
     if (!Array.isArray(rows)) throw new Error("Could not verify deleted record ownership");
     if (!rows.length) {
-      if (item.table_name === "workouts") {
-        const receipt = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM app_meta WHERE key = ?", [workoutDeletionReceiptKey(item.id)],
-        );
-        if (receipt?.value === workoutDeletionReceiptValue(userId, item.record_id)) return "already-absent";
-      }
+      const evidence = await readDeletionEvidence(db, userId, item.table_name, item.record_id);
+      // Absence under RLS is not authorization. Only an earlier positively
+      // confirmed remote deletion makes an empty retry safely acknowledgeable.
+      if (evidence?.remoteConfirmed && evidence.queueId <= item.id && !existingOwner) return "already-absent";
       throw new Error("Remote delete ownership is unavailable; operation retained for review");
     }
     let row: unknown = rows[0];
@@ -687,15 +697,27 @@ async function validateUploadOwner(db: SQLiteDatabase, supabase: SupabaseClient,
       row = typeof row === "object" && row !== null ? (row as Record<string, unknown>)[parent] : undefined;
     }
     if (typeof row !== "object" || row === null || (row as Record<string, unknown>).user_id !== userId) throw new Error("Remote delete owner mismatch");
-    if (item.table_name === "workouts") {
-      // Recover legacy ID-only deletions from an authenticated remote owner read.
-      // Persist before the request so a lost response can be retried idempotently.
+    const parents: DeletionEvidence["parents"] = [];
+    let remoteParent: any = rows[0];
+    for (const parent of path) {
+      remoteParent = remoteParent?.[parent];
+      if (typeof remoteParent?.id === "string") parents.push({ table: parent, id: remoteParent.id });
+    }
+    const workoutId = item.table_name === "workouts" ? item.record_id : parents.find(parent => parent.table === "workouts")?.id;
+    const evidence = await readDeletionEvidence(db, userId, item.table_name, item.record_id);
+    if (evidence && workoutId && evidence.workoutId !== workoutId) throw new Error("Remote deletion parent mismatch");
+    if (evidence && parents.some(parent => evidence.parents.some(expected => expected.table === parent.table && expected.id !== parent.id))) {
+      throw new Error("Remote deletion parent mismatch");
+    }
+    if (!evidence && workoutId && (item.table_name === "workouts" || item.table_name in deletionParents)) {
+      // Capture server-verified linkage for legacy tombstones before issuing
+      // their delete. This never manufactures evidence from queue payloads.
+      const verified: DeletionEvidence = { version: 2, userId, table: item.table_name as DeletionEvidence["table"],
+        recordId: item.record_id, workoutId, queueId: item.id, parents, remoteConfirmed: false };
       await withLocalTransaction(async transaction => {
         check();
-        await transaction.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
-          workoutDeletionReceiptKey(item.id), workoutDeletionReceiptValue(userId, item.record_id),
-        ]);
-        check();
+        await transaction.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)",
+          [deletionEvidenceKey(userId, item.table_name, item.record_id), JSON.stringify(verified)]);
       });
     }
     return;
@@ -953,7 +975,12 @@ const syncStages = {
       const pendingItems = await db.getAllAsync<SyncQueueItem>(
         `SELECT * FROM sync_queue WHERE synced = 0 AND user_id = ?
        ORDER BY 
-         CASE table_name
+         CASE
+           WHEN operation = 'delete' AND table_name IN ('exercise_sets', 'cardio_intervals') THEN -4
+           WHEN operation = 'delete' AND table_name IN ('workout_exercises', 'cardio_entries') THEN -3
+           WHEN operation = 'delete' AND table_name = 'circuit_rounds' THEN -2
+           WHEN operation = 'delete' AND table_name = 'workouts' THEN -1
+           ELSE CASE table_name
            WHEN 'workouts' THEN 1
            WHEN 'circuit_rounds' THEN 2
            WHEN 'workout_exercises' THEN 3
@@ -961,7 +988,7 @@ const syncStages = {
            WHEN 'cardio_entries' THEN 5
            WHEN 'cardio_intervals' THEN 6
            ELSE 7
-         END,
+         END END,
          created_at ASC, id ASC`,
         [userId],
       );
@@ -969,23 +996,34 @@ const syncStages = {
       traceWorkoutSync("queue-selected", { tableName: "workouts", recordId: "batch", userId, pendingCount: pendingItems.length });
       if (pendingItems.length === 0) return { success: true };
 
-      // A terminal deletion supersedes earlier writes for that workout. Keep
-      // them pending until the deletion itself is authorized and acknowledged.
+      // Terminal intent suppresses replay, but does not discard anything.
+      // Historical writes are acknowledged only after an authorized delete.
+      const recordKey = (item: SyncQueueItem) => `${item.table_name}:${item.record_id}`;
       const terminalDeletes = new Map<string, number>();
       for (const item of pendingItems) {
-        if (item.table_name === "workouts" && item.operation === "delete") {
+        if (item.operation === "delete" && (item.table_name === "workouts" || item.table_name in deletionParents)) {
           try {
             if (JSON.parse(item.data)?.id === item.record_id)
-              terminalDeletes.set(item.record_id, Math.max(terminalDeletes.get(item.record_id) ?? 0, item.id));
+              terminalDeletes.set(recordKey(item), Math.max(terminalDeletes.get(recordKey(item)) ?? 0, item.id));
           } catch { /* Malformed tombstones cannot supersede valid operations. */ }
         }
       }
-      const superseded = (item: SyncQueueItem) => item.table_name === "workouts" &&
-        item.id < (terminalDeletes.get(item.record_id) ?? 0);
+      const superseded = (item: SyncQueueItem) => item.operation !== "delete" &&
+        item.id < (terminalDeletes.get(recordKey(item)) ?? 0);
+      const acknowledgedDeletes = new Set<string>();
+      const dependencies = new Map<string, Set<string>>();
+      for (const item of pendingItems.filter(item => item.operation === "delete")) {
+        const evidence = await readDeletionEvidence(db, userId, item.table_name, item.record_id);
+        for (const parent of evidence?.parents ?? []) {
+          const key = `${parent.table}:${parent.id}`;
+          if (!dependencies.has(key)) dependencies.set(key, new Set());
+          dependencies.get(key)!.add(recordKey(item));
+        }
+      }
       const failures: string[] = [];
       const pendingParents = new Map<string, number>();
       for (const item of pendingItems) {
-        if (item.operation !== "delete") {
+        if (item.operation !== "delete" && !superseded(item)) {
           const key = `${item.table_name}:${item.record_id}`;
           pendingParents.set(key, (pendingParents.get(key) ?? 0) + 1);
         }
@@ -993,24 +1031,26 @@ const syncStages = {
       const blockedRecords = new Set<string>();
       const acknowledge = async (item: SyncQueueItem) => {
         checkSession();
-        if (item.table_name === "workouts" && item.operation === "delete") {
+        if (item.operation === "delete") {
+          const through = terminalDeletes.get(recordKey(item)) ?? item.id;
           await withLocalTransaction(async transaction => {
             checkSession();
+            await confirmUpload(transaction, userId, item);
             await transaction.runAsync(
-              `UPDATE sync_queue SET synced = 1 WHERE user_id = ? AND table_name = 'workouts'
-               AND record_id = ? AND id <= ? AND synced = 0`, [userId, item.record_id, item.id],
-            );
-            // Remove receipts only for acknowledged operations of this owner.
-            await transaction.runAsync(
-              `DELETE FROM app_meta WHERE value = ? AND key IN (
-                 SELECT 'workout-delete-owner:' || id FROM sync_queue
-                 WHERE user_id = ? AND table_name = 'workouts' AND record_id = ? AND id <= ? AND synced = 1
-               )`, [workoutDeletionReceiptValue(userId, item.record_id), userId, item.record_id, item.id],
+              "UPDATE sync_queue SET synced = 1 WHERE user_id = ? AND table_name = ? AND record_id = ? AND id <= ? AND synced = 0",
+              [userId, item.table_name, item.record_id, through],
             );
             checkSession();
           });
+          // Evidence is durable across duplicate tombstones, parent removal,
+          // restarts and lost local acknowledgments; it is not consumed here.
+          acknowledgedDeletes.add(recordKey(item));
         } else {
-          await db.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ? AND user_id = ? AND synced = 0`, [item.id, userId]);
+          await withLocalTransaction(async transaction => {
+            checkSession();
+            await confirmUpload(transaction, userId, item);
+            await transaction.runAsync(`UPDATE sync_queue SET synced = 1 WHERE id = ? AND user_id = ? AND synced = 0`, [item.id, userId]);
+          });
         }
         const key = `${item.table_name}:${item.record_id}`;
         pendingParents.set(key, (pendingParents.get(key) ?? 1) - 1);
@@ -1025,21 +1065,28 @@ const syncStages = {
 
       for (const item of pendingItems) {
         checkSession();
-        if (superseded(item)) continue;
+        if (superseded(item) || (acknowledgedDeletes.has(recordKey(item)) && item.id <= (terminalDeletes.get(recordKey(item)) ?? 0))) continue;
+        if (!await db.getFirstAsync("SELECT id FROM sync_queue WHERE id=? AND user_id=? AND synced=0", [item.id, userId])) {
+          if (item.operation !== "delete") pendingParents.set(recordKey(item), Math.max(0, (pendingParents.get(recordKey(item)) ?? 0) - 1));
+          continue;
+        }
         const data = JSON.parse(item.data);
         const pk = TABLE_PRIMARY_KEYS[item.table_name] || "id";
 
         try {
           if (item.user_id !== userId || !TABLE_PRIMARY_KEYS[item.table_name] ||
               !data || data[pk] !== item.record_id) throw new Error("Invalid queue ownership or record identity");
+          if (item.operation === "delete" && [...(dependencies.get(recordKey(item)) ?? [])].some(key => terminalDeletes.has(key) && !acknowledgedDeletes.has(key))) {
+            throw new Error("Child deletion is still pending; parent deletion deferred");
+          }
           const validation = await validateUploadOwner(db, supabase, item, data, userId, checkSession);
           if (validation === "already-absent") {
             await acknowledge(item);
             traceWorkoutSync("delete-already-absent", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
             continue;
           }
-          const recordKey = `${item.table_name}:${item.record_id}`;
-          if (blockedRecords.has(recordKey)) throw new Error("An earlier operation for this record is still pending");
+          const currentKey = `${item.table_name}:${item.record_id}`;
+          if (blockedRecords.has(currentKey)) throw new Error("An earlier operation for this record is still pending");
           if (item.operation !== "delete") {
             const parent = parents[item.table_name];
             if (parent && (pendingParents.get(`${parent[0]}:${data[parent[1]]}`) ?? 0) > 0) {
@@ -1058,6 +1105,15 @@ const syncStages = {
             }
           }
 
+          checkSession();
+          const claimed = await withLocalTransaction(async transaction => {
+            checkSession();
+            return claimUpload(transaction, userId, item);
+          });
+          if (!claimed) {
+            if (item.operation !== "delete") pendingParents.set(recordKey(item), Math.max(0, (pendingParents.get(recordKey(item)) ?? 0) - 1));
+            continue;
+          }
           checkSession();
           traceWorkoutSync("upload-attempt", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
           switch (item.operation) {
@@ -1084,17 +1140,21 @@ const syncStages = {
             }
 
             case "delete": {
-              if (item.table_name === "workouts") {
-                const { data: deleted, error } = await supabase.from("workouts").delete()
-                  .eq("id", item.record_id).eq("user_id", userId).select("id");
-                if (error) throw error;
-                if (!Array.isArray(deleted) || !deleted.some(row => row.id === item.record_id))
-                  throw new Error("Workout deletion was not confirmed; operation remains pending");
-              } else {
-                const { error } = await supabase.from(item.table_name).delete().eq(pk, data[pk]);
-                if (error) throw error;
+              let request = supabase.from(item.table_name).delete().eq(pk, item.record_id);
+              if (item.table_name === "workouts") request = request.eq("user_id", userId);
+              const { data: deleted, error } = await request.select("id");
+              if (error) throw error;
+              if (!Array.isArray(deleted) || !deleted.some(row => row.id === item.record_id)) {
+                throw new Error("Remote deletion was not confirmed; operation remains pending");
               }
-
+              // Checkpoint positive server confirmation before acknowledging
+              // history. If local acknowledgment fails, the receipt survives.
+              await withLocalTransaction(async transaction => {
+                checkSession();
+                const evidence = await readDeletionEvidence(transaction, userId, item.table_name, item.record_id);
+                if (evidence) await transaction.runAsync("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)",
+                  [deletionEvidenceKey(userId, item.table_name, item.record_id), JSON.stringify({ ...evidence, remoteConfirmed: true })]);
+              });
               break;
             }
 
@@ -1108,6 +1168,12 @@ const syncStages = {
           traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });
         } catch (error) {
           checkSession();
+          // Local-only cancellation may have won after this snapshot's first
+          // read but before validation/claim. It is not an upload failure.
+          if (!await db.getFirstAsync("SELECT id FROM sync_queue WHERE id=? AND user_id=? AND synced=0", [item.id, userId])) {
+            if (item.operation !== "delete") pendingParents.set(recordKey(item), Math.max(0, (pendingParents.get(recordKey(item)) ?? 0) - 1));
+            continue;
+          }
           // A duplicate-key error on insert means the row already made it
           // to Supabase (e.g. from a prior/overlapping run) - treat as
           // synced rather than retrying forever.
@@ -1115,12 +1181,32 @@ const syncStages = {
             item.operation === "insert" &&
             isPostgrestErrorCode(error, "23505")
           ) {
-            const verification = await verifyDuplicateInsert(
+            let verification = await verifyDuplicateInsert(
               supabase,
               item.table_name,
               pk,
               data as Record<string, unknown>,
             );
+            if (!verification.matches) {
+              // A previous run may have uploaded the insert and one or more
+              // updates before losing its local acknowledgments. Accept only
+              // complete, known states from this record's ordered history.
+              const history = await db.getAllAsync<{ operation: string; data: string }>(
+                "SELECT operation, data FROM sync_queue WHERE user_id = ? AND table_name = ? AND record_id = ? AND id > ? ORDER BY id",
+                [userId, item.table_name, item.record_id, item.id],
+              );
+              let candidate = { ...data };
+              for (const later of history) {
+                if (later.operation !== "update") break;
+                try {
+                  const patch = JSON.parse(later.data);
+                  if (patch?.[pk] !== item.record_id) break;
+                  candidate = { ...candidate, ...patch };
+                } catch { break; }
+                verification = await verifyDuplicateInsert(supabase, item.table_name, pk, candidate);
+                if (verification.matches) break;
+              }
+            }
             if (verification.matches) {
               await acknowledge(item);
               traceWorkoutSync("upload-succeeded", { tableName: item.table_name, recordId: item.record_id, operation: item.operation, queueId: item.id, userId, queueUserId: item.user_id });

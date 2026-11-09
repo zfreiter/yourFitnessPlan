@@ -1,26 +1,43 @@
 import { Text, Pressable, StyleSheet } from "react-native";
 import { useColorTheme } from "@/context/colorThemeContext";
-import { UseFieldArrayAppend, useFormContext } from "react-hook-form";
+import { UseFieldArrayAppend, useFormContext, useWatch } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
 import { AddExerciseForm, CreateWorkoutForm } from "@/types/interfaces/types";
 
 interface AddExerciseButtonProps {
   setModalVisible: React.Dispatch<React.SetStateAction<boolean>>;
   appendExercise: UseFieldArrayAppend<CreateWorkoutForm, "exercises">;
   activeSave?: () => Promise<void>;
+  modalVisible?: boolean;
 }
 
 export function AddExerciseButton({
   setModalVisible,
   appendExercise,
   activeSave,
+  modalVisible = true,
 }: AddExerciseButtonProps) {
   const { theme } = useColorTheme();
-  const { getValues } = useFormContext<AddExerciseForm>();
+  const { control, getValues } = useFormContext<AddExerciseForm>();
+  const exercises = useWatch({ control, name: "exercises" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitted = useRef(false);
+  useEffect(() => {
+    submitted.current = !modalVisible;
+    setIsSubmitting(false);
+  }, [modalVisible]);
+  const hasValidSelection = (selection: AddExerciseForm["exercises"] | undefined) =>
+    !!selection?.length && selection.every(exercise =>
+      typeof exercise?.exercise_name === "string" && exercise.exercise_name.trim().length > 0);
+  const disabled = !modalVisible || !hasValidSelection(exercises) || isSubmitting;
 
   return (
     <Pressable
       onPress={() => {
         const currentExercises = getValues("exercises");
+        if (!modalVisible || submitted.current || !hasValidSelection(currentExercises)) return;
+        submitted.current = true;
+        setIsSubmitting(true);
 
         currentExercises.forEach((ex) => {
           if (ex.exercise_name !== undefined) appendExercise({
@@ -37,6 +54,9 @@ export function AddExerciseButton({
 
         setModalVisible(false);
       }}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled, busy: isSubmitting }}
       style={({ pressed }) => [
         styles.button,
         pressed && styles.pressed,
@@ -44,7 +64,8 @@ export function AddExerciseButton({
           marginTop: "auto",
           marginBottom: theme.spacing.headerBottomMargin,
           height: theme.spacing.buttonHeight,
-          backgroundColor: theme.color.accent,
+          backgroundColor: disabled ? theme.color.disabled : theme.color.accent,
+          opacity: disabled ? 0.5 : pressed ? 0.8 : 1,
           borderColor: theme.color.border,
         },
       ]}

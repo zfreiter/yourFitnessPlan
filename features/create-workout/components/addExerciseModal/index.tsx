@@ -167,6 +167,7 @@ export function AddExerciseModal({
                 />
               )}
               <AddExerciseButton
+                modalVisible={modalVisible}
                 setModalVisible={setModalVisible}
                 appendExercise={appendExercise}
               />

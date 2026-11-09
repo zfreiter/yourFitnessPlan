@@ -1,3 +1,5 @@
+import { registerLocalCreation } from "./uploadLifecycle";
+import { traceHydration } from "@/utils/workoutHydration";
 import * as SQLite from "expo-sqlite";
 import { CircuitRound } from "@/types/interfaces/types";
 import { SQLiteDatabase } from "expo-sqlite";
@@ -21,6 +23,7 @@ export const circuitService = {
       for (const circuit of circuits) {
         await assertWorkoutOwned(db, userId, circuit.workout_id);
         await assertWorkoutChildDoesNotExist(db, "circuit_rounds", circuit.id);
+        await registerLocalCreation(db, userId, "circuit_rounds", circuit.id);
         const {
           id,
           workout_id,
@@ -65,8 +68,8 @@ export const circuitService = {
         notes: row.notes ?? undefined,
       }));
     } catch (error) {
-      console.error("Error getting circuit rounds:", error);
-      return [];
+      traceHydration(workoutId, "circuit-rounds", "failed");
+      throw error;
     }
   },
   updateWorkoutCircuitRound: async (

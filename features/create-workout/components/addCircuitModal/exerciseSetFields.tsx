@@ -5,10 +5,10 @@ import {
   UseFieldArrayRemove,
   Controller,
 } from "react-hook-form";
-import { View, ScrollView, Text, TextInput, StyleSheet } from "react-native";
+import { View, Pressable, Text, TextInput, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useColorTheme } from "@/context/colorThemeContext";
 import React, { useState } from "react";
-import { ThemeContext } from "@react-navigation/native";
 
 interface ExerciseSetFieldsProps {
   exerciseFields: FieldArrayWithId<CreateCircuitForm, "exercises", "id">[];
@@ -21,8 +21,6 @@ export function ExerciseSetFields({
   control,
   remove,
 }: ExerciseSetFieldsProps) {
-  const { theme } = useColorTheme();
-
   return (
     <View style={{ gap: 8 }}>
       {exerciseFields.map((exercise, index) => (
@@ -31,6 +29,7 @@ export function ExerciseSetFields({
           exercise={exercise}
           exerciseIndex={index}
           control={control}
+          onRemove={() => remove(index)}
         />
       ))}
     </View>
@@ -50,12 +49,14 @@ interface SetCircuitInputsProps {
   exercise: FieldArrayWithId<CreateCircuitForm, "exercises", "id">;
   exerciseIndex: number;
   control: Control<CreateCircuitForm>;
+  onRemove: () => void;
 }
 
 export function SetCircuitInputs({
   exercise,
   exerciseIndex,
   control,
+  onRemove,
 }: SetCircuitInputsProps) {
   const { theme } = useColorTheme();
   const units = exercise.validUnits ?? [];
@@ -127,6 +128,20 @@ export function SetCircuitInputs({
           />
         ))}
       </View>
+      <Pressable
+        onPress={onRemove}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${exercise.exercise_name}, selection ${exerciseIndex + 1}`}
+        style={({ pressed }) => ({
+          width: 44,
+          minHeight: 44,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Ionicons name="trash-outline" size={20} color={theme.color.danger} />
+      </Pressable>
     </View>
   );
 }

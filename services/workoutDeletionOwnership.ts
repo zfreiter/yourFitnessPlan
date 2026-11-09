@@ -1,4 +1,5 @@
 import { SQLiteDatabase } from "expo-sqlite";
+import { queueOwnedDeletion } from "./ownedDeletion";
 
 export const workoutDeletionReceiptKey = (queueId: number) => `workout-delete-owner:${queueId}`;
 export const workoutDeletionReceiptValue = (userId: string, workoutId: string) =>
@@ -9,16 +10,5 @@ export const workoutDeletionReceiptValue = (userId: string, workoutId: string) =
 export async function queueOwnedWorkoutDeletion(
   transaction: SQLiteDatabase, userId: string, workoutId: string,
 ): Promise<void> {
-  const workout = await transaction.getFirstAsync<{ user_id: string }>(
-    "SELECT user_id FROM workouts WHERE id = ? AND user_id = ?", [workoutId, userId],
-  );
-  if (workout?.user_id !== userId) throw new Error("Workout deletion owner mismatch");
-  const result = await transaction.runAsync(
-    `INSERT INTO sync_queue (user_id, table_name, record_id, operation, data, synced)
-     VALUES (?, 'workouts', ?, 'delete', ?, 0)`,
-    [userId, workoutId, JSON.stringify({ id: workoutId })],
-  );
-  await transaction.runAsync("INSERT INTO app_meta (key, value) VALUES (?, ?)", [
-    workoutDeletionReceiptKey(result.lastInsertRowId), workoutDeletionReceiptValue(userId, workoutId),
-  ]);
+  await queueOwnedDeletion(transaction, userId, "workouts", workoutId);
 }

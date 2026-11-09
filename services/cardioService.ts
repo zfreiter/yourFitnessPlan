@@ -1,3 +1,5 @@
+import { registerLocalCreation } from "./uploadLifecycle";
+import { mapSequential, traceHydration } from "@/utils/workoutHydration";
 import {
   CardioActivity,
   CardioEntry,
@@ -44,6 +46,7 @@ export const cardioService = {
       for (const cardioEntry of cardioEntries) {
         await assertWorkoutOwned(db, userId, cardioEntry.workout_id);
         await assertWorkoutChildDoesNotExist(db, "cardio_entries", cardioEntry.id);
+        await registerLocalCreation(db, userId, "cardio_entries", cardioEntry.id);
         const {
           id,
           workout_id,
@@ -81,6 +84,7 @@ export const cardioService = {
         for (const interval of intervals) {
           if (interval.cardio_entry_id !== id) throw new Error("Interval belongs to a different cardio entry");
           await assertWorkoutChildDoesNotExist(db, "cardio_intervals", interval.id);
+          await registerLocalCreation(db, userId, "cardio_intervals", interval.id);
           const {
             id: intervalId,
             cardio_entry_id,
@@ -120,6 +124,7 @@ export const cardioService = {
     for (const interval of intervals) {
       await assertWorkoutChildOwned(db, userId, "cardio_entries", interval.cardio_entry_id);
       await assertWorkoutChildDoesNotExist(db, "cardio_intervals", interval.id);
+        await registerLocalCreation(db, userId, "cardio_intervals", interval.id);
       await db.runAsync(
         `INSERT INTO cardio_intervals
          (id, cardio_entry_id, interval_order, work_duration, rest_duration, distance, calories, notes)
@@ -152,8 +157,8 @@ export const cardioService = {
         [workoutId, userId],
       );
 
-      return await Promise.all(
-        cardioEntries.map(async (entry) => {
+      return await mapSequential(
+        cardioEntries, async (entry) => {
           const intervals = await db.getAllAsync<CardioIntervalRow>(
             `SELECT ci.*
              FROM cardio_intervals ci
@@ -189,11 +194,11 @@ export const cardioService = {
               notes: interval.notes ?? undefined,
             })),
           };
-        }),
+        },
       );
     } catch (error) {
-      console.error("Error getting cardio entries:", error);
-      return [];
+      traceHydration(workoutId, "cardio-entries-and-intervals", "failed");
+      throw error;
     }
   },
   updateWorkoutCardioEntry: async (

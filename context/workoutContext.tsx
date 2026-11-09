@@ -12,7 +12,6 @@ import {
 import { useAppInit } from "./AppInitContext";
 import { useAuth } from "./authContext";
 import {
-  ExerciseDirection,
   ExerciseSet,
   WorkoutType,
 } from "@/types/interfaces/types";
@@ -32,20 +31,18 @@ import { format } from "date-fns";
 import { setService } from "@/services/setService";
 import { debugSchema } from "@/services/database";
 import { useSync } from "./SyncContext";
+import { Pressable, Text, View } from "react-native";
 
 interface WorkoutContextType {
+  workoutLoadError: string | null;
+  reportCommittedReloadFailure: (submitted: Workout) => void;
+  pendingCommittedReloads: readonly string[];
+  pendingCommittedWorkouts: Readonly<Record<string, Workout>>;
   workouts: Workout[];
   setWorkouts: Dispatch<SetStateAction<Workout[]>>;
   exercises: Exercise[];
   setExercises: Dispatch<SetStateAction<Exercise[]>>;
   insertWorkout: (workout: Workout) => void;
-  updateWorkoutExerciseOrder: (
-    userId: string,
-    workoutId: string,
-    exercises: WorkoutExercise[],
-    currentIndex: number,
-    direction: ExerciseDirection,
-  ) => void;
   addWorkoutExercise: (
     newExerciseData: WorkoutExercise,
     workoutId: string,
@@ -186,6 +183,24 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   const { workoutRevision } = useSync();
   const { user, sessionKey, isLoading: isAuthLoading } = useAuth();
   const scopeKey = `${sessionKey}:${user?.id ?? ""}`;
+  const [loadFailure, setLoadFailure] = useState<{ scope: string; message: string; workoutId?: string } | null>(null);
+  const [committedReloads, setCommittedReloads] = useState<{ scope: string; snapshots: Record<string, Workout> }>({ scope: scopeKey, snapshots: {} });
+  const pendingCommittedWorkouts = committedReloads.scope === scopeKey ? committedReloads.snapshots : {};
+  const pendingCommittedReloads = Object.keys(pendingCommittedWorkouts);
+  const workoutLoadError = loadFailure?.scope === scopeKey ? loadFailure.message : null;
+  const reportLoadFailure = useCallback(() => {
+    setLoadFailure({ scope: scopeKey, message: "Unable to load workouts. Your last loaded data is still shown. Try loading again." });
+  }, [scopeKey]);
+  const reportCommittedReloadFailure = useCallback((submitted: Workout) => {
+    if (isCurrent() && submitted.user_id === user?.id) {
+      // Invalidate snapshots begun before the committed mutation, even when its
+      // refreshed record is unavailable. A read-only retry can publish it later.
+      dataRevision.current += 1;
+      const snapshot = JSON.parse(JSON.stringify(submitted)) as Workout;
+      setCommittedReloads(previous => ({ scope: scopeKey, snapshots: { ...(previous.scope === scopeKey ? previous.snapshots : {}), [snapshot.id]: snapshot } }));
+      setLoadFailure({ scope: scopeKey, workoutId: snapshot.id, message: "Workout saved. Reload failed. Retry loading your workouts." });
+    }
+  }, [isCurrent, scopeKey, user?.id]);
   const workoutFetchGeneration = useRef(0);
   const activeUserId = useRef(user?.id);
   activeUserId.current = user?.id;
@@ -211,15 +226,23 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     // Superseded loads and loads for a previous account never publish their results.
     for (;;) {
       const revision = dataRevision.current;
-      const fetched = await workoutService.getAllWorkouts(requestedUserId);
+      let fetched: Workout[];
+      try {
+        fetched = await workoutService.getAllWorkouts(requestedUserId);
+      } catch {
+        if (isCurrent() && generation === workoutFetchGeneration.current && requestedUserId === activeUserId.current) reportLoadFailure();
+        return;
+      }
       if (!isCurrent() || generation !== workoutFetchGeneration.current || requestedUserId !== activeUserId.current) return;
       if (revision !== dataRevision.current) continue;
       snapshotRevision.current += 1;
       dataRevision.current += 1;
       setWorkoutState(fetched);
+      setLoadFailure(null);
+      setCommittedReloads({ scope: scopeKey, snapshots: {} });
       return;
     }
-  }, [isCurrent]);
+  }, [isCurrent, reportLoadFailure, scopeKey]);
 
   // Publish a hydrated, committed record; an existing ID is replaced rather than duplicated.
   const insertWorkout = useCallback((workout: Workout) => {
@@ -227,7 +250,9 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     recordRevision.current.set(workout.id, (recordRevision.current.get(workout.id) ?? 0) + 1);
     setWorkouts(previous => [...previous.filter(row => row.id !== workout.id), { ...workout }]
       .sort((a, b) => a.scheduled_datetime.localeCompare(b.scheduled_datetime)));
-  }, [setWorkouts, isCurrent]);
+    setCommittedReloads(previous => previous.scope === scopeKey ? { ...previous, snapshots: Object.fromEntries(Object.entries(previous.snapshots).filter(([id]) => id !== workout.id)) } : previous);
+    setLoadFailure(previous => previous?.scope === scopeKey && previous.workoutId === workout.id ? null : previous);
+  }, [setWorkouts, isCurrent, scopeKey]);
 
   const reloadWorkout = useCallback(async (workoutId: string) => {
     const owner = activeUserId.current;
@@ -236,10 +261,16 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
     const revision = (recordRevision.current.get(workoutId) ?? 0) + 1;
     recordRevision.current.set(workoutId, revision);
     const snapshot = snapshotRevision.current;
-    const workout = await workoutService.getWorkoutById(owner, workoutId);
+    let workout: Workout | null;
+    try {
+      workout = await workoutService.getWorkoutById(owner, workoutId);
+    } catch {
+      if (isCurrent() && owner === activeUserId.current && recordRevision.current.get(workoutId) === revision && snapshot === snapshotRevision.current) reportLoadFailure();
+      return;
+    }
     if (!isCurrent() || owner !== activeUserId.current || recordRevision.current.get(workoutId) !== revision || snapshot !== snapshotRevision.current) return;
-    if (workout) insertWorkout(workout);
-  }, [insertWorkout, isCurrent]);
+    if (workout) { insertWorkout(workout); setLoadFailure(null); }
+  }, [insertWorkout, isCurrent, reportLoadFailure]);
 
   useEffect(() => {
     if (loadedUserId.current !== scopeKey) {
@@ -251,6 +282,7 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
       setEarliestCachedMonth(earliestCachedMonthRef.current);
       setLatestCachedMonth(latestCachedMonthRef.current);
       setWorkouts([]);
+      setLoadFailure(null);
     }
     if (!user?.id || isAuthLoading || isAppInitLoading) return;
     void fetchWorkouts().catch(error => console.error("Workout hydration failed", error));
@@ -289,24 +321,12 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
       const result = await workoutService.updateWorkout(userId, workoutId, buildWorkoutChanges(stored, updated));
       if (result.success) {
         if (result.data) insertWorkout(result.data);
-        else await reloadWorkout(workoutId);
+        else if (isCurrent() && userId === activeUserId.current) reportCommittedReloadFailure(updated);
       }
       return { success: result.success, error: result.error };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : "Failed to save workout" };
     }
-  }
-
-  async function updateWorkoutExerciseOrder(
-    userId: string,
-    workoutId: string,
-    exercises: WorkoutExercise[],
-    currentIndex: number,
-    direction: ExerciseDirection,
-  ) {
-    if (!isCurrent() || userId !== activeUserId.current) return;
-    const result = await workoutService.reorderWorkoutExercise(userId, exercises, currentIndex, direction);
-    if (result.success) await reloadWorkout(workoutId);
   }
 
   function addWorkoutExercise(newExerciseData: WorkoutExercise, workoutId: string) {
@@ -490,11 +510,18 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
       // Lock ref immediately before async fetch
       latestCachedMonthRef.current = endFetch;
 
-      const fetchedWorkouts = await workoutService.getWorkoutsByMonth(
+      let fetchedWorkouts: Workout[];
+      try { fetchedWorkouts = await workoutService.getWorkoutsByMonth(
         userId,
         startFetch,
         endFetch,
-      );
+      ); } catch {
+        if (isCurrent() && userId === activeUserId.current) {
+          if (latestCachedMonthRef.current === endFetch) latestCachedMonthRef.current = latestCachedMonth!;
+          reportLoadFailure();
+        }
+        return;
+      }
 
       if (!isCurrent() || userId !== activeUserId.current) return;
       if (revision !== dataRevision.current) { await fetchWorkouts(); return; }
@@ -531,11 +558,18 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
       // Lock ref immediately before async fetch
       earliestCachedMonthRef.current = startFetch;
 
-      const fetchedWorkouts = await workoutService.getWorkoutsByMonth(
+      let fetchedWorkouts: Workout[];
+      try { fetchedWorkouts = await workoutService.getWorkoutsByMonth(
         userId,
         startFetch,
         endFetch,
-      );
+      ); } catch {
+        if (isCurrent() && userId === activeUserId.current) {
+          if (earliestCachedMonthRef.current === startFetch) earliestCachedMonthRef.current = earliestCachedMonth!;
+          reportLoadFailure();
+        }
+        return;
+      }
 
       if (!isCurrent() || userId !== activeUserId.current) return;
       if (revision !== dataRevision.current) { await fetchWorkouts(); return; }
@@ -559,12 +593,15 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
   return (
     <WorkoutContext.Provider
       value={{
+        workoutLoadError,
+        reportCommittedReloadFailure,
+        pendingCommittedReloads,
+        pendingCommittedWorkouts,
         workouts: visibleWorkouts,
         setWorkouts,
         exercises,
         setExercises,
         insertWorkout,
-        updateWorkoutExerciseOrder,
         addWorkoutExercise,
         deleteWorkoutExercise,
         deleteWorkoutExerciseSet,
@@ -586,6 +623,12 @@ export function WorkoutProvider({ children }: PropsWithChildren) {
         updateCachedMonths,
       }}
     >
+      {workoutLoadError && <View>
+        <Text accessibilityRole="alert">{workoutLoadError}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Retry loading workouts" onPress={() => { void fetchWorkouts(); }} style={{ minHeight: 44, justifyContent: "center", padding: 12 }}>
+          <Text>Retry loading workouts</Text>
+        </Pressable>
+      </View>}
       {children}
     </WorkoutContext.Provider>
   );

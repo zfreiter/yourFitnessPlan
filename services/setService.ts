@@ -1,3 +1,5 @@
+import { registerLocalCreation } from "./uploadLifecycle";
+import { queueOwnedDeletion } from "./ownedDeletion";
 import * as SQLite from "expo-sqlite";
 import * as Crypto from "expo-crypto";
 import { syncService } from "@/services/syncService";
@@ -16,6 +18,7 @@ export const setService = {
       for (const set of sets) {
         await assertWorkoutChildOwned(db, userId, "workout_exercises", set.workout_exercise_id);
         await assertWorkoutChildDoesNotExist(db, "exercise_sets", set.id);
+        await registerLocalCreation(db, userId, "exercise_sets", set.id);
         await db.runAsync(
           `INSERT INTO exercise_sets
             (
@@ -94,8 +97,7 @@ export const setService = {
     workoutExerciseId: string,
     db: SQLite.SQLiteDatabase,
   ): Promise<ExerciseSet[]> => {
-    try {
-      return await db.getAllAsync<ExerciseSet>(
+    return db.getAllAsync<ExerciseSet>(
         `SELECT es.*
          FROM exercise_sets es
          JOIN workout_exercises we ON we.id = es.workout_exercise_id
@@ -103,11 +105,7 @@ export const setService = {
          WHERE es.workout_exercise_id = ? AND w.user_id = ?
          ORDER BY es.set_order`,
         [workoutExerciseId, userId],
-      );
-    } catch (error) {
-      console.error("Error getting workout sets:", error);
-      return [];
-    }
+    );
   },
 
   getSetsByWorkout: async (userId: string, workoutId: string): Promise<ExerciseSet[]> => {
@@ -164,6 +162,7 @@ export const setService = {
     const id = Crypto.randomUUID();
     await withLocalTransaction(async (transaction) => {
       await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id);
+      await registerLocalCreation(transaction, userId, "exercise_sets", id);
       await transaction.runAsync(
       `INSERT INTO exercise_sets
         (
@@ -222,6 +221,7 @@ export const setService = {
       await withLocalTransaction(async (transaction) => {
         await assertWorkoutChildOwned(transaction, userId, "workout_exercises", set.workout_exercise_id);
         await assertWorkoutChildDoesNotExist(transaction, "exercise_sets", set.id);
+        await registerLocalCreation(transaction, userId, "exercise_sets", set.id);
         await transaction.runAsync(
         `INSERT INTO exercise_sets
           (
@@ -388,16 +388,9 @@ export const setService = {
     try {
       await withLocalTransaction(async (transaction) => {
         await assertWorkoutChildOwned(transaction, userId, "exercise_sets", setId);
+        await queueOwnedDeletion(transaction, userId, "exercise_sets", setId);
         await transaction.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
 
-        await syncService.addToSyncQueueInTransaction(
-          transaction,
-          userId,
-          "exercise_sets",
-          setId,
-          "delete",
-          { id: setId },
-        );
       });
 
       return { success: true };
@@ -422,16 +415,9 @@ export const setService = {
         );
         if (setParent?.workout_exercise_id !== workoutExerciseId) throw new Error("Set does not belong to the supplied exercise");
         await assertWorkoutChildOwned(transaction, userId, "exercise_sets", setId);
+        await queueOwnedDeletion(transaction, userId, "exercise_sets", setId);
         await transaction.runAsync(`DELETE FROM exercise_sets WHERE id = ?`, [setId]);
 
-        await syncService.addToSyncQueueInTransaction(
-          transaction,
-          userId,
-          "exercise_sets",
-          setId,
-          "delete",
-          { id: setId },
-        );
 
         if (extraSet) {
           const setsToUpdate = await transaction.getAllAsync<ExerciseSet>(

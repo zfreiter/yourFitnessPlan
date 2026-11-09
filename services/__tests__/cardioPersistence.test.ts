@@ -8,6 +8,9 @@ jest.mock("@react-native-community/netinfo", () => ({ fetch: jest.fn().mockResol
 
 jest.mock("../database", () => ({ getDB: jest.fn() }));
 jest.mock("../localTransaction", () => ({ withLocalTransaction: jest.fn() }));
+// This adapter tests bound cardio columns; lifecycle SQL is exercised against
+// real SQLite in circuitPersistence.test.ts.
+jest.mock("../uploadLifecycle", () => ({ registerLocalCreation: jest.fn(), claimUpload: jest.fn().mockResolvedValue(true), confirmUpload: jest.fn(), recordRemotePresence: jest.fn() }));
 jest.mock("../localOwnership", () => ({ assertWorkoutOwned: jest.fn(), assertWorkoutChildOwned: jest.fn().mockResolvedValue("workout"), assertWorkoutChildDoesNotExist: jest.fn() }));
 
 // SQL boundary adapter: stores the actual bound columns, not the input objects.

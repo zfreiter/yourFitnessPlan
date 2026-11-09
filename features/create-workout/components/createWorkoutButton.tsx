@@ -1,8 +1,11 @@
 import { traceUi, runUiAction, uiPressEvents } from "@/utils/uiDiagnostics";
-import { Text, Pressable, StyleSheet } from "react-native";
+import { Alert, Text, Pressable, StyleSheet, View } from "react-native";
+import { useRef, useState } from "react";
+import { useSessionLifetime } from "@/hooks/useSessionLifetime";
+import { assertNoEmptyCircuits, emptyCircuitMessages } from "@/utils/circuitValidation";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import {
   CreateWorkoutForm,
   Workout,
@@ -37,18 +40,34 @@ const convertFormToWorkout = (
 export function CreateWorkoutButton({}) {
   const { theme } = useColorTheme();
   const { user } = useAuth();
-  const { insertWorkout, reloadWorkout } = useWorkout();
+  const { insertWorkout, reportCommittedReloadFailure, pendingCommittedReloads, workouts } = useWorkout();
+  const isCurrent = useSessionLifetime();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { watch, setValue, getValues } = useFormContext<CreateWorkoutForm>();
-  const name = watch("name");
+  const { control, getValues } = useFormContext<CreateWorkoutForm>();
+  const [name, exercises, circuits] = useWatch({ control, name: ["name", "exercises", "circuit_rounds"] });
+  const workoutId = useWatch({ control, name: "id" });
   const hasName = !!name?.trim();
+  const messages = emptyCircuitMessages(exercises, circuits);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitting = useRef(false);
+  const committed = useRef(false);
+  const [isCommitted, setIsCommitted] = useState(false);
+  const alreadyCommitted = isCommitted || pendingCommittedReloads?.includes(workoutId) || workouts?.some(workout => workout.id === workoutId);
+  const disabled = !hasName || messages.length > 0 || isSubmitting || !!alreadyCommitted;
 
   const submitWorkout = async () => {
+    if (!isCurrent() || submitting.current || committed.current || alreadyCommitted) return;
     if (!user?.id) { traceUi("create-workout", "guard", { reason: "no-user" }); return; }
 
-    const workout = convertFormToWorkout(getValues(), user?.id);
+    const workout = JSON.parse(JSON.stringify(convertFormToWorkout(getValues(), user.id))) as Workout;
+    try {
+      assertNoEmptyCircuits(workout.exercises, workout.circuit_rounds);
+    } catch (error) {
+      Alert.alert("Empty circuit", (error as Error).message);
+      return;
+    }
     // console.log("workout ", JSON.stringify(workout, null, 2));
     // console.log("========== VALIDATING WORKOUT ==========");
 
@@ -88,40 +107,54 @@ export function CreateWorkoutButton({}) {
 
     // console.log("========== VALIDATION COMPLETE ==========");
 
-    const result = await runUiAction("create-workout.sqlite", () => workoutService.insertWorkout(workout, user.id));
+    submitting.current = true;
+    setIsSubmitting(true);
+    try {
+      const result = await runUiAction("create-workout.sqlite", () => workoutService.insertWorkout(workout, user.id));
 
-    if (!result.success) {
-      traceUi("create-workout", "failed");
-      console.error("Error inserting workout: ", result.error);
-      return;
+      if (!isCurrent()) return;
+      if (result.success) committed.current = true;
+
+      if (!result.success) {
+        traceUi("create-workout", "failed");
+        console.error("Error inserting workout: ", result.error);
+        return;
+      }
+
+      // update context
+      setIsCommitted(true);
+      if (result.data) insertWorkout(result.data);
+      else reportCommittedReloadFailure?.(workout);
+      // navigate to home
+      runUiAction("create-workout.navigation", () => router.push("/(app)/main/home"), { destination: "/(app)/main/home" });
+    } finally {
+      submitting.current = false;
+      if (isCurrent()) setIsSubmitting(false);
     }
-
-    // update context
-    if (result.data) insertWorkout(result.data);
-    else await reloadWorkout(workout.id);
-    // navigate to home
-    runUiAction("create-workout.navigation", () => router.push("/(app)/main/home"), { destination: "/(app)/main/home" });
   };
 
   return (
-    <Pressable
-      {...uiPressEvents("create-workout")}
-      onPress={() => runUiAction("create-workout", submitWorkout)}
-      disabled={!hasName}
-      style={({ pressed }) => [
-        styles.button,
-        pressed && styles.pressed,
-        {
-          marginTop: "auto",
-          marginBottom: insets.bottom + 16,
-          height: theme.spacing.buttonHeight,
-          backgroundColor: !hasName ? theme.color.disabled : theme.color.accent,
-          borderColor: theme.color.border,
-        },
-      ]}
-    >
-      <Text style={{ color: theme.color.textPrimary }}>Create workout</Text>
-    </Pressable>
+    <View style={{ marginTop: "auto", marginBottom: insets.bottom + 16, gap: 8 }}>
+      {messages.map(message => <Text key={message} accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: theme.color.danger }}>{message}</Text>)}
+      <Pressable
+        {...uiPressEvents("create-workout")}
+        onPress={() => runUiAction("create-workout", submitWorkout)}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityState={{ disabled, busy: isSubmitting }}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.pressed,
+          {
+            height: theme.spacing.buttonHeight,
+            backgroundColor: disabled ? theme.color.disabled : theme.color.accent,
+            borderColor: theme.color.border,
+          },
+        ]}
+      >
+        <Text style={{ color: theme.color.textPrimary }}>Create workout</Text>
+      </Pressable>
+    </View>
   );
 }
 

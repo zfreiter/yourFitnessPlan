@@ -67,6 +67,18 @@ export const SCHEMA_STATEMENTS = [
     synced INTEGER DEFAULT 0
   )`,
 
+  // Additive migration only. Historical records deliberately have no row;
+  // missing lifecycle evidence means uncertain, never local-only.
+  `CREATE TABLE IF NOT EXISTS sync_upload_lifecycle (
+    user_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('local_only','uncertain','confirmed','canceled')),
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    last_attempt_queue_id INTEGER,
+    PRIMARY KEY (user_id, table_name, record_id)
+  )`,
+
   // ---------- EXERCISES (STATIC DATA) ----------
 
   `CREATE TABLE IF NOT EXISTS exercises (

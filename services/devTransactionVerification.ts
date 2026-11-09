@@ -109,6 +109,11 @@ async function seedFixture(
      VALUES (?, ?, 1, 90)`,
     [fixture.roundId, fixture.workoutId],
   );
+  // Keep the fixture's circuit metadata attached to an actual member.
+  await db.runAsync(
+    `UPDATE workout_exercises SET group_type = 'circuit', group_id = ?, circuit_id = ?, round_number = 1 WHERE id = ?`,
+    [fixture.roundId, fixture.roundId, fixture.exerciseId],
+  );
 }
 
 async function seedPendingChildQueue(
@@ -326,6 +331,10 @@ export async function runDevTransactionVerification(): Promise<TestResult[]> {
                   id: fixture.exerciseId,
                   workout_id: fixture.workoutId,
                   exercise_name: "Committed exercise update",
+                  group_type: "circuit",
+                  group_id: fixture.roundId,
+                  circuit_id: fixture.roundId,
+                  round_number: 1,
                   validUnits: [],
                   exercise_order: 1,
                   sets: [],
@@ -508,13 +517,11 @@ export async function runDevTransactionVerification(): Promise<TestResult[]> {
           );
           const queueAfter = await queueRowsForFixture(database, fixture);
           ensure(
-            queueAfter.length === 1,
-            "Expected only the workout delete queue row after child purge.",
+            queueAfter.length === childQueueBefore.length + 6,
+            "Expected retained child history plus six deletion tombstones.",
           );
           ensure(
-            queueAfter[0]?.table_name === "workouts" &&
-              queueAfter[0]?.record_id === fixture.workoutId &&
-              queueAfter[0]?.operation === "delete",
+            queueAfter.some(row => row.table_name === "workouts" && row.record_id === fixture.workoutId && row.operation === "delete"),
             "The remaining queue row is not the expected workout delete.",
           );
           ensure(

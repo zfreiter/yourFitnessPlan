@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 
 import { Workout } from "@/types/interfaces/types";
+import { emptyCircuitMessages } from "@/utils/circuitValidation";
 import { useColorTheme } from "@/context/colorThemeContext";
 import {
   useWorkoutSession,
@@ -34,6 +35,9 @@ interface ActiveWorkoutSessionProps {
 function ActiveWorkoutSessionContent() {
   const { theme } = useColorTheme();
   const { isUpdateNeeded } = useWorkoutSession();
+  const exercises = useWatch<Workout, "exercises">({ name: "exercises" });
+  const circuits = useWatch<Workout, "circuit_rounds">({ name: "circuit_rounds" });
+  const hasEmptyCircuits = emptyCircuitMessages(exercises, circuits).length > 0;
   const workoutType = useWatch<Workout>({
     name: "workoutType",
   });
@@ -108,7 +112,7 @@ function ActiveWorkoutSessionContent() {
 
           <CompleteWorkoutButton />
         </ScrollView>
-        {isUpdateNeeded && <UpdateManagerFabButton />}
+        {(isUpdateNeeded || hasEmptyCircuits) && <UpdateManagerFabButton />}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

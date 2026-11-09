@@ -211,9 +211,22 @@ export function buildWorkoutChanges(
   oldWorkout: Workout,
   newWorkout: Workout,
 ): WorkoutChanges {
+  // Array position is the form's intended order. Only normalize after a real
+  // membership/order edit, so opening legacy workouts does not mark them dirty.
+  const oldExercises = oldWorkout.exercises ?? [];
+  const newExercises = newWorkout.exercises ?? [];
+  if (new Set(newExercises.map(exercise => exercise.id)).size !== newExercises.length) {
+    throw new Error("Duplicate exercise instance IDs in workout form");
+  }
+  const orderingChanged = oldExercises.length !== newExercises.length ||
+    newExercises.some((exercise, index) =>
+      exercise.id !== oldExercises[index]?.id ||
+      exercise.exercise_order !== oldExercises[index]?.exercise_order);
   const exerciseChanges = getExerciseChanges(
-    oldWorkout.exercises ?? [],
-    newWorkout.exercises ?? [],
+    oldExercises,
+    orderingChanged
+      ? newExercises.map((exercise, exercise_order) => ({ ...exercise, exercise_order }))
+      : newExercises,
   );
 
   const setChanges = getRecordChanges(

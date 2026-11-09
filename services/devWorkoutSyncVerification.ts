@@ -530,6 +530,7 @@ export async function runDevWorkoutSyncVerification(): Promise<WorkoutSyncVerifi
           exercise_id: f.catalogExerciseId,
           exercise_name: "Fixture circuit exercise",
           validUnits: ["reps"],
+          circuit_id: f.roundId,
           exercise_order: 1,
           group_id: f.roundId,
           group_type: "circuit",
@@ -981,7 +982,7 @@ export async function runDevWorkoutSyncVerification(): Promise<WorkoutSyncVerifi
         `SELECT COUNT(*) AS count FROM sync_queue WHERE user_id = ? AND table_name = 'workout_exercises' AND record_id = ?`,
         [otherUserId, childId],
       );
-      ensure((ownerChildQueue?.count ?? 0) === 0, "Owner's pending child queue row was not purged.");
+      ensure((ownerChildQueue?.count ?? 0) > 0, "Owner's historical child queue must remain until remote deletion is confirmed.");
       ensure((otherChildQueue?.count ?? 0) === 1, "Another user's queue row was purged.");
       const workout = await database.getFirstAsync(`SELECT id FROM workouts WHERE id = ?`, [f.workoutId]);
       ensure(!workout, "Owned workout remained after delete.");

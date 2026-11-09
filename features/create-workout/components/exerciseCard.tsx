@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
-import { useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 
 import {
@@ -12,17 +12,22 @@ import {
 } from "@/types/interfaces/types";
 import { useColorTheme } from "@/context/colorThemeContext";
 import { SetCardEditor } from "./setCardEditor";
+import { circuitColor } from "@/utils/circuitColors";
 
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
   exerciseOrder: number;
   onDelete?: () => void;
+  movementControls?: ReactNode;
+  groupHeader?: ReactNode;
 }
 
 export const ExerciseCard = ({
   exercise,
   exerciseOrder,
   onDelete,
+  movementControls,
+  groupHeader,
 }: ExerciseCardProps) => {
   const { theme } = useColorTheme();
 
@@ -66,7 +71,7 @@ export const ExerciseCard = ({
       : exercise.group_type === "compound_set"
         ? "#E8923A"
         : exercise.group_type === "circuit"
-          ? "#50B86B"
+          ? circuitColor(exercise.circuit_id ?? exercise.group_id ?? exercise.id, theme.color.surface)
           : theme.color.border;
 
   const handleAddSet = () => {
@@ -100,6 +105,7 @@ export const ExerciseCard = ({
         },
       ]}
     >
+      {groupHeader}
       <View style={styles.row}>
         <View style={styles.left}>
           {exercise.group_type && (
@@ -120,6 +126,8 @@ export const ExerciseCard = ({
           )}
 
           <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
             style={[
               styles.name,
               {
@@ -131,25 +139,26 @@ export const ExerciseCard = ({
           </Text>
         </View>
 
-        {onDelete && (
-          <Pressable
-            onPress={onDelete}
-            hitSlop={8}
-            style={({ pressed }) => ({
-              opacity: pressed ? 0.7 : 1,
-              transform: [{ scale: pressed ? 0.95 : 1 }],
-              width: 24,
-            })}
-          >
-            {({ pressed }) => (
-              <Ionicons
-                name="trash-outline"
-                size={18}
-                color={pressed ? "#ff8a8a" : theme.color.danger}
-              />
-            )}
-          </Pressable>
-        )}
+        <View style={styles.actions}>
+          {movementControls}
+          {onDelete && (
+            <Pressable
+              onPress={onDelete}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${exercise.exercise_name}`}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.7 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+                width: 44,
+                minHeight: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              })}
+            >
+              <Ionicons name="trash-outline" size={20} color={theme.color.danger} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.headerRow}>
@@ -297,7 +306,15 @@ const styles = StyleSheet.create({
 
   left: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     gap: 3,
+  },
+
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
   },
 
   groupLabel: {
